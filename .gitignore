@@ -1,0 +1,56 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs and editors
+.idea/
+.vscode/
+*.iml
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Java / Gradle
+.gradle/
+build/
+out/
+target/
+*.class
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+coverage/
+playwright-report/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local agent and internal-only artifacts
+AGENTS.md
+progress.md
+tasks.json
+prd/
+.cursor/
+.cursorignore
+.cursorrules
+*.cursor.md
+*transcript*
+saas-project-ralph/
+ralph.sh
+resources/
+
