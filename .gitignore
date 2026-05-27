@@ -52,5 +52,4 @@ prd/
 *transcript*
 saas-project-ralph/
 ralph.sh
-resources/
-
+/resources/
