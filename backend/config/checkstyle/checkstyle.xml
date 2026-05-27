@@ -18,6 +18,8 @@
         <module name="NeedBraces"/>
         <module name="OneStatementPerLine"/>
         <module name="UnusedImports"/>
-        <module name="WhitespaceAround"/>
+        <module name="WhitespaceAround">
+            <property name="allowEmptyTypes" value="true"/>
+        </module>
     </module>
 </module>
