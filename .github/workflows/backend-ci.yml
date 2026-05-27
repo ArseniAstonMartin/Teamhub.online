@@ -1,0 +1,122 @@
+# =============================================================================
+# Backend CI — Teamhub.online
+# =============================================================================
+#
+# Required status check:
+#   After merging this file, go to GitHub repo →  Settings → Branches →
+#   Add branch protection rule for `main`.  Under "Require status checks to
+#   pass before merging", search for and add the job named  `backend-ci`.
+#   This ensures no PR can land on main without passing all steps below.
+#
+# =============================================================================
+
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+
+jobs:
+  backend-ci:
+    name: backend-ci
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgis/postgis:16-3.5
+        env:
+          POSTGRES_DB: teamhub_test
+          POSTGRES_USER: teamhub
+          POSTGRES_PASSWORD: teamhub_secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U teamhub -d teamhub_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          # Full history is needed by gitleaks for commit-range scanning
+          fetch-depth: 0
+
+      - name: Set up Java 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('backend/build.gradle.kts', 'backend/settings.gradle.kts', 'backend/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Spotless — check formatting
+        working-directory: backend
+        run: ./gradlew spotlessCheck --no-daemon
+
+      - name: Checkstyle — check style (main sources)
+        working-directory: backend
+        run: ./gradlew checkstyleMain --no-daemon
+
+      - name: Test + JaCoCo coverage report
+        working-directory: backend
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/teamhub_test
+          SPRING_DATASOURCE_USERNAME: teamhub
+          SPRING_DATASOURCE_PASSWORD: teamhub_secret
+          SPRING_DATA_REDIS_HOST: localhost
+          SPRING_DATA_REDIS_PORT: 6379
+          # Disable Testcontainers startup checks; actual containers come from
+          # the GitHub Actions service containers declared above.
+          TESTCONTAINERS_CHECKS_DISABLE: "true"
+        run: ./gradlew test jacocoTestReport --no-daemon
+
+      - name: Enforce 70 % line coverage (jacocoCoverageVerification)
+        working-directory: backend
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/teamhub_test
+          SPRING_DATASOURCE_USERNAME: teamhub
+          SPRING_DATASOURCE_PASSWORD: teamhub_secret
+          SPRING_DATA_REDIS_HOST: localhost
+          SPRING_DATA_REDIS_PORT: 6379
+          TESTCONTAINERS_CHECKS_DISABLE: "true"
+        run: ./gradlew jacocoCoverageVerification --no-daemon
+
+      - name: Upload JaCoCo coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: backend/build/reports/jacoco/test/html/
+          retention-days: 14
+
+      - name: Scan for secrets (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

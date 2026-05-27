@@ -1,6 +1,7 @@
 plugins {
   java
   checkstyle
+  jacoco
   id("com.diffplug.spotless") version "6.25.0"
   id("org.springframework.boot") version "3.5.14"
   id("io.spring.dependency-management") version "1.1.7"
@@ -74,4 +75,37 @@ checkstyle {
 
 tasks.withType<Test> {
   useJUnitPlatform()
+  finalizedBy(tasks.jacocoTestReport)
+}
+
+tasks.jacocoTestReport {
+  dependsOn(tasks.test)
+  reports {
+    xml.required = true
+    html.required = true
+  }
+}
+
+tasks.jacocoCoverageVerification {
+  violationRules {
+    rule {
+      // Enforce 70 % line coverage on all business-logic classes.
+      // Excludes generated code (MapStruct mappers, Lombok, Spring config).
+      excludes =
+          listOf(
+              "com.teamhub.TeamhubApplication",
+              "com.teamhub.config.*",
+              "com.teamhub.*MapperImpl",
+          )
+      limit {
+        counter = "LINE"
+        value = "COVEREDRATIO"
+        minimum = "0.70".toBigDecimal()
+      }
+    }
+  }
+}
+
+tasks.check {
+  dependsOn(tasks.jacocoCoverageVerification)
 }
