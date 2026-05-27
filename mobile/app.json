@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "Teamhub",
+    "slug": "teamhub",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0F172A"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "online.teamhub.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0F172A"
+      },
+      "package": "online.teamhub.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#0F172A"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "$(PRODUCT_NAME) needs access to your photos to upload job site images."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "$(PRODUCT_NAME) needs access to your camera to capture job site photos."
+        }
+      ]
+    ],
+    "scheme": "teamhub",
+    "newArchEnabled": true
+  }
+}

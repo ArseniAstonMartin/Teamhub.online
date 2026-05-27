@@ -86,17 +86,17 @@ tasks.jacocoTestReport {
   }
 }
 
-tasks.jacocoCoverageVerification {
+tasks.jacocoTestCoverageVerification {
   violationRules {
     rule {
       // Enforce 70 % line coverage on all business-logic classes.
       // Excludes generated code (MapStruct mappers, Lombok, Spring config).
       excludes =
-          listOf(
-              "com.teamhub.TeamhubApplication",
-              "com.teamhub.config.*",
-              "com.teamhub.*MapperImpl",
-          )
+        listOf(
+          "com.teamhub.TeamhubApplication",
+          "com.teamhub.config.*",
+          "com.teamhub.*MapperImpl",
+        )
       limit {
         counter = "LINE"
         value = "COVEREDRATIO"
@@ -107,5 +107,5 @@ tasks.jacocoCoverageVerification {
 }
 
 tasks.check {
-  dependsOn(tasks.jacocoCoverageVerification)
+  dependsOn(tasks.jacocoTestCoverageVerification)
 }

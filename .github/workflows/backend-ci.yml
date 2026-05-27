@@ -23,6 +23,10 @@ on:
       - "backend/**"
       - ".github/workflows/backend-ci.yml"
 
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   backend-ci:
     name: backend-ci
@@ -97,7 +101,7 @@ jobs:
           TESTCONTAINERS_CHECKS_DISABLE: "true"
         run: ./gradlew test jacocoTestReport --no-daemon
 
-      - name: Enforce 70 % line coverage (jacocoCoverageVerification)
+      - name: Enforce 70 % line coverage (jacocoTestCoverageVerification)
         working-directory: backend
         env:
           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/teamhub_test
@@ -106,7 +110,7 @@ jobs:
           SPRING_DATA_REDIS_HOST: localhost
           SPRING_DATA_REDIS_PORT: 6379
           TESTCONTAINERS_CHECKS_DISABLE: "true"
-        run: ./gradlew jacocoCoverageVerification --no-daemon
+        run: ./gradlew jacocoTestCoverageVerification --no-daemon
 
       - name: Upload JaCoCo coverage report
         if: always()
