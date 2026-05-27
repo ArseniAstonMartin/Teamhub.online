@@ -1,0 +1,2755 @@
+{
+  "agent_instructions": {
+    "before_start": [
+      "Read this file (tasks.json) and run `git log --oneline -20` to understand recent history",
+      "Choose ONE task with status 'pending' and the highest priority (critical > high > medium > low)",
+      "Within the same priority, prefer the lowest TASK-ID (earlier in the critical path)",
+      "Check that ALL dependencies of the chosen task have status 'done'; if not, pick another task",
+      "Read prd/PRD.md sections referenced by the task description before coding"
+    ],
+    "during_work": [
+      "Work only on the selected task; do not touch unrelated code",
+      "Make small commits after each logical change with descriptive messages",
+      "Add a `TO-DO` comment with a clear question wherever the task needs a human decision (credentials, external accounts, business rules)",
+      "If a task requires a manual user action (for example, making Docker available), stop, leave it pending, and add a short blocker note to that task before asking the user",
+      "Never commit secrets, placeholder tokens, or `paste_your_token_here` literals",
+      "Use English for all code comments, docs, commit messages, and UI strings (UI uses 'Team', code/DB uses 'Tenant')"
+    ],
+    "before_finish": [
+      "Run ALL test_steps from the task end-to-end, not just unit tests",
+      "Run linters, formatters, and the project's full test suite",
+      "Change status to 'done' ONLY after every acceptance_criterion is met and every test_step passes",
+      "Append a dated summary entry to progress.md describing what was built, files touched, and any open TO-DOs",
+      "It is FORBIDDEN to delete, rename, or rewrite tasks — only update the `status` field",
+      "If the task turns out to be too large for one session, leave it 'pending' and add a follow-up note in progress.md instead of partially completing it"
+    ],
+    "status_values": [
+      "pending",
+      "in_progress",
+      "blocked",
+      "done"
+    ],
+    "priority_order": [
+      "critical",
+      "high",
+      "medium",
+      "low"
+    ]
+  },
+  "meta": {
+    "project": "Teamhub.online",
+    "prd_source": "prd/PRD.md",
+    "prd_version": "1.0 (2026-05-22)",
+    "target_release": "MVP v1.0",
+    "monorepo_layout": [
+      "backend/",
+      "web/",
+      "mobile/",
+      "infra/",
+      "prd/",
+      ".github/workflows/"
+    ],
+    "tenancy_terminology": "Use 'Tenant' in code/DB/API/docs; use 'Team' in all user-facing UI copy"
+  },
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "category": "infrastructure",
+      "priority": "critical",
+      "description": "Initialize the monorepo skeleton with top-level folders (backend/, web/, mobile/, infra/, .github/workflows/) and a root README that documents the structure per PRD §21.7. Root .gitignore must exclude Cursor/agent tooling and other local-only internal files from version control.",
+      "acceptance_criteria": [
+        "Folders exist: backend/, web/, mobile/, infra/, .github/workflows/",
+        "Root README.md describes each folder's purpose and references prd/PRD.md as the source of truth (local-only; prd/ is not committed)",
+        "Root .gitignore covers Java, Node, Python, OS junk, IDE files, .env*, and build outputs",
+        "Root .gitignore also excludes Cursor-AI and local internal artifacts: AGENTS.md, progress.md, tasks.json, .cursor/, prd/, saas-project-ralph/, plus common Cursor leftovers (.cursorignore, .cursorrules, agent transcripts, *.cursor.md)",
+        "Root .editorconfig pins LF line endings and UTF-8"
+      ],
+      "test_steps": [
+        "Step 1: Run `ls` at the repo root and confirm all five folders are present",
+        "Step 2: Open README.md and confirm it links to prd/PRD.md and describes the monorepo",
+        "Step 3: Run `git check-ignore -v AGENTS.md progress.md tasks.json .cursor/ prd/ saas-project-ralph/` — each path is ignored",
+        "Step 4: Add a dummy file under node_modules/, target/, build/, or .env and confirm .gitignore excludes it"
+      ],
+      "dependencies": [],
+      "status": "done"
+    },
+    {
+      "id": "TASK-002",
+      "category": "infrastructure",
+      "priority": "critical",
+      "description": "Scaffold the Spring Boot 3.2+ backend project with Gradle, Java 21, and the dependency set locked in PRD §21.1 (Web, Data JPA, Security, Validation, Actuator, Flyway, PostgreSQL driver, Lombok, MapStruct, SpringDoc, Testcontainers)",
+      "acceptance_criteria": [
+        "`backend/build.gradle.kts` declares Java 21, Spring Boot 3.2+, and all dependencies from PRD §21.1",
+        "Project starts with `./gradlew bootRun` and serves `GET /actuator/health` returning 200",
+        "Package layout follows: `com.teamhub.<module>` (auth, tenancy, jobs, customers, schemas, billing, eventing, audit, shared)",
+        "Spotless and Checkstyle Gradle plugins are wired and pass on a fresh checkout"
+      ],
+      "test_steps": [
+        "Step 1: Run `./gradlew clean build` from backend/ — must succeed",
+        "Step 2: Run `./gradlew bootRun` and curl http://localhost:8080/actuator/health — expect HTTP 200 with `{\"status\":\"UP\"}`",
+        "Step 3: Run `./gradlew spotlessCheck checkstyleMain` — must pass with zero violations"
+      ],
+      "dependencies": [
+        "TASK-001"
+      ],
+      "status": "done"
+    },
+    {
+      "id": "TASK-003",
+      "category": "infrastructure",
+      "priority": "critical",
+      "description": "Add docker-compose.dev.yml under infra/ that brings up PostgreSQL 16 + PostGIS, Redis 7, and a MailHog SMTP catcher for local development",
+      "acceptance_criteria": [
+        "`infra/docker-compose.dev.yml` defines services: postgres (with postgis extension preloaded), redis, mailhog",
+        "Postgres exposes 5432, Redis exposes 6379, MailHog exposes 1025 (SMTP) and 8025 (UI)",
+        "Postgres init script enables `postgis` and `pgcrypto` extensions on first boot",
+        "Volumes persist DB and Redis data across `down`/`up` (but not `down -v`)"
+      ],
+      "test_steps": [
+        "Step 1: `docker compose -f infra/docker-compose.dev.yml up -d` — all three services healthy within 30s",
+        "Step 2: `psql -h localhost -U postgres -c 'SELECT postgis_version();'` returns a version string",
+        "Step 3: `redis-cli -h localhost PING` returns `PONG`",
+        "Step 4: Open http://localhost:8025 — MailHog UI loads"
+      ],
+      "dependencies": [
+        "TASK-001"
+      ],
+      "status": "done"
+    },
+    {
+      "id": "TASK-004",
+      "category": "infrastructure",
+      "priority": "critical",
+      "description": "Wire Flyway to the backend with a baseline V1 migration that creates the `tenants` and `users` tables (without RLS yet — RLS is added in TASK-018)",
+      "acceptance_criteria": [
+        "`backend/src/main/resources/db/migration/V1__baseline.sql` exists",
+        "Migration creates `tenants(id uuid pk, name text not null, plan text not null default 'FREE', created_at timestamptz not null default now(), current_period_end timestamptz, stripe_customer_id text)`",
+        "Migration creates `users(id uuid pk, tenant_id uuid fk -> tenants(id), email citext unique, password_hash text, role text not null, name text, is_active boolean not null default true, created_at timestamptz default now())`",
+        "Application boot runs Flyway and the migration appears in `flyway_schema_history`"
+      ],
+      "test_steps": [
+        "Step 1: Start docker compose, then `./gradlew bootRun`",
+        "Step 2: `psql -c '\\dt'` shows `tenants` and `users` tables",
+        "Step 3: `psql -c 'SELECT * FROM flyway_schema_history;'` shows V1 baseline succeeded"
+      ],
+      "dependencies": [
+        "TASK-002",
+        "TASK-003"
+      ],
+      "status": "done"
+    },
+    {
+      "id": "TASK-005",
+      "category": "infrastructure",
+      "priority": "critical",
+      "description": "Scaffold the React 18 + TypeScript + Vite 5 web SPA under web/ with the full stack from PRD §21.2 (TanStack Query 5, Zustand, React Router 6, Axios, Tailwind 3.4, React Hook Form 7 + Zod, shadcn/ui, lucide-react, ESLint, Prettier, Vitest, Playwright)",
+      "acceptance_criteria": [
+        "`web/package.json` declares all dependencies from PRD §21.2 with TypeScript strict mode enabled in tsconfig",
+        "`npm run dev` starts Vite on port 5173 and serves an empty App shell",
+        "Tailwind compiles; `App.tsx` renders a single styled element using `text-slate-900 bg-white` to prove integration",
+        "ESLint, Prettier, and Vitest all run with zero violations on a fresh checkout",
+        "Feature-Sliced Design folders are scaffolded: app/, pages/, widgets/, features/, entities/, shared/"
+      ],
+      "test_steps": [
+        "Step 1: `cd web && npm install && npm run dev` — Vite reports ready",
+        "Step 2: Open http://localhost:5173 — page renders and Tailwind class produces dark navy text on white",
+        "Step 3: `npm run lint && npm run test && npm run typecheck` — all pass",
+        "Step 4: `npx playwright install && npm run test:e2e` — empty suite passes"
+      ],
+      "dependencies": [
+        "TASK-001"
+      ],
+      "status": "done"
+    },
+    {
+      "id": "TASK-006",
+      "category": "ui",
+      "priority": "high",
+      "description": "Install shadcn/ui via its CLI into web/ and customize the design tokens to match PRD §20 (Manrope font, primary blue + indigo + cyan, no gradients/dark mode/glow, soft rounded corners, generous spacing)",
+      "acceptance_criteria": [
+        "shadcn `components.json` configured for path aliases used by the FSD layout",
+        "Tailwind theme tokens defined for: primary blue, indigo, cyan, success green, warning orange, urgent red, navy text, very-light-gray bg",
+        "Manrope font loaded via Google Fonts or self-hosted with `font-display: swap`",
+        "Storybook-style page at `/design-system` shows all primitives (Button, Card, Input, Select, Dialog, Toast, Badge) using the tokens",
+        "No CSS variables for dark mode, no gradient utilities defined"
+      ],
+      "test_steps": [
+        "Step 1: `npm run dev` and navigate to `/design-system` — all primitives render with Manrope and the brand palette",
+        "Step 2: Inspect computed styles — confirm zero gradients, zero glow / box-shadow with blur > 12px, zero dark-mode classes",
+        "Step 3: Run a Playwright visual snapshot of `/design-system` and save the baseline"
+      ],
+      "dependencies": [
+        "TASK-005"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-007",
+      "category": "infrastructure",
+      "priority": "critical",
+      "description": "Scaffold the Expo SDK (latest stable) + React Native + TypeScript mobile app under mobile/ with the stack from PRD §21.3 (React Navigation, TanStack Query 5, Zustand, SecureStore, Expo Notifications, Expo ImagePicker / Camera)",
+      "acceptance_criteria": [
+        "`mobile/package.json` declares Expo, React Native, TypeScript strict, and the listed dependencies",
+        "`npx expo start` launches Metro; the app loads on iOS Simulator and Android Emulator showing a blank but styled screen",
+        "Folder layout: src/screens, src/navigation, src/features, src/entities, src/shared",
+        "EAS Build config (`eas.json`) exists with `development`, `preview`, and `production` profiles"
+      ],
+      "test_steps": [
+        "Step 1: `cd mobile && npm install && npx expo start --tunnel`",
+        "Step 2: Open in iOS Simulator — app builds and shows a placeholder screen",
+        "Step 3: Open in Android Emulator — app builds and shows the same screen",
+        "Step 4: `npx eas build:configure` confirms `eas.json` parses; do not actually run a cloud build in this task"
+      ],
+      "dependencies": [
+        "TASK-001"
+      ],
+      "status": "done"
+    },
+    {
+      "id": "TASK-008",
+      "category": "infrastructure",
+      "priority": "critical",
+      "description": "Create a `.env.example` for each app (backend, web, mobile) listing every required environment variable with safe placeholder values, and document loading in each app's README",
+      "acceptance_criteria": [
+        "`backend/.env.example` lists: DB_URL, DB_USER, DB_PASSWORD, REDIS_URL, JWT_PRIVATE_KEY_PATH, JWT_PUBLIC_KEY_PATH, GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY_PATH, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, AWS_REGION, AWS_S3_BUCKET, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, SENTRY_DSN, GOOGLE_MAPS_API_KEY",
+        "`web/.env.example` lists: VITE_API_BASE_URL, VITE_SENTRY_DSN, VITE_GOOGLE_MAPS_API_KEY",
+        "`mobile/.env.example` lists: EXPO_PUBLIC_API_BASE_URL, EXPO_PUBLIC_SENTRY_DSN, EXPO_PUBLIC_GOOGLE_MAPS_API_KEY",
+        "Each app's README has a 'Local setup' section that says copy .env.example to .env and fill values; .env is gitignored"
+      ],
+      "test_steps": [
+        "Step 1: Confirm `.env` is in .gitignore at root and `git status` shows `.env.example` files only",
+        "Step 2: `grep -R 'paste_your_token' .` returns zero matches",
+        "Step 3: Backend boot fails clearly when a required env var is missing (proves variables are actually read)"
+      ],
+      "dependencies": [
+        "TASK-002",
+        "TASK-005",
+        "TASK-007"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-009",
+      "category": "infrastructure",
+      "priority": "high",
+      "description": "Set up GitHub Actions CI for the backend: lint (Spotless + Checkstyle), unit + integration tests with Testcontainers, build, and SonarQube scan as per PRD §21.6 and §25.2",
+      "acceptance_criteria": [
+        "`.github/workflows/backend-ci.yml` triggers on PR and on push to main",
+        "Pipeline runs: setup-java 21, gradle cache, spotlessCheck, checkstyleMain, test (Testcontainers enabled), jacocoTestReport, and uploads coverage artifact",
+        "Pipeline fails if business-logic coverage is below 70%",
+        "gitleaks step scans for committed secrets",
+        "Required-status check is configured in the repo settings (documented in workflow comments)"
+      ],
+      "test_steps": [
+        "Step 1: Open a PR with a deliberately failing test — CI red, merge blocked",
+        "Step 2: Open a PR with a fake AWS key string — gitleaks step fails the build",
+        "Step 3: Push a clean PR — all steps green, coverage report appears in Actions artifacts"
+      ],
+      "dependencies": [
+        "TASK-002"
+      ],
+      "status": "done"
+    },
+    {
+      "id": "TASK-010",
+      "category": "infrastructure",
+      "priority": "high",
+      "description": "Set up GitHub Actions CI for the web SPA: ESLint, Prettier check, TypeScript typecheck, Vitest unit tests, and Playwright e2e on a built preview",
+      "acceptance_criteria": [
+        "`.github/workflows/web-ci.yml` triggers on changes under `web/**`",
+        "Pipeline steps: setup-node 20, npm ci, lint, typecheck, test, build, playwright install --with-deps, test:e2e against `npm run preview`",
+        "Pipeline uploads Playwright report on failure",
+        "Pipeline fails on any TS error or lint error"
+      ],
+      "test_steps": [
+        "Step 1: Break a type intentionally in web/ — PR fails on typecheck",
+        "Step 2: Fix the type, fail an e2e test instead — PR fails on Playwright with attached HTML report",
+        "Step 3: Restore — pipeline green end-to-end in under 10 minutes"
+      ],
+      "dependencies": [
+        "TASK-005"
+      ],
+      "status": "done"
+    },
+    {
+      "id": "TASK-011",
+      "category": "infrastructure",
+      "priority": "medium",
+      "description": "Set up GitHub Actions CI for mobile: ESLint, TypeScript typecheck, Jest unit tests, and an EAS Build dry-run on `development` profile (no submission)",
+      "acceptance_criteria": [
+        "`.github/workflows/mobile-ci.yml` triggers on changes under `mobile/**`",
+        "Pipeline runs lint, typecheck, and `jest`; EAS dry-run is gated behind a `[mobile-build]` label or weekly schedule to save quota",
+        "Expo token is read from a GitHub secret; absent secret causes a clear skip rather than a failure"
+      ],
+      "test_steps": [
+        "Step 1: Push a mobile-only change — lint + typecheck + jest run within 5 min",
+        "Step 2: Add `[mobile-build]` label — EAS dry-run triggers and finishes without submitting",
+        "Step 3: Confirm the workflow does not run on backend-only or web-only PRs (paths-filter respected)"
+      ],
+      "dependencies": [
+        "TASK-007"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-012",
+      "category": "infrastructure",
+      "priority": "high",
+      "description": "Add Sentry SDKs to backend, web, and mobile, wired to env-var DSNs and with release tagging via the build number / git SHA",
+      "acceptance_criteria": [
+        "Backend: `io.sentry:sentry-spring-boot-starter-jakarta` wired; unhandled exceptions appear in Sentry with tenant_id, user_id, request_id tags",
+        "Web: `@sentry/react` initialized in `src/app/sentry.ts`; source maps uploaded in the release build",
+        "Mobile: `@sentry/react-native` initialized; source maps uploaded by EAS post-build hook",
+        "All three apps emit a release tag of the form `teamhub-<app>@<version>+<gitSha>`",
+        "TO-DO comment marks the Sentry DSN env vars as 'human must provision Sentry projects per PRD §26.2'"
+      ],
+      "test_steps": [
+        "Step 1: Throw a deliberate exception from a backend endpoint — event lands in the Sentry project with `tenant_id` tag",
+        "Step 2: Trigger a React render error in web — event lands tagged with release",
+        "Step 3: Crash the mobile app via a button — event lands in mobile project; source map symbolicates the stack"
+      ],
+      "dependencies": [
+        "TASK-002",
+        "TASK-005",
+        "TASK-007",
+        "TASK-008"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-013",
+      "category": "infrastructure",
+      "priority": "high",
+      "description": "Configure structured JSON logging (SLF4J + Logback JSON encoder) for the backend with PRD §24.6 fields: `tenant_id`, `user_id`, `request_id`, and PII redaction for email and phone",
+      "acceptance_criteria": [
+        "`logback-spring.xml` uses `LogstashEncoder` in prod profile and human-readable encoder in local profile",
+        "MDC keys `tenant_id`, `user_id`, `request_id` are populated by a servlet filter on every request",
+        "A custom Logback converter masks emails to `***@<domain>` and phone numbers in E.164 to `+1*******<last4>`",
+        "A unit test asserts that logging `user@example.com` and `+15551234567` produces the redacted forms"
+      ],
+      "test_steps": [
+        "Step 1: Run backend with `SPRING_PROFILES_ACTIVE=prod` and hit any endpoint — log line is valid JSON with the three MDC keys",
+        "Step 2: Log a phone number deliberately in a test endpoint — output contains `+1*******4567`, not the full number",
+        "Step 3: Run `./gradlew test` — redaction unit test passes"
+      ],
+      "dependencies": [
+        "TASK-002"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-014",
+      "category": "infrastructure",
+      "priority": "medium",
+      "description": "Wire Spring Boot Actuator + Micrometer + Prometheus scrape endpoint per PRD §21.5; expose `/actuator/prometheus` only to the internal network",
+      "acceptance_criteria": [
+        "`/actuator/prometheus` returns metrics in Prometheus exposition format",
+        "Default JVM, HTTP, JDBC, and HikariCP metrics are present",
+        "Custom counter `teamhub.jobs.created.total{tenant_id}` increments on each job creation (registered now even if jobs are wired in a later task — TO-DO marker is acceptable here)",
+        "Actuator security: `/actuator/health` and `/actuator/info` are public; everything else requires the `INTERNAL` actuator role"
+      ],
+      "test_steps": [
+        "Step 1: curl `/actuator/prometheus` without auth — 403 for everything except health/info",
+        "Step 2: curl with the internal role's basic-auth credential (from env) — returns metrics",
+        "Step 3: `curl /actuator/health` — 200 without auth"
+      ],
+      "dependencies": [
+        "TASK-002"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-015",
+      "category": "infrastructure",
+      "priority": "medium",
+      "description": "Write infra/coolify/README.md documenting the deployment topology on Hetzner (Hillsboro) + Coolify per PRD §21.4: VMs, services, networking, TLS via Let's Encrypt, and how to roll back",
+      "acceptance_criteria": [
+        "README documents which VM runs what (app, postgres, redis, reverse-proxy)",
+        "Coolify webhook URL and required env vars are listed (with TO-DO markers for the human to provision actual accounts per PRD §26.2)",
+        "Rollback procedure: how to redeploy a previous Docker image tag in under 5 minutes",
+        "Daily backup procedure documented (PRD §24.3 requires 30-day daily / 90-day weekly retention)"
+      ],
+      "test_steps": [
+        "Step 1: Have a teammate (or the Lead Developer) read README and successfully describe how to roll back without help",
+        "Step 2: Confirm the TO-DO markers point at PRD §26.2 line items",
+        "Step 3: No real Hetzner / Coolify credentials are checked in"
+      ],
+      "dependencies": [
+        "TASK-001"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-016",
+      "category": "functional",
+      "priority": "critical",
+      "description": "Implement the `tenants` table and the Tenant JPA entity + repository, with creation done only by an internal-staff service method (per PRD §6.4 assisted onboarding)",
+      "acceptance_criteria": [
+        "Flyway migration extends the V1 baseline if needed and confirms `tenants` columns match PRD §22",
+        "`Tenant` entity with id (UUID), name, plan (enum FREE/STARTER/TEAM/ENTERPRISE), createdAt, currentPeriodEnd, stripeCustomerId",
+        "`TenantRepository` extends `JpaRepository<Tenant, UUID>`",
+        "`InternalTenantService.provision(name, ownerEmail)` creates a tenant + a single Admin user; method is not exposed via REST in this task"
+      ],
+      "test_steps": [
+        "Step 1: Integration test (Testcontainers) calls `InternalTenantService.provision` and asserts a tenant + admin user row exist with matching tenant_id",
+        "Step 2: Plan column defaults to FREE",
+        "Step 3: Calling provision twice with the same email yields a clear domain error, not a duplicate row"
+      ],
+      "dependencies": [
+        "TASK-004"
+      ],
+      "status": "done"
+    },
+    {
+      "id": "TASK-017",
+      "category": "functional",
+      "priority": "critical",
+      "description": "Implement the `users` entity, `UserRepository`, and `UserService` with BCrypt (cost 12) password hashing per PRD §6.1 and §24.4",
+      "acceptance_criteria": [
+        "`User` entity with id, tenant_id, email (case-insensitive), passwordHash, role (ADMIN/DISPATCHER/TECHNICIAN), name, isActive, createdAt",
+        "`PasswordEncoder` bean configured as BCrypt with strength 12",
+        "`UserService.createUser(...)` hashes the password before persisting; raw password never logged",
+        "Unique constraint enforces one email per tenant (not globally unique — same email can exist in different tenants? — confirm with TO-DO note pointing at PRD §6.5; default to globally unique with a TO-DO marker)"
+      ],
+      "test_steps": [
+        "Step 1: Integration test creates a user; `passwordHash` starts with `$2a$12$` and the raw password is not present in DB",
+        "Step 2: Attempt to create a second user with the same email returns the documented domain error",
+        "Step 3: BCrypt strength is exactly 12 (assert in test)"
+      ],
+      "dependencies": [
+        "TASK-016"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-018",
+      "category": "security",
+      "priority": "critical",
+      "description": "Enable PostgreSQL Row-Level Security on every business table that has `tenant_id`, per PRD §7.2; set `app.current_tenant_id` as a session GUC from a Spring servlet filter that reads the JWT",
+      "acceptance_criteria": [
+        "Flyway migration enables `ROW LEVEL SECURITY` on `users` (and is structured so future tables follow the same pattern via a shared SQL helper)",
+        "RLS policy: `USING (tenant_id = current_setting('app.current_tenant_id', true)::uuid)`",
+        "`TenantContextFilter` (Spring) reads the JWT subject's tenant_id and runs `SET LOCAL app.current_tenant_id = ...` inside the request's transaction",
+        "Without the GUC set, queries against `users` return zero rows even with a valid DB connection (proves the RLS deny-by-default behavior)"
+      ],
+      "test_steps": [
+        "Step 1: Integration test creates two tenants A and B, each with one user; query as tenant A reads only A's user",
+        "Step 2: A direct JDBC query without setting the GUC returns zero rows",
+        "Step 3: A request with a forged JWT pointing at tenant B from tenant A's user still cannot read B's data (deny by RLS, not just by app code)"
+      ],
+      "dependencies": [
+        "TASK-017"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-019",
+      "category": "security",
+      "priority": "critical",
+      "description": "Implement JWT issuance and validation per PRD §6.2: RS256, 15-min access token, 30-day rolling refresh token with server-side revocation list (refresh tokens stored in `refresh_tokens` table)",
+      "acceptance_criteria": [
+        "RS256 signing keypair loaded from env paths (`JWT_PRIVATE_KEY_PATH`, `JWT_PUBLIC_KEY_PATH`); kid rotation supported",
+        "Access token payload contains: sub (user_id), tenant_id, role, exp (15 min), iat, kid",
+        "Refresh token is opaque (random 256-bit string), stored hashed in `refresh_tokens(id, user_id, tenant_id, hash, expires_at, revoked_at)`",
+        "`POST /api/v1/auth/refresh` rotates the refresh token (issues a new one, revokes the old)",
+        "Logout endpoint sets `revoked_at = now()` on the presented refresh token; subsequent use returns 401"
+      ],
+      "test_steps": [
+        "Step 1: Log in via `POST /api/v1/auth/login` with email+password — receive access + refresh tokens",
+        "Step 2: Wait 16 minutes (or fast-forward clock in integration test); access token rejected, refresh succeeds with a new pair",
+        "Step 3: Logout, then attempt refresh — 401 Unauthorized with the documented error code"
+      ],
+      "dependencies": [
+        "TASK-017",
+        "TASK-018"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-020",
+      "category": "security",
+      "priority": "high",
+      "description": "Implement email-based password reset per PRD §6.3: signed token TTL 30 min, rate-limited to 5 attempts per email per hour",
+      "acceptance_criteria": [
+        "`POST /api/v1/auth/forgot-password` accepts an email and emails a signed JWT reset token (TTL 30 min) via the configured SMTP",
+        "`POST /api/v1/auth/reset-password` accepts the token + new password; verifies signature, expiry, and single-use",
+        "Rate limit: 5 forgot-password attempts per email per rolling hour; 6th returns 429 with `Retry-After` header",
+        "Used or expired tokens cannot be reused; second submission returns 400 with code `RESET_TOKEN_USED_OR_EXPIRED`"
+      ],
+      "test_steps": [
+        "Step 1: Trigger forgot-password — MailHog UI shows the email within 5 seconds, link contains the reset token",
+        "Step 2: Click the link, set a new password, log in with it — success",
+        "Step 3: Submit the same reset token a second time — 400 with the documented error code",
+        "Step 4: Hit forgot-password 6 times in under an hour — 6th call returns 429"
+      ],
+      "dependencies": [
+        "TASK-019"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-021",
+      "category": "security",
+      "priority": "high",
+      "description": "Add Google OAuth 2.0 login per PRD §6.1 using Spring Security OAuth2 Client; bind the OAuth identity to an existing user or create a tenant invite acceptance flow",
+      "acceptance_criteria": [
+        "`/oauth2/authorization/google` initiates the flow; success handler issues Teamhub JWTs and redirects to web/app",
+        "If a Google email matches an existing active user, that user is signed in (no new account)",
+        "If the email matches no user but a pending invite exists for that email + tenant, the invite is consumed and the account is activated",
+        "If neither, the flow returns 403 with code `NO_INVITE_FOR_EMAIL` (we do not auto-create accounts)",
+        "Google client ID + secret are env vars (TO-DO marker for human to provision per PRD §26.2)"
+      ],
+      "test_steps": [
+        "Step 1: Configure a test Google client locally; sign in — Teamhub JWT returned",
+        "Step 2: Try a Google email with no Teamhub user and no invite — 403 with the error code",
+        "Step 3: Add an invite for that email + tenant, retry — account activated and signed in"
+      ],
+      "dependencies": [
+        "TASK-019"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-022",
+      "category": "security",
+      "priority": "high",
+      "description": "Add Sign in with Apple per PRD §6.1 (required by App Store guidelines when Google is offered), validating Apple's identity token and applying the same invite logic as TASK-021",
+      "acceptance_criteria": [
+        "Apple Sign-in client secret JWT is generated server-side from `APPLE_TEAM_ID`, `APPLE_KEY_ID`, and the Apple private key",
+        "Mobile flow sends Apple identity token to `POST /api/v1/auth/apple` which verifies signature against Apple JWKs and issues Teamhub JWTs",
+        "Same invite-or-reject behavior as the Google flow",
+        "Lead Developer review is explicitly required before merge per PRD §25.3 — TASK ends with a checklist item the agent must surface"
+      ],
+      "test_steps": [
+        "Step 1: Use a real Apple developer account and a test device (or Apple sandbox) — sign in returns Teamhub JWTs",
+        "Step 2: Invalid identity token returns 401 with `INVALID_APPLE_TOKEN`",
+        "Step 3: Apple identity for an email with no invite returns 403 with `NO_INVITE_FOR_EMAIL`",
+        "Step 4: Agent halts and surfaces the required human review per PRD §25.3"
+      ],
+      "dependencies": [
+        "TASK-019"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-023",
+      "category": "security",
+      "priority": "critical",
+      "description": "Implement the flexible role + permission model from PRD §5.4: `roles`, `permissions`, `role_permissions` join tables, seeded with ADMIN ⊇ DISPATCHER ⊇ TECHNICIAN; method-level `@PreAuthorize` reads from this model, not hard-coded role strings",
+      "acceptance_criteria": [
+        "Tables: `roles(id, code, tenant_id null for built-ins)`, `permissions(id, code)`, `role_permissions(role_id, permission_id)`",
+        "Seeded permissions cover the matrix in PRD §5.2 and §5.3 (job.create, job.read.own, job.read.tenant, job.claim, job.transition.completed, job.delete.hard, schema.edit, automation.edit, user.invite, billing.manage, etc.)",
+        "Spring Security `MethodSecurityExpressionHandler` resolves permission codes; controllers use `@PreAuthorize(\"hasPermission('job.delete.hard')\")` rather than `hasRole('ADMIN')`",
+        "Adding a new role (e.g. `MANAGER` in v2.0) requires zero changes to controllers — only seed data"
+      ],
+      "test_steps": [
+        "Step 1: Integration test asserts an ADMIN has all permissions, DISPATCHER lacks `job.delete.hard`, TECHNICIAN lacks `schema.edit`",
+        "Step 2: Insert a fake `MANAGER` role with a subset of permissions and confirm an endpoint guarded by one of those permissions returns 200 for that role",
+        "Step 3: All 403 responses use the uniform error envelope from PRD §23.4"
+      ],
+      "dependencies": [
+        "TASK-019"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-024",
+      "category": "security",
+      "priority": "critical",
+      "description": "Implement Spring Security configuration with: stateless session, JWT filter, CORS for the web SPA origin, URL-level filters per PRD §5.5 as the second layer, and uniform 401/403/404 behavior",
+      "acceptance_criteria": [
+        "SecurityFilterChain bean with stateless session and JWT auth filter",
+        "Public endpoints: `/api/v1/auth/**`, `/actuator/health`, `/actuator/info`",
+        "All other `/api/v1/**` require a valid JWT",
+        "CORS allowed origin is `https://app.teamhub.online` in prod, `http://localhost:5173` in dev",
+        "Cross-tenant or cross-role access returns 403 with the documented error code, never 404",
+        "Anonymous access to protected routes returns 401 (not 403)"
+      ],
+      "test_steps": [
+        "Step 1: curl protected route without a token — 401 with envelope",
+        "Step 2: curl protected route with a valid JWT for tenant A but referencing a tenant B resource — 403",
+        "Step 3: curl with a wrong-origin Origin header from a non-allow-listed origin — preflight rejected"
+      ],
+      "dependencies": [
+        "TASK-019",
+        "TASK-023"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-025",
+      "category": "integration",
+      "priority": "high",
+      "description": "Implement the uniform error envelope from PRD §23.4 with a `@RestControllerAdvice` that maps Spring exceptions, validation errors (422), domain exceptions, and unknown errors (500) to the envelope",
+      "acceptance_criteria": [
+        "Exception handler returns: `{ \"error\": { \"code\": \"<MACHINE_READABLE>\", \"message\": \"<human readable>\", \"details\": { ... } } }`",
+        "Validation failures aggregate field-level errors under `details.fields`",
+        "Domain exceptions extend a single `DomainException` base with `code` and `httpStatus`",
+        "500s log the full stack with the request_id; the response only includes the request_id, never the stack trace"
+      ],
+      "test_steps": [
+        "Step 1: Submit an invalid login request — 422 with per-field error details",
+        "Step 2: Trigger a domain exception with `code = JOB_ALREADY_CLAIMED` — 409 with that code in the envelope",
+        "Step 3: Force a NPE in a test endpoint — 500 with the envelope, no stack trace in body, full stack in logs"
+      ],
+      "dependencies": [
+        "TASK-024"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-026",
+      "category": "integration",
+      "priority": "high",
+      "description": "Wire SpringDoc OpenAPI 3 to generate `/api/v1/openapi.json` and a Swagger UI on dev/staging only, per PRD §23.5",
+      "acceptance_criteria": [
+        "`/api/v1/openapi.json` returns a valid OpenAPI 3.1 spec covering every controller",
+        "Swagger UI is mounted at `/swagger-ui/index.html` when `spring.profiles.active` includes `dev` or `staging`",
+        "Production profile disables the UI but keeps the JSON endpoint",
+        "Spec includes JWT bearer auth scheme and tags grouped by module (auth, jobs, customers, schemas, billing, eventing)"
+      ],
+      "test_steps": [
+        "Step 1: Run in dev — open Swagger UI, all endpoints listed and authenticatable",
+        "Step 2: Run with `SPRING_PROFILES_ACTIVE=prod` — Swagger UI returns 404, openapi.json still works",
+        "Step 3: Validate the spec with `npx @apidevtools/swagger-cli validate` — passes"
+      ],
+      "dependencies": [
+        "TASK-024"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-027",
+      "category": "infrastructure",
+      "priority": "high",
+      "description": "Create the audit_log table per PRD §19 and an `AuditLogService` that exposes an append-only write API; enforce no-update / no-delete at the DB role level",
+      "acceptance_criteria": [
+        "Flyway migration creates `audit_log(id uuid pk, tenant_id, actor_user_id, action, resource_type, resource_id, before_state jsonb, after_state jsonb, ip_address inet, user_agent text, occurred_at)`",
+        "A dedicated DB role `app_audit_writer` has INSERT only on the table; the app's normal role has SELECT only on it",
+        "`AuditLogService.record(...)` uses the writer role's connection to insert",
+        "RLS enabled on the table same as other tenant tables"
+      ],
+      "test_steps": [
+        "Step 1: Call `record` — row inserted",
+        "Step 2: Attempt `UPDATE audit_log SET action='x' WHERE id=...` as the app role — Postgres permission denied",
+        "Step 3: Same for DELETE — denied"
+      ],
+      "dependencies": [
+        "TASK-018"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-028",
+      "category": "security",
+      "priority": "high",
+      "description": "Add the auth-related audit log entries from PRD §19.2: login, login_failed (with email + IP), logout, password_reset, token_refresh",
+      "acceptance_criteria": [
+        "Successful login emits audit row with `action='auth.login'`",
+        "Failed login emits `action='auth.login_failed'` and `details` contains the attempted email and source IP (PII redaction does NOT apply here per PRD §19.2 — full email is required)",
+        "Logout, password reset, and token refresh each emit a corresponding audit row",
+        "Audit writes never block the auth response (async via Spring `@Async` or the eventing layer once it lands)"
+      ],
+      "test_steps": [
+        "Step 1: Log in successfully — `audit_log` has matching row within 1 s",
+        "Step 2: Log in with a wrong password — `login_failed` row contains the email and IP",
+        "Step 3: Audit failures (e.g. DB hiccup) are logged via Sentry but do not break the auth response"
+      ],
+      "dependencies": [
+        "TASK-027",
+        "TASK-019"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-029",
+      "category": "infrastructure",
+      "priority": "critical",
+      "description": "Create the eventing tables from PRD §22 (`outbox_events`, `processed_events`, `delayed_jobs`) with RLS and the indexes documented in §22.5",
+      "acceptance_criteria": [
+        "Flyway migration creates the three tables with the exact columns from PRD §22",
+        "`outbox_events` index on `(processed_at NULLS FIRST, created_at)` for relay scans",
+        "`delayed_jobs` index on `(status, run_at)`",
+        "`processed_events` partitioned by month per PRD §22.5.6",
+        "RLS enabled on all three tables"
+      ],
+      "test_steps": [
+        "Step 1: Inspect schema — tables and indexes present",
+        "Step 2: Insert rows across two tenants and confirm RLS isolates them",
+        "Step 3: Confirm `processed_events` has a partition for the current month auto-created by the migration"
+      ],
+      "dependencies": [
+        "TASK-018"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-030",
+      "category": "infrastructure",
+      "priority": "critical",
+      "description": "Implement the Transactional Outbox publisher utility: `OutboxPublisher.publish(eventType, aggregateType, aggregateId, payload)` writes to `outbox_events` inside the current business transaction per PRD §22.5.3",
+      "acceptance_criteria": [
+        "Method signature: `void publish(String eventType, String aggregateType, UUID aggregateId, Object payloadPojo)`",
+        "Payload is serialized to JSONB via Jackson; event_type uses `PascalCase` (e.g. `JobSubmitted`)",
+        "Throws if called outside an active transaction (defensive — protects the atomicity guarantee)",
+        "Adds a Postgres `pg_notify('outbox_inserted', '')` notification at end of statement (best-effort)"
+      ],
+      "test_steps": [
+        "Step 1: Integration test wraps `INSERT INTO jobs` + `publish('JobSubmitted', ...)` in one tx and asserts both rows commit or both roll back",
+        "Step 2: Calling `publish` outside a transaction throws the documented exception",
+        "Step 3: Notification is observed by a `LISTEN outbox_inserted` connection in the test"
+      ],
+      "dependencies": [
+        "TASK-029"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-031",
+      "category": "infrastructure",
+      "priority": "critical",
+      "description": "Build the Outbox Relay component per PRD §22.5.3: leader-elected via Redis lock with TTL, listens on `outbox_inserted`, polls every 200 ms as fallback, XADDs to `events:<type>` Redis Streams, then marks `processed_at`",
+      "acceptance_criteria": [
+        "Single leader at a time, enforced by `SET relay:leader <instanceId> NX PX 10000` with periodic refresh",
+        "Reads up to 100 unprocessed rows per tick, ordered by created_at, oldest first",
+        "Each row: `XADD events:<event_type> * id <uuid> tenant_id <uuid> payload <json>` then `UPDATE outbox_events SET processed_at = now()`",
+        "On crash, a new instance takes leadership within 10 s and resumes from the last unprocessed row",
+        "Sentry alert when a row fails to XADD after 5 retries"
+      ],
+      "test_steps": [
+        "Step 1: Submit 50 events; all 50 land in the correct Redis Stream within 1 s of commit",
+        "Step 2: Kill the relay mid-batch; restart; remaining rows are processed without duplicates beyond at-least-once semantics",
+        "Step 3: Run two relay instances; only one acquires leadership at a time (assert via logs)"
+      ],
+      "dependencies": [
+        "TASK-030"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-032",
+      "category": "infrastructure",
+      "priority": "critical",
+      "description": "Implement `AbstractOutboxConsumer` base class with idempotent handling via `processed_events` table per PRD §22.5.6 — all event consumers must extend this",
+      "acceptance_criteria": [
+        "Base class polls Redis Streams via `XREADGROUP` for the configured group + stream",
+        "First action in each iteration: `INSERT INTO processed_events (event_id, consumer_group) VALUES (?, ?) ON CONFLICT DO NOTHING`; if 0 rows inserted, ACK and skip",
+        "Subclass implements `handle(EventEnvelope envelope)`; thrown exceptions leave the message in the PEL for retry",
+        "After 5 failed attempts, message is `XADD`-ed to `events:<type>:dlq` and `XACK`-ed from the original group",
+        "Visibility timeout: messages in PEL longer than 60 s are `XCLAIM`-ed by another consumer"
+      ],
+      "test_steps": [
+        "Step 1: Subclass + integration test: send the same event_id twice — `handle` is called exactly once",
+        "Step 2: Force `handle` to throw 5 times; the 6th delivery lands in the DLQ stream and a Sentry alert fires",
+        "Step 3: Stop a consumer mid-handling; after 60 s a peer consumer claims the message and processes it"
+      ],
+      "dependencies": [
+        "TASK-031"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-033",
+      "category": "infrastructure",
+      "priority": "critical",
+      "description": "Build the Delayed Job Dispatcher per PRD §22.5.4: every 5 s, `ZRANGEBYSCORE delayed_jobs 0 <now> LIMIT 0 100`, atomically `ZREM`, then run handlers; respect `status = 'CANCELLED'` rows in Postgres",
+      "acceptance_criteria": [
+        "Scheduler bean ticks every 5 s using `@Scheduled` with shedlock for single-leader guarantee",
+        "Handler registry keyed by `kind` (e.g. `escalate_unclaimed_job`); plug-in pattern with one `DelayedJobHandler` interface",
+        "Pre-run check: `SELECT status FROM delayed_jobs WHERE id=?`; if `CANCELLED`, mark `DONE` and skip",
+        "On handler error: increment `attempt_count`, set `status='FAILED'` after 5 attempts and Sentry alert",
+        "Sortedset and Postgres row stay in sync: if Postgres row missing, just `ZREM` and continue"
+      ],
+      "test_steps": [
+        "Step 1: Schedule a job for `now + 10 s`; handler runs within 15 s",
+        "Step 2: Schedule a job and `UPDATE delayed_jobs SET status='CANCELLED'` before run-time — handler is not invoked",
+        "Step 3: Schedule a job whose handler always throws; after 5 ticks the row is `FAILED` and a Sentry alert is observed"
+      ],
+      "dependencies": [
+        "TASK-029"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-034",
+      "category": "infrastructure",
+      "priority": "high",
+      "description": "Define event payload Java records under `com.teamhub.eventing.payloads` for every event in PRD §22.5.5 catalog (JobSubmitted, JobClaimed, JobStatusChanged, JobCompleted, QuotaThresholdReached, SubscriptionUpdated, UserInvited, PhotoUploaded)",
+      "acceptance_criteria": [
+        "One Java record per event, annotated with Jackson `@JsonInclude(NON_NULL)` and using `@JsonProperty` snake_case names if needed",
+        "Each record includes: `event_id` (UUID), `tenant_id`, and a `payload`-specific block of fields",
+        "Schemas are append-only by convention — comment on each record class documents this",
+        "Unit tests assert round-trip serialization to/from JSON matches expected shape"
+      ],
+      "test_steps": [
+        "Step 1: Run record tests — all 8 events round-trip",
+        "Step 2: Adding a new field with a default value still parses old payloads (proves append-only forwards-compat)",
+        "Step 3: `grep -R 'PascalCase' backend/src/main/java/.../events` confirms naming convention"
+      ],
+      "dependencies": [
+        "TASK-032"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-035",
+      "category": "infrastructure",
+      "priority": "high",
+      "description": "Add an audit-logger event consumer that subscribes to JobSubmitted, JobClaimed, JobStatusChanged, JobCompleted, UserInvited, SubscriptionUpdated and writes corresponding audit rows per PRD §19.2",
+      "acceptance_criteria": [
+        "Consumer group: `audit-logger`",
+        "For each event type, deterministically maps to an `action` string (e.g. `job.create`, `job.transition`)",
+        "`before_state` / `after_state` populated from the event payload where available",
+        "IP and user agent fields are populated when the producing request supplied them via the event payload"
+      ],
+      "test_steps": [
+        "Step 1: Submit a job — audit row with `action='job.create'` exists within 1 s",
+        "Step 2: Transition the job — audit row with `action='job.transition'` and accurate before/after",
+        "Step 3: Duplicate-delivery test: same event delivered twice yields one audit row"
+      ],
+      "dependencies": [
+        "TASK-027",
+        "TASK-034"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-036",
+      "category": "functional",
+      "priority": "critical",
+      "description": "Implement the `customers` table, entity, repository, and DTOs per PRD §11.1 with PostGIS `geography(Point, 4326)` for location",
+      "acceptance_criteria": [
+        "Flyway migration creates `customers` with the columns from PRD §11.1",
+        "GIST index on `location` for spatial queries",
+        "RLS enabled with the standard tenant policy",
+        "Customer entity uses a PostGIS `org.locationtech.jts.geom.Point` mapping (Hibernate Spatial)"
+      ],
+      "test_steps": [
+        "Step 1: Insert a customer at a Hillsboro lat/lon; `SELECT ST_AsText(location)` returns the expected POINT",
+        "Step 2: Query `customers WHERE ST_DWithin(location, ...)` works and uses the GIST index (verify with EXPLAIN)",
+        "Step 3: Cross-tenant SELECT returns zero rows (RLS check)"
+      ],
+      "dependencies": [
+        "TASK-018"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-037",
+      "category": "functional",
+      "priority": "high",
+      "description": "Implement customer CRUD endpoints under `/api/v1/customers` with pagination, search by name/phone/email, soft-archive, and create-or-upsert-on-phone semantics per PRD §11.3",
+      "acceptance_criteria": [
+        "Endpoints: `GET /customers` (paginated, search by `q`), `GET /customers/{id}`, `POST /customers`, `PATCH /customers/{id}`, `DELETE /customers/{id}` (soft-archive)",
+        "POST: if a customer with the same phone exists in the tenant, upsert (return existing id, update other fields when supplied)",
+        "Dispatcher and Admin can read all customers; Technician sees full list but phone is masked for customers not linked to a job they claimed (per PRD §11.2)",
+        "All responses use the envelope; OpenAPI spec is updated"
+      ],
+      "test_steps": [
+        "Step 1: Create a customer twice with the same phone — second call returns the first id, fields merged",
+        "Step 2: Archive a customer; default list excludes them; `GET /customers?include_archived=true` includes them",
+        "Step 3: As Technician, list customers — phones masked except for those linked to a job assigned to me"
+      ],
+      "dependencies": [
+        "TASK-036",
+        "TASK-024",
+        "TASK-025"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-038",
+      "category": "integration",
+      "priority": "high",
+      "description": "Integrate Google Maps Geocoding API and Places Autocomplete per PRD §8.1 and §11.3 so address fields autofill city/state/zip and geocode to a Point",
+      "acceptance_criteria": [
+        "Backend endpoint `POST /api/v1/geocode` accepts an address line and returns `{city, state, zip, lat, lon}` using Google Geocoding API",
+        "Frontend has a reusable `<AddressAutocomplete>` component that uses Google Places JS SDK and on selection calls the backend to geocode",
+        "Customer create / edit endpoints accept either a free-text address (auto-geocoded server-side) or a structured address + lat/lon",
+        "API key restrictions documented (HTTP referrer for web, IP for server) with a TO-DO marker for the human to lock down in Google Cloud Console"
+      ],
+      "test_steps": [
+        "Step 1: Geocode a known address — response matches expected city/state/zip",
+        "Step 2: In the web app, type an address; suggestions appear; selecting one fills city/state/zip and stores lat/lon",
+        "Step 3: Invalid address returns 400 with `GEOCODE_FAILED`"
+      ],
+      "dependencies": [
+        "TASK-037",
+        "TASK-006"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-039",
+      "category": "functional",
+      "priority": "critical",
+      "description": "Implement the `appointment_schemas` table and `SchemaService` per PRD §8.2, with versioned, append-only field_definitions JSONB",
+      "acceptance_criteria": [
+        "Flyway migration creates `appointment_schemas` with columns from PRD §8.2",
+        "`SchemaService.publishNewVersion(...)` inserts a new row with `version = max(version)+1` and `is_active = true`; previous active row's `is_active` is left true if you choose to maintain multiple-active semantics OR set to false — pick set-to-false and document in code",
+        "Existing jobs continue to reference their `schema_version` and validate against that version, not the latest",
+        "Schemas validate that `depends_on` references an existing field key and that `options_by_parent` keys are all valid parent values"
+      ],
+      "test_steps": [
+        "Step 1: Publish v1 with field `make`; publish v2 adding `model`; v1 is no longer active",
+        "Step 2: Attempt to publish a schema with `depends_on: 'nonexistent_field'` — domain error",
+        "Step 3: A historical job stores `schema_version = 1` and validates against v1 even after v2 is active"
+      ],
+      "dependencies": [
+        "TASK-018"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-040",
+      "category": "functional",
+      "priority": "high",
+      "description": "Bundle the eight predefined schema presets under `backend/src/main/resources/schema-presets/*.json` per PRD §8.4 and §26.1: appliance, ac, electrician, plumber, handyman, roofing, solar, locksmith (with automotive sub-template)",
+      "acceptance_criteria": [
+        "Eight JSON files exist, each conforming to the FieldDefinition shape in PRD §8.2",
+        "The locksmith preset includes the automotive section with `make` as a dropdown of the curated top-5 makes (Ford, Chevrolet, Toyota, Honda, Tesla) + `Other...` free-text, and `model` / `year` as free-text per PRD §8.5",
+        "A Flyway repeatable migration `R__seed_schema_presets.sql` loads the JSON files into a `schema_presets` table on every deploy",
+        "Tenant provisioning (TASK-016) accepts a `preset_key` and instantiates the first `appointment_schemas` row from the chosen preset",
+        "A TO-DO marker asks the human to confirm the final top-5 makes list per PRD §26.1"
+      ],
+      "test_steps": [
+        "Step 1: Provision a tenant with `preset_key=plumber`; the tenant's active schema matches the plumber JSON",
+        "Step 2: Validate every preset JSON with a JSON Schema validator at boot — all pass",
+        "Step 3: Repeatable migration re-runs on deploy without producing duplicate rows"
+      ],
+      "dependencies": [
+        "TASK-039",
+        "TASK-016"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-041",
+      "category": "functional",
+      "priority": "high",
+      "description": "Implement schema editing endpoints `/api/v1/schemas` (Admin-only): list, get, publish new version, deactivate; enforce PRD §5.3 permissions",
+      "acceptance_criteria": [
+        "GET /schemas returns the tenant's schema history",
+        "POST /schemas publishes a new version (validates with TASK-039 rules)",
+        "PATCH /schemas/{id} can mark inactive but never deletes",
+        "Only ADMIN role passes `@PreAuthorize`",
+        "All write operations emit a `SchemaUpdated`-style audit row (use `action='schema.update'`)"
+      ],
+      "test_steps": [
+        "Step 1: As Admin, publish a new version — succeeds; audit row appears",
+        "Step 2: As Dispatcher, attempt the same call — 403",
+        "Step 3: Attempt to delete a schema row — endpoint does not exist (404)"
+      ],
+      "dependencies": [
+        "TASK-040",
+        "TASK-023",
+        "TASK-027"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-042",
+      "category": "functional",
+      "priority": "critical",
+      "description": "Implement the `jobs` table per PRD §22 with all status / sub-status / reason columns, `custom_fields jsonb`, PostGIS location, and `version` column for optimistic locking",
+      "acceptance_criteria": [
+        "Flyway migration creates `jobs` with all columns from PRD §22 and indexes on `(tenant_id, status, scheduled_start)`, `(tenant_id, assigned_technician_id)`",
+        "Job entity uses enums for `status`, `in_progress_substatus`, `pending_reason`, `cancellation_reason`",
+        "`@Version int version` for optimistic locking",
+        "RLS enabled with tenant policy",
+        "Custom-fields JSONB validated against the referenced `appointment_schema` version on insert / update"
+      ],
+      "test_steps": [
+        "Step 1: Insert a job with valid custom fields — succeeds",
+        "Step 2: Insert a job whose custom fields violate a required field on the active schema — domain error 422",
+        "Step 3: Concurrent update test: two transactions modify the same job; second commit raises optimistic-lock exception"
+      ],
+      "dependencies": [
+        "TASK-039",
+        "TASK-036"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-043",
+      "category": "functional",
+      "priority": "critical",
+      "description": "Implement the job state machine from PRD §9 in a `JobStateMachineService` that gates every transition and returns 409 with a machine-readable code on disallowed transitions",
+      "acceptance_criteria": [
+        "Service exposes `transition(jobId, toStatus, actor, payload)` and validates source → target per the table in PRD §9.2",
+        "Disallowed transitions throw `IllegalStateTransitionException` mapped to HTTP 409 with code `INVALID_TRANSITION`",
+        "Successful transitions write to `job_status_history` (new table created in this task) and publish `JobStatusChanged` via the outbox",
+        "Transition `In Progress → Completed` is rejected for Technicians unless the tenant has Close Jobs enabled (TO-DO marker for the tenant-level toggle table — covered in TASK-053)",
+        "Transition table is data-driven (a Java `Map<Pair<Status,Status>, RolePermission>`) — easy to extend"
+      ],
+      "test_steps": [
+        "Step 1: Submitted → Assigned (Technician claim) — succeeds",
+        "Step 2: Submitted → Completed — 409 with `INVALID_TRANSITION`",
+        "Step 3: Completed → anything as Dispatcher — 409",
+        "Step 4: Completed → anything as Admin — succeeds",
+        "Step 5: `job_status_history` row exists for every successful transition"
+      ],
+      "dependencies": [
+        "TASK-042",
+        "TASK-023"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-044",
+      "category": "functional",
+      "priority": "critical",
+      "description": "Implement job CRUD endpoints `/api/v1/jobs`: create (Dispatcher/Admin), read (scoped per role), edit (Dispatcher/Admin), soft-archive (Dispatcher/Admin), hard-delete (Admin only)",
+      "acceptance_criteria": [
+        "GET /jobs returns paginated list with filters: status, assignee, date range, search query, sort",
+        "Technician's GET /jobs returns only jobs assigned to self OR in `Submitted` (shared pool)",
+        "POST /jobs creates a job with status `Submitted` and publishes `JobSubmitted` event in same tx",
+        "PATCH /jobs/{id} edits non-status fields; status changes go through `/transition`",
+        "DELETE /jobs/{id} soft-archives; only Admin can hard-delete (`/jobs/{id}/hard-delete`)"
+      ],
+      "test_steps": [
+        "Step 1: Dispatcher creates a job; `Submitted` event lands in outbox in same tx",
+        "Step 2: Technician GET /jobs returns only own + shared-pool jobs",
+        "Step 3: Dispatcher hard-delete attempt — 403 `INSUFFICIENT_PERMISSION`",
+        "Step 4: Admin hard-delete — 204"
+      ],
+      "dependencies": [
+        "TASK-043",
+        "TASK-030",
+        "TASK-037"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-045",
+      "category": "functional",
+      "priority": "critical",
+      "description": "Implement the shared-pool claim endpoint `POST /api/v1/jobs/{id}/claim` with optimistic locking per PRD §10.2 and the JobClaimed event emission",
+      "acceptance_criteria": [
+        "Single-row atomic UPDATE: `UPDATE jobs SET status='ASSIGNED_TO_TECHNICIAN', assigned_technician_id=:uid, version=version+1 WHERE id=:id AND status='SUBMITTED' AND version=:v`",
+        "If UPDATE returns 0 rows, respond 409 with code `JOB_ALREADY_CLAIMED`",
+        "Successful claim publishes `JobClaimed` via the outbox in the same tx",
+        "Unclaimed job's GET response must not include the customer phone (per PRD §10.1)"
+      ],
+      "test_steps": [
+        "Step 1: Two technicians fire claim concurrently in an integration test — exactly one 200, one 409 with the documented code",
+        "Step 2: Claiming an already-assigned job returns 409",
+        "Step 3: GET an unclaimed job — `customer.phone` field absent or null in the JSON payload"
+      ],
+      "dependencies": [
+        "TASK-044"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-046",
+      "category": "functional",
+      "priority": "high",
+      "description": "Implement the 5-minute escalation flow per PRD §10.3: on JobSubmitted schedule a delayed job; on JobClaimed cancel it; on run, push to all admins if still Submitted",
+      "acceptance_criteria": [
+        "Consumer group `escalation-scheduler` subscribes to `JobSubmitted` and creates a `delayed_jobs` row with `kind='escalate_unclaimed_job'`, `run_at=now()+5min`, plus a ZADD to the sorted set",
+        "Consumer group `escalation-canceler` subscribes to `JobClaimed` and sets the matching `delayed_jobs` row to `status='CANCELLED'`",
+        "Delayed-job handler for `escalate_unclaimed_job` re-reads the job; if still `Submitted`, pushes `JOB NOT HANDLED` to every Admin of the tenant via Expo Push",
+        "Escalation fires within 5 min ± 30 s of the original submission"
+      ],
+      "test_steps": [
+        "Step 1: Create a job, do not claim — within ~5 min all Admins receive a push notification with the documented text",
+        "Step 2: Create a job, claim within 1 min — no escalation push fires (verify by waiting 6 min)",
+        "Step 3: Integration test asserts the delayed_jobs row is `CANCELLED` after a JobClaimed event"
+      ],
+      "dependencies": [
+        "TASK-045",
+        "TASK-033",
+        "TASK-064"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-047",
+      "category": "functional",
+      "priority": "high",
+      "description": "Implement transition-specific endpoints for the technician flow: `POST /jobs/{id}/start`, `POST /jobs/{id}/pending`, `POST /jobs/{id}/done-pending-approval`, `POST /jobs/{id}/complete`",
+      "acceptance_criteria": [
+        "Each endpoint delegates to `JobStateMachineService.transition` and accepts the appropriate sub-status / reason payload",
+        "`/complete` is allowed for Technicians only when the tenant Close Jobs toggle is enabled (PRD §13)",
+        "`/pending` accepts and requires a `pending_reason` from the fixed enum",
+        "Tech can only act on their own assigned jobs (cross-row protected by RLS at row level and a service-level check at field level)",
+        "Each successful call emits a `JobStatusChanged` event"
+      ],
+      "test_steps": [
+        "Step 1: As assigned Technician, start a job — `In Progress` + `Working` sub-status",
+        "Step 2: Pending without reason — 422",
+        "Step 3: Another technician hits any of these endpoints on a job not assigned to them — 403"
+      ],
+      "dependencies": [
+        "TASK-043",
+        "TASK-053"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-048",
+      "category": "functional",
+      "priority": "high",
+      "description": "Add `job_notes` table + endpoints: technician (or any privileged role) can append notes to a job; notes are immutable per PRD §13.2 and §13.4",
+      "acceptance_criteria": [
+        "Flyway creates `job_notes(id, job_id, author_user_id, body text, created_at)` with index `(job_id, created_at desc)`",
+        "RLS via job's tenant_id (or joined via `jobs.tenant_id`)",
+        "POST /jobs/{id}/notes returns 201 with the persisted note (body, timestamp, author name)",
+        "Notes cannot be edited or deleted by anyone — endpoint absent (404)"
+      ],
+      "test_steps": [
+        "Step 1: Add a note as Technician on own job — created",
+        "Step 2: Attempt PUT/DELETE on a note — 404 / 405",
+        "Step 3: Another tenant's user attempts to read the notes — 403"
+      ],
+      "dependencies": [
+        "TASK-044"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-049",
+      "category": "integration",
+      "priority": "critical",
+      "description": "Integrate S3 photo upload via pre-signed URLs per PRD §14.2: `POST /jobs/{id}/photo-upload-url` returns a PUT URL; `POST /jobs/{id}/photos` confirms metadata after upload",
+      "acceptance_criteria": [
+        "Backend uses AWS SDK v2 to generate pre-signed PUT URLs with TTL 5 min and a bucket key of `<tenant_id>/jobs/<job_id>/<uuid>.<ext>`",
+        "Pre-signed URL allowed content types: image/jpeg, png, heic, webp (PRD §14.3)",
+        "Max size 20 MB enforced both via the bucket policy and via the metadata-confirm endpoint",
+        "Confirm endpoint stores width/height/content-type/size_bytes/uploaded_by/taken_at; emits `PhotoUploaded` event",
+        "EXIF stripping happens on first read by serving processed copies (TO-DO marker if deferred to v1.1 via a background job — but stripping at serve time is acceptable in MVP)"
+      ],
+      "test_steps": [
+        "Step 1: Request a pre-signed URL; PUT a 5 MB JPEG to S3 — 200 from S3",
+        "Step 2: Confirm metadata — `job_photos` row created and event emitted",
+        "Step 3: Try to confirm a 25 MB photo — 422 with `PHOTO_TOO_LARGE`",
+        "Step 4: Request a pre-signed URL for `application/pdf` — 422 with `UNSUPPORTED_MIME`"
+      ],
+      "dependencies": [
+        "TASK-044",
+        "TASK-030"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-050",
+      "category": "integration",
+      "priority": "high",
+      "description": "Add S3 multipart upload support for files > 5 MB per PRD §14.4 so flaky-connection retries can resume",
+      "acceptance_criteria": [
+        "Backend endpoints: `POST /jobs/{id}/photo-multipart/start`, `POST /jobs/{id}/photo-multipart/{uploadId}/part/{n}` (returns pre-signed PUT URL for that part), `POST /jobs/{id}/photo-multipart/{uploadId}/complete`",
+        "Mobile chooses multipart when local file size > 5 MB",
+        "Server tracks `multipart_uploads` rows so an interrupted upload can be resumed by a re-fetch of the upload state"
+      ],
+      "test_steps": [
+        "Step 1: Upload a 12 MB photo in 3 parts; complete; metadata row created",
+        "Step 2: Cancel after part 2; restart later — same upload id resumes from part 3",
+        "Step 3: After 24 h, an incomplete upload is aborted via S3 lifecycle policy"
+      ],
+      "dependencies": [
+        "TASK-049"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-051",
+      "category": "functional",
+      "priority": "high",
+      "description": "Implement `automation_rules` table, entity, repository, and Admin CRUD endpoints per PRD §16.2 and §5.3",
+      "acceptance_criteria": [
+        "Flyway creates `automation_rules` with columns from PRD §16.2 + `priority int default 100` for evaluation order",
+        "Endpoints under `/api/v1/automations`: list, get, create, update, delete (soft) — Admin only",
+        "`trigger_fields`, `match_rules`, `actions` validated against a JSON schema and against the active appointment schema's field keys"
+      ],
+      "test_steps": [
+        "Step 1: Admin creates the automotive locksmith rule from PRD §16.4; rule persisted",
+        "Step 2: Dispatcher attempts the same — 403",
+        "Step 3: Update a rule with a `match_rules.make` referencing a field that doesn't exist in the active schema — 422"
+      ],
+      "dependencies": [
+        "TASK-041",
+        "TASK-023"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-052",
+      "category": "functional",
+      "priority": "high",
+      "description": "Implement the automation engine per PRD §16.3: on trigger-field changes during draft job creation/edit, evaluate active rules in priority order; only fill fields the user has not manually edited; mark filled fields with an `auto_filled` flag",
+      "acceptance_criteria": [
+        "Engine endpoint `POST /api/v1/jobs/{draftIdOrPayload}/evaluate-automations` accepts current draft state and returns the suggested patch + per-field `auto_filled: true` markers",
+        "User-edited fields tracked via a `manually_set` set on the draft; engine never overrides those",
+        "First matching rule wins; subsequent rules can fill *different* fields but never overwrite",
+        "Returns the rule id used so the UI can show 'Auto-filled by Rule X' and an undo affordance"
+      ],
+      "test_steps": [
+        "Step 1: PRD §16.4 example: Service='All Keys Lost', Make='Mercedes-Benz', Model='C-Class', Year='2010' → engine fills equipment, description, duration, difficulty, price",
+        "Step 2: Set `description` manually then re-evaluate — engine fills other fields but not description",
+        "Step 3: Two rules match; the higher-priority one wins on overlapping fields"
+      ],
+      "dependencies": [
+        "TASK-051",
+        "TASK-042"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-053",
+      "category": "functional",
+      "priority": "high",
+      "description": "Add the tenant-level `close_jobs_enabled` setting with an Admin-only endpoint and propagation to the state machine and to mobile clients per PRD §5.2 and §9.3",
+      "acceptance_criteria": [
+        "Tenant entity gains `close_jobs_enabled boolean default false`",
+        "`PATCH /api/v1/tenant/settings` allows ADMIN to toggle; emits audit event `tenant.close_jobs.toggled`",
+        "JobStateMachineService consults this flag for the `In Progress → Completed` transition by a Technician",
+        "Mobile fetches tenant settings on app start and on a `tenant.settings.changed` push (or after a 30 s polling fallback) to immediately hide/show the Complete button without app restart"
+      ],
+      "test_steps": [
+        "Step 1: Toggle off — Technician hitting `/complete` gets 403 `CLOSE_JOBS_DISABLED`",
+        "Step 2: Toggle on — same call returns 200",
+        "Step 3: Mobile reflects the toggle within 30 s without restart"
+      ],
+      "dependencies": [
+        "TASK-043",
+        "TASK-023"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-054",
+      "category": "functional",
+      "priority": "medium",
+      "description": "Add tenant invite flow per PRD §6.5: Admin creates an invite for an email + role; backend emails a signed token; invitee accepts via web SPA which sets password (or links Google/Apple)",
+      "acceptance_criteria": [
+        "Flyway creates `invites(id, tenant_id, email, role, token_hash, expires_at, accepted_at)`",
+        "POST /api/v1/invites (Admin) creates an invite, emits `UserInvited` event with the signed token in the payload (consumed by email-sender consumer)",
+        "POST /api/v1/invites/accept consumes a token and creates the user; one-time use; rate-limited per email",
+        "Resend endpoint with cooldown"
+      ],
+      "test_steps": [
+        "Step 1: Admin invites `tech@example.com` as TECHNICIAN — invite row + email arrive in MailHog",
+        "Step 2: Click link, set password, sign in — Technician role, correct tenant_id",
+        "Step 3: Reuse the token — 400 `INVITE_USED_OR_EXPIRED`"
+      ],
+      "dependencies": [
+        "TASK-023",
+        "TASK-034",
+        "TASK-020"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-055",
+      "category": "functional",
+      "priority": "medium",
+      "description": "Add user-management endpoints under `/api/v1/users` for Admin: list, deactivate, reactivate, change role (Admin/Dispatcher/Technician), per PRD §5.2",
+      "acceptance_criteria": [
+        "GET /users (Admin) returns all users in the tenant (paginated)",
+        "POST /users/{id}/deactivate, /reactivate, PATCH /users/{id}/role — Admin only",
+        "Deactivation revokes all refresh tokens immediately",
+        "Cannot deactivate the last remaining Admin in a tenant — 422 `LAST_ADMIN_PROTECTED`"
+      ],
+      "test_steps": [
+        "Step 1: Admin deactivates a Technician — Technician's next API call returns 401 within seconds",
+        "Step 2: Admin changes Dispatcher → Technician — affected user's JWT permissions on next login reflect the change",
+        "Step 3: Deactivate the only Admin — 422 with the documented code"
+      ],
+      "dependencies": [
+        "TASK-023",
+        "TASK-019"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-056",
+      "category": "functional",
+      "priority": "medium",
+      "description": "Add the device_tokens table and `POST /api/v1/devices/register` endpoint to bind an Expo push token to the authenticated user per PRD §15.1",
+      "acceptance_criteria": [
+        "Flyway creates `device_tokens(id, user_id, tenant_id, expo_token unique, platform enum('ios','android'), last_seen_at)`",
+        "POST /devices/register upserts (user_id, expo_token) — same token re-registered just updates `last_seen_at`",
+        "POST /devices/unregister deletes a token (called on logout)",
+        "Token marked stale on Expo `DeviceNotRegistered` error and excluded from future sends"
+      ],
+      "test_steps": [
+        "Step 1: Register a token; row appears",
+        "Step 2: Re-register the same token from the same user — same row, `last_seen_at` updated",
+        "Step 3: Mark token stale via a service method; subsequent push fan-out excludes it"
+      ],
+      "dependencies": [
+        "TASK-019"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-057",
+      "category": "integration",
+      "priority": "high",
+      "description": "Implement an Expo Push provider client and `push-fan-out-technicians` consumer that, on `JobSubmitted`, batches Expo push to all active Technician tokens in the tenant per PRD §15.2",
+      "acceptance_criteria": [
+        "Provider wraps Expo Push HTTP API with batching (max 100 tokens per request), retries, and exponential backoff",
+        "On `DeviceNotRegistered` ticket, the corresponding `device_tokens` row is marked stale (last_seen_at frozen, excluded from future sends)",
+        "Consumer subscribes to `JobSubmitted`; payload includes job_type and address; body is `New job: <job_type> — <address>`",
+        "Push delivery target latency: producer commit → device delivery < 10 s (PRD §15.3)"
+      ],
+      "test_steps": [
+        "Step 1: Submit a job in a tenant with 3 active Technicians; all three devices receive a push within 10 s",
+        "Step 2: Manually invalidate one Expo token; the next submission no longer targets that device and its row is marked stale",
+        "Step 3: Tap the push on the device; the app opens the relevant job card (deep-link param present)"
+      ],
+      "dependencies": [
+        "TASK-056",
+        "TASK-032",
+        "TASK-045"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-058",
+      "category": "functional",
+      "priority": "medium",
+      "description": "Add the `silent-push-other-techs` consumer that, on `JobClaimed`, fires a silent badge-update push to all OTHER Technicians of the tenant per PRD §15.2",
+      "acceptance_criteria": [
+        "Consumer group `silent-push-other-techs` subscribes to `JobClaimed`",
+        "Push is silent (no sound / no body, only a `data` payload signaling the mobile app to refresh)",
+        "Excludes the technician who actually claimed",
+        "Mobile app handles the silent push by invalidating the shared-pool query cache"
+      ],
+      "test_steps": [
+        "Step 1: Tech A claims a job; Tech B's mobile receives a silent push and the shared-pool list updates without a manual refresh",
+        "Step 2: Tech A who claimed does not receive the silent push",
+        "Step 3: Idempotency: re-emit the same JobClaimed event — only one silent push per device"
+      ],
+      "dependencies": [
+        "TASK-057"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-059",
+      "category": "functional",
+      "priority": "medium",
+      "description": "Add the `push-actor` consumer that pushes to the technician when their job moves Done Pending Approval → Completed per PRD §15.2",
+      "acceptance_criteria": [
+        "Consumer group `push-actor` subscribes to `JobStatusChanged`",
+        "Filter: only when from=`DONE_PENDING_APPROVAL` and to=`COMPLETED`",
+        "Push body: `Job <short_id> approved`; deep-link to that job"
+      ],
+      "test_steps": [
+        "Step 1: Dispatcher approves a job; the technician who completed it receives a push within 10 s",
+        "Step 2: Other technicians do not receive this push",
+        "Step 3: Same event delivered twice → one push"
+      ],
+      "dependencies": [
+        "TASK-057"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-060",
+      "category": "integration",
+      "priority": "high",
+      "description": "Set up Stripe Billing products and prices per PRD §17.1 via a one-shot script and document the IDs in env vars (Free, Starter, Team, Enterprise)",
+      "acceptance_criteria": [
+        "`backend/scripts/stripe/seed-products.ts` (or .sh using stripe-cli) creates 4 products and recurring monthly prices via Stripe API",
+        "Resulting price IDs documented as required env vars: STRIPE_PRICE_FREE, STRIPE_PRICE_STARTER, STRIPE_PRICE_TEAM, STRIPE_PRICE_ENTERPRISE",
+        "Script is idempotent (no duplicates on re-run)",
+        "TO-DO marker for the human to run the script against the live Stripe account per PRD §26.2"
+      ],
+      "test_steps": [
+        "Step 1: Run the script against a Stripe test account — 4 products created",
+        "Step 2: Re-run — no duplicates, exit 0",
+        "Step 3: Backend boot fails with a clear message if any of the four price env vars is missing"
+      ],
+      "dependencies": [
+        "TASK-002",
+        "TASK-008"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-061",
+      "category": "integration",
+      "priority": "high",
+      "description": "Implement Stripe Checkout integration: Admin clicks 'Upgrade' → backend creates a Checkout Session pre-bound to the tenant's Stripe Customer and returns the URL; redirect on success/cancel",
+      "acceptance_criteria": [
+        "POST /api/v1/billing/checkout/{priceKey} (Admin) returns `{ url }`",
+        "Success URL: `https://app.teamhub.online/settings/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}`",
+        "Cancel URL: `https://app.teamhub.online/settings/billing?checkout=cancelled`",
+        "Customer creation is lazy: first checkout creates the Stripe Customer and stores `stripe_customer_id` on the tenant"
+      ],
+      "test_steps": [
+        "Step 1: As Admin, hit POST /billing/checkout/team — returns a Stripe-hosted URL",
+        "Step 2: Complete checkout with a test card — tenant's `stripe_customer_id` populated; subscription created",
+        "Step 3: As non-Admin — 403"
+      ],
+      "dependencies": [
+        "TASK-060",
+        "TASK-023"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-062",
+      "category": "integration",
+      "priority": "high",
+      "description": "Implement Stripe Customer Portal access: `POST /api/v1/billing/portal` returns a portal URL bound to the tenant's customer for plan changes / cancellation / payment-method update per PRD §17.2",
+      "acceptance_criteria": [
+        "Admin-only endpoint",
+        "Backend creates a billing portal session and returns the URL",
+        "Portal configuration is set in Stripe dashboard (TO-DO marker for the human)",
+        "Return-to URL is `https://app.teamhub.online/settings/billing`"
+      ],
+      "test_steps": [
+        "Step 1: Admin hits the endpoint and is redirected to the Stripe portal",
+        "Step 2: Cancel a subscription in the portal — webhook updates tenant state within 30 s",
+        "Step 3: Non-Admin — 403"
+      ],
+      "dependencies": [
+        "TASK-061"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-063",
+      "category": "integration",
+      "priority": "critical",
+      "description": "Implement the Stripe webhook handler at `POST /api/v1/billing/webhook` with signature verification and handlers for `customer.subscription.updated`, `customer.subscription.deleted`, and `invoice.payment_failed`",
+      "acceptance_criteria": [
+        "Signature verified with `STRIPE_WEBHOOK_SECRET`; invalid signature → 400",
+        "Handler updates the tenant's `current_plan` and `current_period_end` within the same DB transaction",
+        "Emits a `SubscriptionUpdated` outbox event (consumed by `tenant-plan-updater` for in-app effects + `audit-logger`)",
+        "Failed payment: tenant flagged with `payment_failed_at`; 7-day grace period scheduled via a `delayed_jobs` row that downgrades to Free if not resolved",
+        "Idempotency: same Stripe event id processed twice → no double effect (use `processed_events`-style table or Stripe's `event.id`)"
+      ],
+      "test_steps": [
+        "Step 1: Use Stripe CLI to fire a `customer.subscription.updated` for an existing tenant — plan updates within 30 s",
+        "Step 2: Fire `invoice.payment_failed` — `delayed_jobs` row scheduled for now+7d",
+        "Step 3: Tamper signature — 400; nothing changes in DB"
+      ],
+      "dependencies": [
+        "TASK-061",
+        "TASK-030"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-064",
+      "category": "functional",
+      "priority": "high",
+      "description": "Implement plan-quota enforcement at the API boundary per PRD §17.3: reject job creation when monthly quota exceeded, reject invite when seat count exceeds plan, disable custom schema editor on Free tier",
+      "acceptance_criteria": [
+        "Job create: COUNT(jobs WHERE created_at >= current_period_start) < plan_limit; else 402 `QUOTA_EXCEEDED`",
+        "Invite create: COUNT(active users) < plan_seat_limit; else 402 `SEAT_LIMIT_EXCEEDED`",
+        "Schema editor endpoints (TASK-041) return 402 `PLAN_FEATURE_LOCKED` for Free tier",
+        "Plan limits centralized in a `PlanCatalog` class (not duplicated across modules)"
+      ],
+      "test_steps": [
+        "Step 1: Free tenant on 25 jobs/month limit — 26th job creation → 402",
+        "Step 2: Starter tenant on 5 seats — 6th invite → 402",
+        "Step 3: Free tenant attempts schema edit — 402 `PLAN_FEATURE_LOCKED`"
+      ],
+      "dependencies": [
+        "TASK-044",
+        "TASK-054",
+        "TASK-041",
+        "TASK-063"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-065",
+      "category": "functional",
+      "priority": "medium",
+      "description": "Add the `quota-checker` consumer on `JobSubmitted` that fires `QuotaThresholdReached(80)` and `QuotaThresholdReached(100)` once per billing period per PRD §17.3 and §22.5.7",
+      "acceptance_criteria": [
+        "Consumer keeps a per-tenant period state (in `tenant_quota_state` table) so each threshold fires only once per period",
+        "Cascading event `QuotaThresholdReached` is itself published via the outbox so other consumers (email-admin, in-app-banner) can subscribe",
+        "Period resets when `current_period_end` advances (via `SubscriptionUpdated`)"
+      ],
+      "test_steps": [
+        "Step 1: Reach 80% of quota — Admin email arrives + in-app banner shows; reach 100% — second event fires",
+        "Step 2: Submit additional jobs in the same period — no duplicate notifications",
+        "Step 3: Period rolls over via webhook — counters reset, thresholds re-armed"
+      ],
+      "dependencies": [
+        "TASK-063",
+        "TASK-064",
+        "TASK-034"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-066",
+      "category": "integration",
+      "priority": "medium",
+      "description": "Schedule a daily Stripe reconciliation job that calls Stripe API for every tenant with an active subscription and reconciles plan + `current_period_end` per PRD §28 risk mitigation",
+      "acceptance_criteria": [
+        "Spring `@Scheduled` job runs daily at 03:00 UTC",
+        "Iterates `tenants WHERE stripe_customer_id IS NOT NULL`; fetches subscription; updates plan/period if drifted",
+        "Drift events emit a `SubscriptionDrift` log line (warn) and a Sentry breadcrumb",
+        "Job runs within 5 minutes for the §24.2 target of 500 tenants"
+      ],
+      "test_steps": [
+        "Step 1: Manually mutate a tenant's `current_plan` to be wrong; next day's job (or a forced run) corrects it",
+        "Step 2: Run the job with 500 fake tenants — finishes in < 5 min",
+        "Step 3: Sentry receives a breadcrumb for each drift"
+      ],
+      "dependencies": [
+        "TASK-063"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-067",
+      "category": "functional",
+      "priority": "high",
+      "description": "Implement Admin reports endpoints per PRD §18.1: jobs created/completed/canceled by day/week/month/year, average time-to-claim, average time-to-completion, per-technician completion rate",
+      "acceptance_criteria": [
+        "Endpoints under `/api/v1/reports/...` (Admin and Dispatcher only)",
+        "Heavy aggregations served by Postgres materialized views refreshed every 15 min per PRD §18.2",
+        "Top-level totals cached in Redis with TTL 5 min",
+        "Advanced ranges and per-technician comparisons gated behind Team+ plan (returns 402 `PLAN_FEATURE_LOCKED` otherwise)"
+      ],
+      "test_steps": [
+        "Step 1: Generate a fixture of 1000 jobs across a tenant — reports return correct counts grouped by day",
+        "Step 2: Free tenant calls `/reports/per-technician?compare=true` — 402",
+        "Step 3: Refresh materialized views manually and confirm response data updates"
+      ],
+      "dependencies": [
+        "TASK-044",
+        "TASK-064"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-068",
+      "category": "infrastructure",
+      "priority": "medium",
+      "description": "Create the Postgres materialized views and a refresh job for the reports endpoints per PRD §18.2",
+      "acceptance_criteria": [
+        "Materialized views: `mv_jobs_daily`, `mv_jobs_weekly`, `mv_jobs_monthly`, `mv_tech_completion_rate`, `mv_time_to_claim`, `mv_time_to_completion`",
+        "Each view tenant-scoped (`tenant_id` column kept) and RLS-policied",
+        "Spring `@Scheduled` job runs `REFRESH MATERIALIZED VIEW CONCURRENTLY` every 15 min",
+        "Concurrency requires unique indexes on the views — added in the migration"
+      ],
+      "test_steps": [
+        "Step 1: Boot — views exist with the right columns; refresh job runs",
+        "Step 2: Insert jobs, wait 15 min (or trigger manually) — views reflect the new data",
+        "Step 3: `REFRESH ... CONCURRENTLY` does not block reads — confirmed by parallel SELECT"
+      ],
+      "dependencies": [
+        "TASK-044"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-069",
+      "category": "security",
+      "priority": "high",
+      "description": "Add rate limiting per PRD §24.4 on auth endpoints (5/min/IP) and job claim (10/min/user) using Bucket4j + Redis as the bucket store",
+      "acceptance_criteria": [
+        "Filter or interceptor applies the two rate limits and returns 429 with `Retry-After` and the documented error code",
+        "Bucket state survives a process restart (Redis-backed)",
+        "Configurable per-route limits via application.yml so future endpoints can opt in"
+      ],
+      "test_steps": [
+        "Step 1: Hit /auth/login 6 times in a minute from one IP — 6th call → 429",
+        "Step 2: Hit /jobs/{id}/claim 11 times in a minute as the same user — 11th call → 429",
+        "Step 3: Restart the app; remaining quota in the bucket is preserved"
+      ],
+      "dependencies": [
+        "TASK-019",
+        "TASK-045"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-070",
+      "category": "security",
+      "priority": "high",
+      "description": "Build the CI authorization test matrix from PRD §5.6 as integration tests that must pass on every PR",
+      "acceptance_criteria": [
+        "Tests cover: tech-cannot-read-others-job (same tenant), tech-cannot-read-other-tenant, tech-completed-blocked-without-close-jobs, dispatcher-cannot-hard-delete, dispatcher-cannot-read-other-tenant, admin-A-cannot-read-tenant-B — all expect 403",
+        "Tests use Testcontainers + real Postgres + real RLS",
+        "Pipeline fails if any of the six tests fail"
+      ],
+      "test_steps": [
+        "Step 1: Run `./gradlew test --tests \"*AuthorizationMatrix*\"` — all six pass",
+        "Step 2: Disable RLS on `jobs` table — at least 3 of the 6 tests fail (proves the test is real)",
+        "Step 3: Re-enable RLS — green again"
+      ],
+      "dependencies": [
+        "TASK-018",
+        "TASK-024",
+        "TASK-044"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-071",
+      "category": "security",
+      "priority": "medium",
+      "description": "Implement CCPA data export and data deletion endpoints per PRD §24.5 — Admin-only, returns a JSON dump of all tenant data and triggers a soft deletion that anonymizes PII",
+      "acceptance_criteria": [
+        "GET /api/v1/compliance/export returns a streamed ZIP of JSON files (users, jobs, customers, audit) for the requesting tenant",
+        "POST /api/v1/compliance/erase-customer/{id} replaces PII (name, phone, email, address) with `[REDACTED]` while keeping the row's id and foreign keys intact for referential integrity",
+        "Both endpoints Admin only; every action audited",
+        "TO-DO marker in the privacy policy doc references these endpoints"
+      ],
+      "test_steps": [
+        "Step 1: Admin exports — receives a ZIP containing the expected JSON files",
+        "Step 2: Erase a customer; their jobs still exist but contain `[REDACTED]` PII",
+        "Step 3: Non-Admin attempt — 403"
+      ],
+      "dependencies": [
+        "TASK-037",
+        "TASK-023",
+        "TASK-027"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-072",
+      "category": "ui",
+      "priority": "critical",
+      "description": "Build the web SPA app shell: React Router 6 routes, Axios client with JWT interceptor + refresh-on-401, Zustand auth store, TanStack Query setup, base layout with header + sidebar + content per PRD §20.4",
+      "acceptance_criteria": [
+        "Public routes: `/login`, `/forgot-password`, `/reset-password`, `/accept-invite`",
+        "Protected routes wrapped in an `AuthGate` component that redirects to /login if no valid JWT",
+        "Axios interceptor: attaches `Authorization: Bearer <access>` and on 401 attempts one refresh then retries",
+        "Sidebar shows role-appropriate nav items (Schedule, Jobs, Customers, Reports, Settings)",
+        "Unsaved-changes guard per PRD §20.5 (confirm-before-quit on dirty forms) wired at the router level"
+      ],
+      "test_steps": [
+        "Step 1: Hit a protected URL while signed out — redirected to /login with redirect query param",
+        "Step 2: Sign in — landed on the original URL; access token in memory, refresh in httpOnly cookie or secure storage (justify the choice in code)",
+        "Step 3: Edit a form, try to navigate away — confirm dialog appears"
+      ],
+      "dependencies": [
+        "TASK-006"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-073",
+      "category": "ui",
+      "priority": "critical",
+      "description": "Build the web Login page with email+password, Google OAuth button, and Apple Sign-in button per PRD §6.1 and §20",
+      "acceptance_criteria": [
+        "Form built with React Hook Form + Zod; client-side validation",
+        "Submit hits POST /api/v1/auth/login; on success stores tokens and redirects",
+        "Google + Apple buttons start the OAuth flow (web variant for Apple uses Apple JS SDK)",
+        "Errors shown via shadcn Toast with the envelope `error.message`",
+        "Accessibility: form fields have labels, tab order works, Enter submits, focus ring visible"
+      ],
+      "test_steps": [
+        "Step 1: Valid credentials — redirect to /schedule (or role home)",
+        "Step 2: Wrong password — toast with the envelope message; field-level errors for blank fields",
+        "Step 3: Keyboard-only flow: Tab through fields, press Enter — submits without using mouse"
+      ],
+      "dependencies": [
+        "TASK-072",
+        "TASK-021",
+        "TASK-022"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-074",
+      "category": "ui",
+      "priority": "high",
+      "description": "Build the web Forgot Password + Reset Password flows wired to the backend per PRD §6.3",
+      "acceptance_criteria": [
+        "Forgot Password page accepts an email; on submit shows a generic success message regardless of whether the email exists (anti-enumeration)",
+        "Reset Password page accepts `token` query param; new password + confirm; on success redirects to /login with a success toast",
+        "Both forms use the same shared form components and Zod schemas",
+        "Rate limit feedback from backend (429) renders a friendly toast with a 'try again in N minutes' message"
+      ],
+      "test_steps": [
+        "Step 1: Submit forgot-password — generic success toast; MailHog shows the email",
+        "Step 2: Use the link, set a new password, sign in — works",
+        "Step 3: Spam submit 6 times — 6th submission shows the rate-limit toast"
+      ],
+      "dependencies": [
+        "TASK-073",
+        "TASK-020"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-075",
+      "category": "ui",
+      "priority": "high",
+      "description": "Build the Accept Invite page on web that consumes a signed token and prompts for password (or links Google/Apple) per PRD §6.5",
+      "acceptance_criteria": [
+        "URL: `/accept-invite?token=...`",
+        "Page shows the invitee email + tenant name from the decoded token; password + confirm fields; OR Google/Apple buttons",
+        "On success signs the user in and lands them on their role-appropriate home",
+        "Expired/used token → friendly error page with a 'Contact your admin' message"
+      ],
+      "test_steps": [
+        "Step 1: Admin invites tech@example.com — open the email link → set password → land on /schedule",
+        "Step 2: Reuse the link → friendly error",
+        "Step 3: Accept via Google sign-in — same result, no password set"
+      ],
+      "dependencies": [
+        "TASK-073",
+        "TASK-054"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-076",
+      "category": "ui",
+      "priority": "critical",
+      "description": "Build the web Job List page with filters, sort, pagination, and bulk-selection scaffolding per PRD §12 and §20.4",
+      "acceptance_criteria": [
+        "Filter chips: status, assignee, date range, search query",
+        "Sort by scheduled_start, created_at, status",
+        "Server-side pagination via Spring Pageable; URL-synced query params",
+        "Empty state, loading skeletons, error state per PRD §20.5",
+        "Color is never the only status signal — text + icon + accessible aria-label per PRD §24.7"
+      ],
+      "test_steps": [
+        "Step 1: Apply 3 filters; URL reflects them; refresh preserves them",
+        "Step 2: Page through 100+ jobs — pagination works; skeletons appear during fetch",
+        "Step 3: Screen-reader announces job status via aria-label, not just color"
+      ],
+      "dependencies": [
+        "TASK-072",
+        "TASK-044"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-077",
+      "category": "ui",
+      "priority": "critical",
+      "description": "Build the web Calendar view (day / week / month) using React Big Calendar per PRD §12.1 with drag-and-drop to reschedule",
+      "acceptance_criteria": [
+        "Three views via tabs: Day, Week, Month",
+        "Job cards colored by status (with text label, not only color)",
+        "Drag a job to a new slot calls `PATCH /api/v1/jobs/{id}` with updated `scheduled_start`/`scheduled_end`; persists within 500 ms (PRD §12.3)",
+        "Invalid drag (e.g. dropping a `Completed` job onto a slot is fine; transition rules apply only when dropping into a kanban column — not here) — but if the backend rejects, shake animation + toast",
+        "Time zone always tenant-local (initial v1 uses the user's browser TZ with a settings TO-DO marker)"
+      ],
+      "test_steps": [
+        "Step 1: Drag a job to a new slot in Week view — PATCH fires; UI optimistic; backend ack within 500 ms",
+        "Step 2: Drag a job to a slot the backend rejects (e.g. quota error) — shake + toast; original slot restored",
+        "Step 3: Switch Day/Week/Month — data stays consistent (TanStack Query cache)"
+      ],
+      "dependencies": [
+        "TASK-076"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-078",
+      "category": "ui",
+      "priority": "high",
+      "description": "Build the web Kanban view with columns per PRD §12.1 (Submitted, Assigned, In Progress, Pending, Done Pending Approval, Completed, Canceled) and drag-between-columns that calls the transition endpoints",
+      "acceptance_criteria": [
+        "Drag from one column to another fires the appropriate `/transition` endpoint",
+        "Disallowed transitions are immediately rejected client-side based on a state-machine map mirrored from the backend; otherwise the backend's 409 surfaces a shake + toast",
+        "Cards show: customer name, address, scheduled_start, assignee avatar, status badge",
+        "Drag is keyboard-accessible (PRD §24.7)"
+      ],
+      "test_steps": [
+        "Step 1: Drag Submitted → Canceled — 200, history updated",
+        "Step 2: Drag Submitted → Completed — UI prevents drop (state machine map)",
+        "Step 3: Keyboard: focus a card, press Space, arrows to move, Space to drop — works"
+      ],
+      "dependencies": [
+        "TASK-076",
+        "TASK-043"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-079",
+      "category": "ui",
+      "priority": "critical",
+      "description": "Build the web Job Detail page with all metadata, transition actions per role, notes thread, photos gallery, and audit trail (status history)",
+      "acceptance_criteria": [
+        "Layout: header (customer + status + actions), body (custom fields + notes + photos), sidebar (status history + schedule + assignee)",
+        "Action buttons rendered based on permissions and current state — disallowed actions hidden, not just disabled",
+        "Notes inline composer (Admin / Dispatcher / Technician of own job)",
+        "Photos thumbnail grid with full-size lightbox; each photo shows uploader and taken_at",
+        "Optimistic UI for transitions; rolls back on 409"
+      ],
+      "test_steps": [
+        "Step 1: View as Admin — see all actions; view as a non-assigned Technician — see no actions",
+        "Step 2: Add a note — appears with author + timestamp",
+        "Step 3: Upload a photo via the desktop browser — appears in the gallery within 5 s (PRD §14.4)"
+      ],
+      "dependencies": [
+        "TASK-076",
+        "TASK-043",
+        "TASK-048",
+        "TASK-049"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-080",
+      "category": "ui",
+      "priority": "critical",
+      "description": "Build the web Job Create dialog with the dynamic form rendered from the active tenant `appointment_schemas` definition, including dependent dropdowns per PRD §8.3",
+      "acceptance_criteria": [
+        "Form fields rendered from the schema's `field_definitions` array, sorted by `order`, respecting `type`, `required`, and validation rules",
+        "Dependent fields disabled until parent is set; on parent change, dependent value is cleared (PRD §8.3)",
+        "Address fields use the `<AddressAutocomplete>` from TASK-038",
+        "Submission posts to /jobs and on success closes the dialog and inserts the new job into the calendar/list (optimistic + invalidate query)",
+        "Automation engine called as fields are filled (TASK-052), surfacing 'Auto-filled' badges with undo"
+      ],
+      "test_steps": [
+        "Step 1: Open dialog as Dispatcher — fields match the tenant's active schema",
+        "Step 2: Set a parent dropdown; dependent enables and shows only the configured options; change parent — dependent clears",
+        "Step 3: Submit with a required field empty — inline error + dialog stays open",
+        "Step 4: Submit valid — job appears in list within 1 s"
+      ],
+      "dependencies": [
+        "TASK-077",
+        "TASK-038",
+        "TASK-040",
+        "TASK-052"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-081",
+      "category": "ui",
+      "priority": "high",
+      "description": "Build the web Customer List + Customer Detail pages per PRD §11.2 with search by name/phone/email and the customer's full job history",
+      "acceptance_criteria": [
+        "List page: paginated table, search input (debounced), filter by archived",
+        "Detail page: header (name, contacts, address with map embed), tab strip (Jobs, Notes — read-only in MVP), `Edit` button (Dispatcher / Admin)",
+        "Address edit re-geocodes via TASK-038",
+        "Soft-archive button hides from default list; restore button visible on archived rows"
+      ],
+      "test_steps": [
+        "Step 1: Search by phone last 4 digits — matching customers found",
+        "Step 2: Open detail — job history correctly filtered by `customer_id`",
+        "Step 3: Edit address — Point updated; map embed re-centers"
+      ],
+      "dependencies": [
+        "TASK-072",
+        "TASK-037",
+        "TASK-038"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-082",
+      "category": "ui",
+      "priority": "high",
+      "description": "Build the web Schema Editor page (Admin only) per PRD §8 with field CRUD, ordering, dependent-dropdown configuration, and a 'Save as new version' action",
+      "acceptance_criteria": [
+        "Drag-and-drop reordering of fields",
+        "Add/edit/remove dialog for a field: type, label, key, required, validation, options",
+        "Dependent dropdowns: select parent field, then for each parent value enter allowed child values via a chip input",
+        "Live preview pane shows the rendered job form as the admin edits",
+        "Save publishes a new schema version (TASK-041)"
+      ],
+      "test_steps": [
+        "Step 1: Add a `vehicle_make` dropdown — preview shows it immediately",
+        "Step 2: Add a dependent `vehicle_model` — preview disables it until a make is chosen",
+        "Step 3: Save — new schema version visible in version history; previous version's jobs still load"
+      ],
+      "dependencies": [
+        "TASK-072",
+        "TASK-041"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-083",
+      "category": "ui",
+      "priority": "medium",
+      "description": "Build the web Automation Rules page (Admin only) per PRD §16 with rule list, create/edit dialog, enable toggle, and priority ordering",
+      "acceptance_criteria": [
+        "List shows: name, trigger fields summary, action summary, active toggle",
+        "Rule editor: choose trigger fields (multi-select from schema), define match (key/value pairs per trigger field with operators eq / in / range), define actions (target field + value)",
+        "Priority via drag-and-drop",
+        "Test pane: enter a sample job payload, see which rule(s) match and the resulting auto-fill"
+      ],
+      "test_steps": [
+        "Step 1: Create the PRD §16.4 rule via the UI — saved; visible",
+        "Step 2: Reorder priorities; verify backend reflects the new order",
+        "Step 3: Use the test pane with the sample payload — preview matches what the engine actually produces"
+      ],
+      "dependencies": [
+        "TASK-082",
+        "TASK-051"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-084",
+      "category": "ui",
+      "priority": "high",
+      "description": "Build the web Settings → Users page (Admin only): invite, list, deactivate, change role per PRD §5.2 and §6.5",
+      "acceptance_criteria": [
+        "List: name, email, role, status, last seen",
+        "Invite dialog: email + role; on submit hits TASK-054 endpoint",
+        "Row actions: change role (select), deactivate / reactivate",
+        "Confirm dialog for destructive actions; toast on success/error"
+      ],
+      "test_steps": [
+        "Step 1: Invite a user — invite row appears with status 'Pending'",
+        "Step 2: Change a Dispatcher to Technician — confirm, save, row updates",
+        "Step 3: Deactivate the only Admin — backend 422 surfaces as toast; nothing changes"
+      ],
+      "dependencies": [
+        "TASK-072",
+        "TASK-054",
+        "TASK-055"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-085",
+      "category": "ui",
+      "priority": "high",
+      "description": "Build the web Settings → Billing page (Admin only) showing current plan, usage (seats, jobs this period), and Upgrade / Manage Billing buttons that hit TASK-061/062",
+      "acceptance_criteria": [
+        "Plan card shows: name, monthly price, seat usage X/Y, jobs this period X/Y, current period end",
+        "Banners: 80% / 100% quota warnings; payment failed; grace period countdown",
+        "'Upgrade' opens Stripe Checkout (redirect)",
+        "'Manage billing' opens Stripe Customer Portal (redirect)",
+        "After return from Stripe with `checkout=success`, refetch billing state and show a success toast"
+      ],
+      "test_steps": [
+        "Step 1: Free tenant — Upgrade button visible; clicking it lands on Stripe Checkout",
+        "Step 2: Complete checkout with test card — return; plan now Team; success toast",
+        "Step 3: At 80% quota, banner appears; reach 100%, banner switches to error styling"
+      ],
+      "dependencies": [
+        "TASK-072",
+        "TASK-061",
+        "TASK-062",
+        "TASK-065"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-086",
+      "category": "ui",
+      "priority": "high",
+      "description": "Build the web Settings → Tenant page (Admin only) with the Close Jobs toggle, team display name, and time zone preference",
+      "acceptance_criteria": [
+        "Toggle: Allow Technicians to mark jobs Completed (Close Jobs) — wired to TASK-053",
+        "Editable fields: Team display name, default time zone",
+        "Save button persists; every save audited"
+      ],
+      "test_steps": [
+        "Step 1: Toggle Close Jobs off → Technician mobile reflects the change within 30 s (per TASK-053)",
+        "Step 2: Change team name — appears in header for all users on next refresh",
+        "Step 3: Audit log row exists for the change"
+      ],
+      "dependencies": [
+        "TASK-072",
+        "TASK-053"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-087",
+      "category": "ui",
+      "priority": "medium",
+      "description": "Build the web Reports page (Admin / Dispatcher) with the charts and tables for PRD §18.1 metrics — gating advanced features behind the Team+ plan",
+      "acceptance_criteria": [
+        "Charts: jobs created/completed/canceled over time (line); avg time to claim (number); avg time to completion (number); per-technician completion rate (bar)",
+        "Date range picker (day / week / month / year + custom on Team+)",
+        "Free / Starter tenants see 'Advanced analytics is a Team feature — Upgrade' instead of the per-technician bar chart",
+        "Color is never the only signal in charts (icons / labels supplement)"
+      ],
+      "test_steps": [
+        "Step 1: With fixture data, charts render correct totals against the materialized views",
+        "Step 2: Starter tenant sees the upgrade card instead of advanced charts",
+        "Step 3: Change date range; queries refetch within the cache TTL"
+      ],
+      "dependencies": [
+        "TASK-067",
+        "TASK-085"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-088",
+      "category": "ui",
+      "priority": "high",
+      "description": "Build the internal Teamhub-staff-only admin console per PRD §6.4 and §26.1: separate routes under `/__internal/...` with IP-allow-list and Teamhub-staff-only role check",
+      "acceptance_criteria": [
+        "Routes: /__internal/tenants (list, create), /__internal/tenants/{id} (detail, choose schema preset, create first Admin user, trigger invite)",
+        "Backend access control: a `TEAMHUB_STAFF` role exists outside the tenant model; users with this role can read/write across tenants",
+        "Backend IP allow-list applied via filter; non-allow-listed requests return 404 (not 403, to avoid leaking the surface's existence)",
+        "Routes do NOT appear on `app.teamhub.online` for normal tenant users (front-end gates on TEAMHUB_STAFF claim)"
+      ],
+      "test_steps": [
+        "Step 1: A non-staff user navigating to /__internal/anything sees a generic 404",
+        "Step 2: A staff user from an allow-listed IP can provision a tenant end-to-end (with schema preset selected) and the new Admin receives the invite email",
+        "Step 3: Same staff user from a non-allow-listed IP receives 404"
+      ],
+      "dependencies": [
+        "TASK-016",
+        "TASK-040",
+        "TASK-054",
+        "TASK-072"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-089",
+      "category": "ui",
+      "priority": "medium",
+      "description": "Add web Playwright e2e tests covering critical user journeys per PRD §10.4 and §13.4: sign in → create job → assign → tech claim (mocked) → tech complete → admin approve",
+      "acceptance_criteria": [
+        "Test seeds data via the API, not the UI, to keep tests fast",
+        "Critical journeys covered: login, create-job, claim-via-API + UI reflects, complete + approve",
+        "Tests run on every PR and on a nightly cron",
+        "Test flake rate under 1% over 50 runs"
+      ],
+      "test_steps": [
+        "Step 1: Run `npm run test:e2e` locally — all green",
+        "Step 2: Run 50 times in CI — flakiness < 1%",
+        "Step 3: Break a flow intentionally — corresponding test fails clearly"
+      ],
+      "dependencies": [
+        "TASK-073",
+        "TASK-076",
+        "TASK-079",
+        "TASK-080"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-090",
+      "category": "ui",
+      "priority": "critical",
+      "description": "Build the mobile app shell with React Navigation bottom tabs (Home, Schedule, Clients, Profile) per PRD §13.1 and the design palette from PRD §20.2 (white, blue, no dark mode)",
+      "acceptance_criteria": [
+        "Four-tab bottom navigator scaffolded; each tab is a placeholder screen ready to be filled by later tasks",
+        "Status bar styled light-content-on-white",
+        "App splash screen + icon use the Teamhub brand mark (TO-DO marker for final brand assets)",
+        "App passes `expo doctor` and builds via EAS on iOS + Android in development profile"
+      ],
+      "test_steps": [
+        "Step 1: Launch on iOS Simulator — four tabs visible; tapping each switches the screen",
+        "Step 2: Launch on Android Emulator — same",
+        "Step 3: `eas build --profile development --platform all` succeeds (or is documented as a Lead-approved skip)"
+      ],
+      "dependencies": [
+        "TASK-007",
+        "TASK-006"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-091",
+      "category": "ui",
+      "priority": "critical",
+      "description": "Build the mobile Auth screens: Login (email/password + Google + Apple Sign-in), Forgot Password, with tokens stored in Expo SecureStore per PRD §6.2",
+      "acceptance_criteria": [
+        "Login screen mirrors the web design but optimized for touch",
+        "Google sign-in via Expo `expo-auth-session`",
+        "Apple sign-in via `expo-apple-authentication` (iOS only; Android uses Google as the third-party path)",
+        "Tokens stored via SecureStore; refresh interceptor on the API client handles 401 → refresh → retry",
+        "On sign-in success, the app registers the Expo push token via TASK-056"
+      ],
+      "test_steps": [
+        "Step 1: Sign in with email/password — lands on Home tab",
+        "Step 2: Sign in with Google — same; push token registered (verify a row in `device_tokens`)",
+        "Step 3: Sign in with Apple on iOS — same; on Android the Apple button is hidden"
+      ],
+      "dependencies": [
+        "TASK-090",
+        "TASK-021",
+        "TASK-022",
+        "TASK-056"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-092",
+      "category": "ui",
+      "priority": "high",
+      "description": "Build the mobile Home (dashboard) screen per PRD §13.1: today's job count, jobs done this week, top-level KPIs in a clean bento grid",
+      "acceptance_criteria": [
+        "Three KPI cards: Today, This Week, Pending Approval",
+        "Tapping a KPI navigates to a filtered Schedule",
+        "Pull-to-refresh updates the data",
+        "No gradients, no glow; matches PRD §20 visual language"
+      ],
+      "test_steps": [
+        "Step 1: Sign in with a Technician having 3 jobs today — KPI 'Today' shows 3",
+        "Step 2: Tap 'This Week' — Schedule opens filtered to this week",
+        "Step 3: Pull to refresh — numbers re-fetch"
+      ],
+      "dependencies": [
+        "TASK-091"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-093",
+      "category": "ui",
+      "priority": "critical",
+      "description": "Build the mobile Schedule tab per PRD §13.1 with day/week view of the technician's own jobs PLUS unclaimed shared-pool jobs rendered as red blinking 'ACCEPT THE JOB' cards per PRD §10.1",
+      "acceptance_criteria": [
+        "Day view default; toggle to Week",
+        "Own jobs styled by status; shared-pool jobs render distinct red cards with the label `ACCEPT THE JOB`",
+        "Blinking effect: subtle, accessible (not a strobing flash); respects `prefers-reduced-motion`",
+        "Customer phone is NOT shown on unclaimed cards (PRD §10.1)",
+        "Tapping an unclaimed card opens a confirmation sheet with the Accept Job button"
+      ],
+      "test_steps": [
+        "Step 1: Submit a job from the dispatcher — within seconds a red card appears in the Technician's Schedule",
+        "Step 2: Inspect the card payload — no `customer.phone` field present",
+        "Step 3: Reduce-motion device setting — blink replaced with a static red border + icon"
+      ],
+      "dependencies": [
+        "TASK-092",
+        "TASK-044",
+        "TASK-057"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-094",
+      "category": "functional",
+      "priority": "critical",
+      "description": "Implement the mobile Claim flow: tapping Accept Job calls `POST /jobs/{id}/claim`; on 200 the card transforms into the assigned-job card; on 409 a clear 'Job already claimed' toast appears per PRD §10.1",
+      "acceptance_criteria": [
+        "Button shows a spinner during the request; debounce prevents double-tap",
+        "On 200, navigate to the Job Detail card",
+        "On 409, show a toast and remove the card from the shared pool (also via the silent push from TASK-058)",
+        "Network error: retry with exponential backoff up to 3 attempts; final failure shows 'Please try again' toast"
+      ],
+      "test_steps": [
+        "Step 1: Two simulators claim the same job within one second — one navigates to Job Detail, one sees the toast",
+        "Step 2: Airplane mode → tap Accept — retries; final failure shows the friendly toast and the card stays",
+        "Step 3: Successful claim emits the JobClaimed event in the backend (verify via outbox / audit)"
+      ],
+      "dependencies": [
+        "TASK-093",
+        "TASK-045"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-095",
+      "category": "ui",
+      "priority": "critical",
+      "description": "Build the mobile Job Detail / Job Card screen with the five primary action buttons in the exact order from PRD §13.2: Define ETA, Start the Job, Pay, Add Notes, Attach Result Image",
+      "acceptance_criteria": [
+        "Five buttons in the documented order; all five always visible — disabled (with tooltip) when not applicable in MVP, never hidden, to prevent UI reflow on capability landing",
+        "Pay is disabled in MVP with tooltip 'Coming in v1.1' (no Stripe Connect)",
+        "Customer phone now visible (the card is claimed)",
+        "Address row tappable and triggers TASK-098",
+        "Subtle in-progress timer when status is `In Progress`, in flat professional style (no glow)"
+      ],
+      "test_steps": [
+        "Step 1: Open a claimed job — all five buttons present; Pay is disabled and shows the tooltip",
+        "Step 2: Status is In Progress — timer visible and accurate",
+        "Step 3: Phone number visible and tappable to dial"
+      ],
+      "dependencies": [
+        "TASK-094"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-096",
+      "category": "functional",
+      "priority": "critical",
+      "description": "Implement Define ETA action sheet per PRD §13.2: options 30 / 45 / Custom minutes; sets job sub-status to `On the Way`; SMS to customer is a v1.1 placeholder with a TO-DO marker",
+      "acceptance_criteria": [
+        "Sheet appears on Define ETA tap; selecting 30 or 45 immediately submits; Custom opens a numeric input",
+        "Submission calls a new endpoint `POST /jobs/{id}/eta` (returns updated job, sets `in_progress_substatus = ON_THE_WAY`)",
+        "TO-DO marker references PRD §13.2 v1.1 SMS to the customer",
+        "Status pill on the card updates to `On the Way`"
+      ],
+      "test_steps": [
+        "Step 1: Tap Define ETA → 45 — card shows 'On the Way' within 1 s",
+        "Step 2: Tap Custom → enter 90 → submit — same",
+        "Step 3: TO-DO marker present in code with v1.1 SMS reference"
+      ],
+      "dependencies": [
+        "TASK-095",
+        "TASK-047"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-097",
+      "category": "functional",
+      "priority": "critical",
+      "description": "Implement Start the Job, Pending, Done Pending Approval, and Complete buttons on the mobile job card; each calls the matching transition endpoint per PRD §13.2 and §9.2; Complete is hidden when Close Jobs disabled",
+      "acceptance_criteria": [
+        "Start → POST /jobs/{id}/start (status In Progress, sub-status Working)",
+        "Pending → bottom sheet for reason → POST /jobs/{id}/pending",
+        "Done → POST /jobs/{id}/done-pending-approval",
+        "Complete → POST /jobs/{id}/complete; button hidden when tenant Close Jobs toggle is off (refresh tenant settings on tab focus per TASK-053)",
+        "Optimistic UI; rollback on 409 with shake + toast"
+      ],
+      "test_steps": [
+        "Step 1: Start a job — status updates; timer starts",
+        "Step 2: Toggle Close Jobs off on the web — within 30 s the Complete button disappears on mobile",
+        "Step 3: Done Pending Approval → web shows it; Dispatcher approves → mobile receives the push 'Job approved'"
+      ],
+      "dependencies": [
+        "TASK-096",
+        "TASK-047",
+        "TASK-053"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-098",
+      "category": "functional",
+      "priority": "high",
+      "description": "Implement the address-tap behavior on the mobile job card per PRD §13.3: open the device's default navigator (Apple Maps / Google Maps) with the destination pre-filled",
+      "acceptance_criteria": [
+        "iOS: opens Apple Maps via `maps://?daddr=` or Google Maps via `comgooglemaps://?daddr=` based on user preference (default Apple Maps if Google not installed)",
+        "Android: opens `geo:0,0?q=<lat>,<lon>(label)`",
+        "Long-press on address shows a 'Copy address' option",
+        "If GPS data unavailable, fall back to URL-encoded street address"
+      ],
+      "test_steps": [
+        "Step 1: Tap address on iOS Simulator — Apple Maps opens with the right destination",
+        "Step 2: Tap address on Android — Google Maps opens",
+        "Step 3: Long-press → Copy address — clipboard contains the full address"
+      ],
+      "dependencies": [
+        "TASK-095"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-099",
+      "category": "functional",
+      "priority": "high",
+      "description": "Implement the mobile Add Notes flow per PRD §13.2 with multiline editor and offline queueing per PRD §13.4",
+      "acceptance_criteria": [
+        "Tap Add Notes opens a full-screen editor; save calls POST /jobs/{id}/notes",
+        "Note auto-attributes to the technician and is timestamped",
+        "Offline: notes saved to a local Expo SQLite queue and synced on connectivity; UI shows a 'Pending sync' badge",
+        "Queued notes survive app restart"
+      ],
+      "test_steps": [
+        "Step 1: Add a note online — appears in the job's note thread within 1 s",
+        "Step 2: Airplane mode → add 3 notes → re-enable network — all 3 sync in order",
+        "Step 3: Force-kill app between offline note and reconnect — queue still flushes on next launch"
+      ],
+      "dependencies": [
+        "TASK-095",
+        "TASK-048"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-100",
+      "category": "functional",
+      "priority": "critical",
+      "description": "Implement the mobile Attach Result Image flow per PRD §13.2 and §14: camera capture, S3 pre-signed PUT, metadata confirm; offline retry queue per PRD §13.4 and §14.4",
+      "acceptance_criteria": [
+        "Tap opens camera (expo-camera or expo-image-picker with camera launch)",
+        "Multiple photos per session; each follows: request pre-signed URL → PUT to S3 → confirm metadata",
+        "Files > 5 MB use multipart (TASK-050)",
+        "Offline: queued locally; retried in background; user can leave the job card without canceling the upload",
+        "EXIF stripped before upload (or before serve — pick one and document)"
+      ],
+      "test_steps": [
+        "Step 1: Take a photo online — appears in the web job detail within 5 s",
+        "Step 2: Take 3 photos offline; reconnect — all 3 upload successfully; progress visible in a small upload tray",
+        "Step 3: Take an 8 MB HEIC — multipart used; succeeds"
+      ],
+      "dependencies": [
+        "TASK-095",
+        "TASK-049",
+        "TASK-050"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-101",
+      "category": "functional",
+      "priority": "medium",
+      "description": "Implement mobile Push notification handling: register the Expo token after sign-in, listen for incoming push, deep-link to the relevant job on tap per PRD §15.3",
+      "acceptance_criteria": [
+        "On sign-in, the app obtains the Expo push token and POSTs it to /devices/register",
+        "Foreground notifications: shown as a system toast within the app",
+        "Background tap: app opens to the job detail referenced by the push payload `job_id`",
+        "Silent push from TASK-058 invalidates the shared-pool query cache",
+        "Token rotation handled — on `DeviceNotRegistered` from backend, the app re-requests a token and re-registers"
+      ],
+      "test_steps": [
+        "Step 1: Send a test push from the backend — the device receives it within 10 s",
+        "Step 2: Tap the push — app opens to the correct job",
+        "Step 3: Manually invalidate the device's push token and trigger the next push — backend marks stale; app re-registers on next foreground"
+      ],
+      "dependencies": [
+        "TASK-091",
+        "TASK-057"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-102",
+      "category": "ui",
+      "priority": "medium",
+      "description": "Build the mobile Clients tab per PRD §13.1 and §11.2: read-only customer list filtered to customers the technician has worked with, with read-only customer detail",
+      "acceptance_criteria": [
+        "List: name, last job date, address line; search by name",
+        "Detail: contact info (phone revealed only for jobs claimed by this tech), address (taps open maps), job history filtered to this tech",
+        "Pull-to-refresh; pagination on scroll"
+      ],
+      "test_steps": [
+        "Step 1: Open Clients — see only customers tied to my jobs",
+        "Step 2: Tap a customer with one of my claimed jobs — phone visible",
+        "Step 3: Tap a customer with no claimed-by-me job (shouldn't appear, but if it does) — phone masked"
+      ],
+      "dependencies": [
+        "TASK-091",
+        "TASK-037"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-103",
+      "category": "ui",
+      "priority": "medium",
+      "description": "Build the mobile Profile tab per PRD §13.1 with account info, sign-out, and a way to unregister the device push token on sign-out",
+      "acceptance_criteria": [
+        "Shows name, email, role, tenant (Team) name",
+        "Sign-out button: revokes refresh token via /auth/logout, deletes secure-storage tokens, unregisters Expo token via /devices/unregister, routes back to Login",
+        "About section with app version + Sentry-friendly device id"
+      ],
+      "test_steps": [
+        "Step 1: Open Profile — info correct",
+        "Step 2: Sign out — back to Login; secure storage cleared",
+        "Step 3: After sign-out, sending a push to the previously registered token returns DeviceNotRegistered server-side"
+      ],
+      "dependencies": [
+        "TASK-091"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-104",
+      "category": "infrastructure",
+      "priority": "medium",
+      "description": "Wire Prometheus + Grafana + Loki + Grafana Alloy on the Coolify-managed VMs per PRD §21.5 and document the dashboards",
+      "acceptance_criteria": [
+        "Compose files under `infra/observability/` for Prometheus, Grafana, Loki, Alloy",
+        "Prometheus scrapes the backend `/actuator/prometheus` endpoint",
+        "Loki receives JSON logs from Alloy",
+        "Grafana provisioned with at least three dashboards: API latency, JVM, Event throughput (outbox row age, Redis Streams length, delayed-job lag)",
+        "TO-DO markers for the human to provision domains and TLS"
+      ],
+      "test_steps": [
+        "Step 1: Bring the stack up locally; Grafana shows live metrics from the running backend",
+        "Step 2: Logs from a request appear in Loki within 5 s",
+        "Step 3: Trigger 100 events; the Event-throughput dashboard reflects the spike"
+      ],
+      "dependencies": [
+        "TASK-013",
+        "TASK-014"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-105",
+      "category": "infrastructure",
+      "priority": "medium",
+      "description": "Set up daily Postgres backups with 30-day daily / 90-day weekly retention per PRD §24.3, plus a quarterly restore drill checklist",
+      "acceptance_criteria": [
+        "Cron-based backup script (`pg_dump`-based) on the Postgres VM uploads to a separate object store",
+        "Retention policy enforced by lifecycle rules: daily kept 30 days, Sunday-weekly kept 90 days",
+        "Restore-drill checklist lives in `infra/runbooks/restore-drill.md`",
+        "Slack / email alert on backup failure"
+      ],
+      "test_steps": [
+        "Step 1: Force a backup run; verify the resulting artifact in the object store",
+        "Step 2: Restore the backup into a scratch DB and run a sanity SELECT on `tenants`",
+        "Step 3: Fail a backup intentionally — alert fires"
+      ],
+      "dependencies": [
+        "TASK-104"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-106",
+      "category": "security",
+      "priority": "medium",
+      "description": "Add gitleaks to CI and a pre-commit hook so committed secrets fail the build and the local commit per PRD §24.4 and §28",
+      "acceptance_criteria": [
+        "`.gitleaks.toml` configured with rules for AWS, Stripe, Google, Apple, Expo, generic high-entropy tokens",
+        "GitHub Action `security-secrets-scan.yml` runs gitleaks on every PR; failure blocks merge",
+        "Lefthook or husky pre-commit hook runs gitleaks against staged files",
+        "Documentation in `infra/runbooks/secrets.md` for the human to rotate credentials when a leak is detected"
+      ],
+      "test_steps": [
+        "Step 1: Commit a fake `AKIA1234567890ABCDEF` AWS key locally — pre-commit blocks",
+        "Step 2: Push the same to CI — Action fails",
+        "Step 3: Add the key to `.gitleaks.toml` allow-list (a legitimate sample) — both pass"
+      ],
+      "dependencies": [
+        "TASK-009"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-107",
+      "category": "infrastructure",
+      "priority": "medium",
+      "description": "Wire SonarQube to the backend CI per PRD §21.6: scan, fail on blocker / critical, surface coverage",
+      "acceptance_criteria": [
+        "SonarQube scanner Gradle plugin configured",
+        "CI job runs `./gradlew sonar` against the project's quality gate",
+        "Quality gate: no blockers, no critical issues, coverage ≥ 70% on business logic",
+        "TO-DO marker for the human to provision SonarCloud or a self-hosted Sonar"
+      ],
+      "test_steps": [
+        "Step 1: Introduce a blocker (e.g. NPE deref) — PR fails the gate",
+        "Step 2: Fix it — gate passes",
+        "Step 3: Coverage report visible in the Sonar UI"
+      ],
+      "dependencies": [
+        "TASK-009"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-108",
+      "category": "security",
+      "priority": "high",
+      "description": "Add CSP headers, secure cookie flags, and an OWASP Top 10 pre-launch checklist runbook per PRD §24.4",
+      "acceptance_criteria": [
+        "Backend sets headers: `Content-Security-Policy`, `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer-when-downgrade`, `X-Frame-Options: DENY`",
+        "Any cookie-based auth paths set `Secure; HttpOnly; SameSite=Strict`",
+        "CSRF protection enabled for any cookie-session endpoint",
+        "Runbook `infra/runbooks/owasp-top-10.md` enumerates the 10 risks with project-specific mitigations and verification commands"
+      ],
+      "test_steps": [
+        "Step 1: curl headers on any response — all five security headers present",
+        "Step 2: Try `<iframe src=app.teamhub.online>` — blocked by X-Frame-Options",
+        "Step 3: Runbook reviewed by Lead Developer with all checkboxes resolved before launch"
+      ],
+      "dependencies": [
+        "TASK-024"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-109",
+      "category": "infrastructure",
+      "priority": "medium",
+      "description": "Performance: profile and add indexes / `@EntityGraph` / FETCH JOIN to eliminate N+1 problems in hot endpoints (jobs list, customer list, calendar feed) per PRD §24.1",
+      "acceptance_criteria": [
+        "Run JMH or a Gatling smoke at 10x the §24.2 burst target and document p95 latencies in `infra/benchmarks/`",
+        "Hot read endpoints meet p95 < 200 ms with realistic fixtures",
+        "Hot write endpoints meet p95 < 500 ms",
+        "Hibernate statistics enabled in test profile and asserted in tests for the no-N+1 invariant"
+      ],
+      "test_steps": [
+        "Step 1: Seed 1000 jobs in a tenant; hit GET /jobs?status=Submitted — p95 < 200 ms locally",
+        "Step 2: Run the no-N+1 integration test (Hibernate statistics expectation) — passes",
+        "Step 3: EXPLAIN ANALYZE on the slowest query — uses the expected indexes"
+      ],
+      "dependencies": [
+        "TASK-044",
+        "TASK-067"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-110",
+      "category": "infrastructure",
+      "priority": "medium",
+      "description": "Load-test the shared-pool claim flow at 50 concurrent claims per PRD §28 risk and document the result",
+      "acceptance_criteria": [
+        "Gatling or k6 scenario: 50 virtual technicians race to claim a single job",
+        "Exactly one HTTP 200, 49 HTTP 409 with `JOB_ALREADY_CLAIMED`",
+        "p99 claim latency under 1 s",
+        "Report committed to `infra/benchmarks/claim-race.md`"
+      ],
+      "test_steps": [
+        "Step 1: Run the scenario locally against a Testcontainers backend",
+        "Step 2: Aggregate the report — counts match the criteria",
+        "Step 3: Repeat 5 times — consistent results across runs"
+      ],
+      "dependencies": [
+        "TASK-045"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-111",
+      "category": "infrastructure",
+      "priority": "medium",
+      "description": "Add eventing observability: Sentry / Grafana alerts on outbox row age, Redis Streams length, delayed-job lag, DLQ entries per PRD §22.5.9",
+      "acceptance_criteria": [
+        "Prometheus metrics: `outbox_unprocessed_seconds_max`, `redis_stream_length{stream}`, `delayed_jobs_overdue`, `dlq_entries_total{stream}`",
+        "Grafana alerts (or Sentry) fire when: outbox row age > 5 min, any DLQ has new entries, delayed-job lag > 60 s",
+        "Each alert has an on-call runbook reference"
+      ],
+      "test_steps": [
+        "Step 1: Pause the relay; outbox row age climbs; alert fires within 5 min",
+        "Step 2: Force a handler to fail 5 times; DLQ entry → alert",
+        "Step 3: Drift the system clock back; delayed jobs lag; alert"
+      ],
+      "dependencies": [
+        "TASK-031",
+        "TASK-032",
+        "TASK-033",
+        "TASK-104"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-112",
+      "category": "security",
+      "priority": "medium",
+      "description": "Implement Crash-survival test for the outbox per PRD §22.5.9: a Testcontainers test crashes the process between the business write and the Redis XADD and asserts the relay catches up on restart with no duplicates beyond at-least-once semantics",
+      "acceptance_criteria": [
+        "Testcontainers test injects a fault after commit but before relay XADD",
+        "Restart the relay (or just resume); the event lands exactly as expected",
+        "`processed_events` ensures consumers do not double-handle"
+      ],
+      "test_steps": [
+        "Step 1: Run the crash-survival test — green",
+        "Step 2: Disable the de-dup table and rerun the duplicate-delivery scenario — fails as expected (sanity)",
+        "Step 3: Re-enable and assert exactly one side effect"
+      ],
+      "dependencies": [
+        "TASK-031",
+        "TASK-032"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-113",
+      "category": "ui",
+      "priority": "medium",
+      "description": "Add full keyboard accessibility and WCAG 2.1 AA targets to the web app per PRD §24.7: focus rings, ARIA labels, semantic HTML, contrast ratios verified",
+      "acceptance_criteria": [
+        "Every interactive element reachable via keyboard with a visible focus ring (no `outline: none` without a replacement)",
+        "All status badges include text + icon; aria-label describes the status",
+        "Color contrast ≥ 4.5:1 for text per WCAG AA; verified with `@storybook/addon-a11y` or `axe-core` in Playwright tests",
+        "Skip-to-content link on every page"
+      ],
+      "test_steps": [
+        "Step 1: Run `npm run test:a11y` (axe-core Playwright) — zero violations on key pages",
+        "Step 2: Navigate the entire job-create flow with keyboard only — succeeds",
+        "Step 3: Toggle Windows High Contrast — UI remains usable"
+      ],
+      "dependencies": [
+        "TASK-076",
+        "TASK-080"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-114",
+      "category": "ui",
+      "priority": "medium",
+      "description": "Add mobile-specific accessibility: dynamic-type / large-text support, VoiceOver/TalkBack labels on the five action buttons, and reduced-motion fallbacks per PRD §24.7",
+      "acceptance_criteria": [
+        "All five primary buttons have `accessibilityLabel` + `accessibilityHint`",
+        "VoiceOver reads job status as text + sub-status, not just color",
+        "Reduced-motion swaps the blinking red card for a static red border + icon",
+        "Dynamic type scales the UI without clipping critical buttons"
+      ],
+      "test_steps": [
+        "Step 1: Enable VoiceOver; navigate a job card; labels are announced clearly",
+        "Step 2: Enable Reduce Motion; shared-pool cards no longer blink",
+        "Step 3: Largest Dynamic Type setting; all five buttons remain visible and tappable"
+      ],
+      "dependencies": [
+        "TASK-095"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-115",
+      "category": "ui",
+      "priority": "low",
+      "description": "Add a placeholder Messages tab on mobile that says 'Coming in v1.2' with a friendly illustration, so the bottom nav already reflects the long-term IA per PRD §13.1",
+      "acceptance_criteria": [
+        "Tab visible only when a feature-flag `v1_2_preview = false` is set false (default true: tab hidden), so we can toggle the placeholder on/off",
+        "TO-DO marker explicitly references PRD §13.1 v1.2+ chat plans"
+      ],
+      "test_steps": [
+        "Step 1: Default build — only 4 tabs (Home, Schedule, Clients, Profile)",
+        "Step 2: Flip the flag — 5th tab appears with the placeholder screen",
+        "Step 3: Flip back — tab disappears"
+      ],
+      "dependencies": [
+        "TASK-090"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-116",
+      "category": "ui",
+      "priority": "low",
+      "description": "Add a placeholder Calls tab on mobile that says 'Coming in v1.2' (Twilio voice) per PRD §13.1, behind the same feature flag as TASK-115",
+      "acceptance_criteria": [
+        "Same flag as TASK-115; placeholder copy references PRD §13.1",
+        "Does not include any Twilio code or credentials — purely a UI placeholder"
+      ],
+      "test_steps": [
+        "Step 1: Flag on — tab visible with placeholder",
+        "Step 2: Flag off — tab hidden",
+        "Step 3: Confirm zero Twilio SDK imports in mobile/"
+      ],
+      "dependencies": [
+        "TASK-115"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-117",
+      "category": "ui",
+      "priority": "medium",
+      "description": "Wire 'New job in shared pool' push payload into the web app's existing job list / calendar so dispatchers/admins see new submissions appear in near real time (poll-based in MVP — TASK-117 readies a 30 s TanStack Query refetch interval) per PRD §22.5.5 and §13",
+      "acceptance_criteria": [
+        "Job-list and calendar queries set `refetchInterval: 30_000` when window is focused; pauses when unfocused",
+        "On window refocus, immediate refetch",
+        "When a `PhotoUploaded` event is received in the future via WebSocket (v1.2), the same query-key invalidates — TO-DO marker references PRD §22.5.5"
+      ],
+      "test_steps": [
+        "Step 1: Have web open in two tabs; create a job in tab A — within ~30 s tab B's list refreshes",
+        "Step 2: Switch away to another browser tab — refetches pause",
+        "Step 3: Network tab confirms the timer pauses and resumes on focus"
+      ],
+      "dependencies": [
+        "TASK-076",
+        "TASK-077"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-118",
+      "category": "ui",
+      "priority": "medium",
+      "description": "Display the red 'JOB NOT HANDLED' alert banner in the web app for Admins when their escalation push fires per PRD §28 (fallback alert path beyond Expo Push)",
+      "acceptance_criteria": [
+        "Backend exposes `GET /api/v1/alerts` returning pending in-app alerts for the user",
+        "Web app polls every 30 s and renders the banner styled red with the offending job id and a 'View Job' button",
+        "Dismissing the banner posts to `POST /alerts/{id}/dismiss`"
+      ],
+      "test_steps": [
+        "Step 1: Trigger an escalation; within ~30 s the Admin's browser shows the red banner",
+        "Step 2: Click 'View Job' — navigates to the job detail",
+        "Step 3: Dismiss — banner gone; not shown again on refresh"
+      ],
+      "dependencies": [
+        "TASK-046",
+        "TASK-076"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-119",
+      "category": "infrastructure",
+      "priority": "low",
+      "description": "Document a clear path for splitting Enterprise tenants onto dedicated databases per PRD §7.4 (forward-compat — not implemented in MVP)",
+      "acceptance_criteria": [
+        "`infra/runbooks/dedicated-db-migration.md` describes the steps: provision dedicated DB, snapshot+restore tenant rows, update repository routing config, switchover plan, rollback plan",
+        "Code: the `DataSource` is fetched from a `TenantDataSourceRouter` bean that today returns a single shared DataSource but can be extended to look up per-tenant routing",
+        "Tests: stub a second DataSource in tests and confirm routing per tenant works"
+      ],
+      "test_steps": [
+        "Step 1: Read the runbook end to end — steps are concrete and complete",
+        "Step 2: Integration test: configure two DataSources, route tenant B to the second, confirm tenant A still works",
+        "Step 3: Default config still uses one DataSource (no behavior change in MVP)"
+      ],
+      "dependencies": [
+        "TASK-018"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-120",
+      "category": "infrastructure",
+      "priority": "low",
+      "description": "Document the Kafka migration path per PRD §22.5.8 in `infra/runbooks/kafka-migration.md` so the team knows the trigger conditions and step-by-step plan when the time comes",
+      "acceptance_criteria": [
+        "Runbook documents: trigger conditions (sustained > 1000 events/sec or service split), the exact code seams to swap (relay XADD → Kafka producer, consumer clients), event schema invariance, idempotency reuse, rollback plan",
+        "References PRD §22.5.8",
+        "No actual Kafka dependency added"
+      ],
+      "test_steps": [
+        "Step 1: Lead Developer reads the runbook and can describe the migration in their own words",
+        "Step 2: `grep -R 'kafka' backend/build.gradle.kts` returns zero hits (Kafka stays out of MVP)",
+        "Step 3: Runbook references PRD §22.5.8 by section number"
+      ],
+      "dependencies": [
+        "TASK-031"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-121",
+      "category": "infrastructure",
+      "priority": "high",
+      "description": "Cut the v0.1.0 release tag for the Phase 0 internal milestone per PRD §4.1: multi-tenant backend with RLS, JWT auth, job CRUD on the preset schema, web SPA with login + job list + calendar, mobile with login + job list, deployed to Hetzner via Coolify",
+      "acceptance_criteria": [
+        "All Phase 0 dependencies have status `done`: TASK-001 through TASK-019, plus TASK-040 (presets), TASK-042/044 (job CRUD), TASK-072/076/077 (web shell + list + calendar), TASK-090/091/093 (mobile shell + auth + schedule)",
+        "Coolify deploys the backend + Postgres + Redis successfully to the dev Hetzner VM",
+        "Smoke test passes end-to-end on the dev URL: sign in → list jobs → see calendar",
+        "Tag `v0.1.0` pushed; CHANGELOG.md updated"
+      ],
+      "test_steps": [
+        "Step 1: Hit https://app.dev.teamhub.online/login and sign in — works",
+        "Step 2: Mobile dev build signs in and lists jobs",
+        "Step 3: Git tag `v0.1.0` exists and CHANGELOG.md lists the in-scope items"
+      ],
+      "dependencies": [
+        "TASK-019",
+        "TASK-040",
+        "TASK-044",
+        "TASK-077",
+        "TASK-093"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-122",
+      "category": "infrastructure",
+      "priority": "high",
+      "description": "Cut the v1.0.0 MVP release tag per PRD §4.2: schema customization, automations, shared-pool claim + escalation, Stripe billing, audit log, push notifications, S3 photos, internal admin console",
+      "acceptance_criteria": [
+        "All MVP-scope tasks have status `done` (i.e., every TASK-XXX above except the explicitly-out-of-MVP placeholders TASK-115/116/119/120)",
+        "All six PRD §5.6 authorization tests pass in CI (TASK-070)",
+        "PRD §6.6, §8.6, §9.3, §10.4, §11.3, §12.3, §13.4, §14.4, §15.3, §16.4, §17.4, §22.5.9 acceptance criteria — every one — verified by an end-to-end test or human verification (Lead Developer signs off per PRD §25.2)",
+        "Tag `v1.0.0` pushed; CHANGELOG.md and PRD updated"
+      ],
+      "test_steps": [
+        "Step 1: All CI checks green on `main` at the candidate commit",
+        "Step 2: Lead Developer's MVP-acceptance walkthrough completes with no critical findings",
+        "Step 3: Tag exists; release notes drafted"
+      ],
+      "dependencies": [
+        "TASK-046",
+        "TASK-052",
+        "TASK-057",
+        "TASK-063",
+        "TASK-064",
+        "TASK-067",
+        "TASK-070",
+        "TASK-088",
+        "TASK-095",
+        "TASK-100"
+      ],
+      "status": "pending"
+    }
+  ]
+}
