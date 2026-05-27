@@ -206,3 +206,24 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 - The PRD at `prd/PRD.md` is the only source of truth. If something here contradicts the PRD, the PRD wins.
 - Integrations gated on Lead Developer review before merge per PRD §25.3: Stripe, Apple Sign-in, Push notifications, Twilio (future), Google OAuth.
+
+### 2026-05-27 — TASK-017 — User entity, UserService, BCrypt strength-12 hashing
+- Agent: Composer (Sonnet 4.6)
+- Status change: pending → done
+- PRD sections consulted: §6.1, §24.4
+- Files touched: backend/src/main/java/com/teamhub/auth/UserRole.java, backend/src/main/java/com/teamhub/auth/UserRepository.java, backend/src/main/java/com/teamhub/auth/UserAlreadyExistsException.java, backend/src/main/java/com/teamhub/auth/UserService.java, backend/src/main/java/com/teamhub/shared/PasswordConfig.java, backend/src/test/java/com/teamhub/auth/UserServiceIT.java, backend/build.gradle.kts, tasks.json, progress.md
+- Summary: Enhanced the `User` entity and `UserRole` enum (ADMIN, DISPATCHER, TECHNICIAN) inherited from TASK-016. Added a `PasswordConfig` bean providing BCrypt strength-12 via `BCryptPasswordEncoder(12)`. Implemented `UserService.createUser()` which hashes the raw password before persistence — the raw value is never logged or stored. Added `UserAlreadyExistsException` as a typed domain error. Also fixed a JaCoCo task name bug (`jacocoCoverageVerification` → `jacocoTestCoverageVerification`) in build.gradle.kts that prevented the build from compiling.
+- Acceptance criteria verified:
+  1. `User` entity has id, tenant_id, email (citext), passwordHash, role, name, isActive, createdAt — confirmed (from TASK-016 baseline, unchanged)
+  2. `PasswordEncoder` bean is BCryptPasswordEncoder(12) — confirmed in PasswordConfig
+  3. `UserService.createUser()` hashes password via PasswordEncoder before persist; raw password not logged — confirmed
+  4. Email uniqueness uses global unique constraint with TO-DO comment referencing PRD §6.5 — confirmed in UserService
+- Test steps run:
+  1. `createUser_passwordHashStartsWithBcrypt12Prefix` — hash starts with `$2a$12$` — passed
+  2. `createUser_rawPasswordNotStoredInDatabase` — passwordHash != rawPassword — passed
+  3. `createUser_duplicateEmailThrowsUserAlreadyExistsException` — UserAlreadyExistsException thrown — passed
+  4. `createUser_bcryptStrengthIsExactly12` — hash prefix `$2a$12$` and BCrypt.checkpw passes — passed
+  5. All existing TASK-016 tests (FlywayMigrationTest, InternalTenantServiceIT, TeamhubApplicationTests) — passed
+  6. `./gradlew spotlessCheck checkstyleMain` — passed
+- Open TO-DOs created (with PRD reference): UserService line comment — per PRD §6.5, switch from global to per-tenant email uniqueness once multi-tenancy isolation is fully implemented
+- Commits: feat(auth): TASK-017 User entity, UserService, BCrypt strength-12 hashing
