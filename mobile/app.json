@@ -20,7 +20,11 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0F172A"
       },
-      "package": "online.teamhub.app"
+      "package": "online.teamhub.app",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -49,6 +53,12 @@
       ]
     ],
     "scheme": "teamhub",
-    "newArchEnabled": true
+    "newArchEnabled": true,
+    "extra": {
+      "eas": {
+        "projectId": "cb6947df-693b-4e93-b3e1-509e513afa91"
+      }
+    },
+    "owner": "teamhub-fsm"
   }
 }
