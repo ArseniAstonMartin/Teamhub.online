@@ -1,0 +1,47 @@
+package com.teamhub.security;
+
+import com.teamhub.shared.TenantContextFilter;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
+import org.springframework.security.web.SecurityFilterChain;
+
+/**
+ * Stateless JWT security (PRD §6.2, §7.2).
+ *
+ * <p>Public endpoints (login/refresh/logout, health/info, OpenAPI docs) are open; every other
+ * request requires a valid RS256 access token validated by the resource server. After validation,
+ * {@link TenantContextFilter} reads the {@code tenant_id} claim and binds it to the request thread
+ * so PostgreSQL Row-Level Security is scoped to the caller's tenant.
+ */
+@Configuration
+public class SecurityConfig {
+
+  @Bean
+  public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    http.csrf(AbstractHttpConfigurer::disable)
+        .httpBasic(AbstractHttpConfigurer::disable)
+        .formLogin(AbstractHttpConfigurer::disable)
+        .sessionManagement(
+            session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .authorizeHttpRequests(
+            auth ->
+                auth.requestMatchers("/api/v1/auth/**")
+                    .permitAll()
+                    .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/info")
+                    .permitAll()
+                    .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
+                    .permitAll()
+                    .anyRequest()
+                    .authenticated())
+        .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
+        .addFilterAfter(new TenantContextFilter(), BearerTokenAuthenticationFilter.class);
+
+    return http.build();
+  }
+}

@@ -213,11 +213,58 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - `RowLevelSecurityIT`: Add forged-JWT test once TASK-019 lands
 - Commits: (pending user review and PR approval)
 
+### 2026-05-30 — TASK-019 — JWT issuance and validation (RS256, refresh rotation, logout)
+- Agent: Composer (Claude Opus 4.8)
+- Status change: pending → done
+- PRD sections consulted: §6.2, §6.6, §7.2, §24.4
+- Files touched:
+  - backend/build.gradle.kts (added spring-boot-starter-oauth2-resource-server)
+  - backend/src/main/resources/application.yml (teamhub.jwt config block)
+  - backend/src/main/resources/db/migration/V3__refresh_tokens.sql (new)
+  - backend/src/main/java/com/teamhub/security/JwtProperties.java (new)
+  - backend/src/main/java/com/teamhub/security/RsaKeyLoader.java (new)
+  - backend/src/main/java/com/teamhub/security/JwtKeyConfig.java (new)
+  - backend/src/main/java/com/teamhub/security/SecurityConfig.java (new)
+  - backend/src/main/java/com/teamhub/auth/JwtService.java (new)
+  - backend/src/main/java/com/teamhub/auth/RefreshToken.java (new)
+  - backend/src/main/java/com/teamhub/auth/RefreshTokenRepository.java (new)
+  - backend/src/main/java/com/teamhub/auth/AuthService.java (new)
+  - backend/src/main/java/com/teamhub/auth/AuthController.java (new)
+  - backend/src/main/java/com/teamhub/auth/AuthExceptionHandler.java (new)
+  - backend/src/main/java/com/teamhub/auth/InvalidCredentialsException.java (new)
+  - backend/src/main/java/com/teamhub/auth/InvalidRefreshTokenException.java (new)
+  - backend/src/main/java/com/teamhub/auth/dto/{LoginRequest,RefreshRequest,LogoutRequest,TokenResponse}.java (new)
+  - backend/src/main/java/com/teamhub/shared/TenantContextFilter.java (rewritten: JWT claim instead of X-Tenant-Id header)
+  - backend/src/test/java/com/teamhub/auth/AuthServiceIT.java (new)
+  - backend/src/test/java/com/teamhub/auth/AuthControllerIT.java (new)
+  - backend/src/test/java/com/teamhub/security/RsaKeyLoaderTest.java (new)
+  - backend/src/test/java/com/teamhub/security/RowLevelSecurityIT.java (updated TASK-019 TO-DO → resolved)
+  - tasks.json (TASK-019 status → done)
+- Summary: Implemented RS256 JWT issuance and validation. Access tokens (15-min TTL) carry `sub`, `tenant_id`, `role`, `iat`, `exp` claims plus a `kid` header; signed via NimbusJwtEncoder. Keys load from `JWT_PRIVATE_KEY_PATH`/`JWT_PUBLIC_KEY_PATH` PEM files, with an ephemeral generated keypair fallback for local/test (logged as a warning). The decoder selects the verification key by `kid` from a JWK set, so rotation is supported. Opaque 256-bit refresh tokens are stored only as SHA-256 hashes in the new `refresh_tokens` table (RLS-protected, deny-by-default, same pattern as V2). `POST /api/v1/auth/login` validates email+password and issues a token pair; `POST /api/v1/auth/refresh` rotates (revokes the presented token, issues a new pair); `POST /api/v1/auth/logout` revokes. A stateless `SecurityConfig` permits the auth endpoints, health/info, and OpenAPI; all other requests require a valid JWT. `TenantContextFilter` was rewritten to read `tenant_id` from the validated JWT (resolving the TASK-018 placeholder) and is wired into the security chain after bearer-token authentication so RLS is scoped per request.
+- Acceptance criteria verified:
+  1. RS256 keypair loaded from env PEM paths (kid configurable, thumbprint default); rotation via kid-keyed JWK set — RsaKeyLoaderTest + JwtKeyConfig
+  2. Access token payload has sub, tenant_id, role, exp (15 min), iat, kid — AuthServiceIT.login_issuesAccessTokenWithRequiredClaims
+  3. Opaque random refresh token, stored hashed in refresh_tokens(id, user_id, tenant_id, hash, expires_at, revoked_at) — V3 migration + RefreshToken + AuthService
+  4. POST /api/v1/auth/refresh rotates (new token issued, old revoked) — AuthServiceIT.refresh_rotatesToken_andRevokesPrevious
+  5. Logout sets revoked_at; subsequent refresh returns 401 — AuthServiceIT.logout_revokesRefreshToken + AuthControllerIT
+- Test steps run (33 tests total, all green):
+  - Step 1 (login returns access + refresh): AuthControllerIT.login_returnsBearerTokenPair, AuthServiceIT.login_issuesAccessTokenWithRequiredClaims — passed
+  - Step 2 (expired access token rejected; refresh succeeds with a new pair): AuthControllerIT.protectedEndpoint_withExpiredToken_returns401 + refresh_rotatesToken — passed (clock fast-forward simulated by minting a token with past exp / inserting an expired refresh row)
+  - Step 3 (logout then refresh → 401 with documented code): AuthServiceIT.logout_revokesRefreshToken + AuthControllerIT.login_badPassword_returns401WithCode (code INVALID_REFRESH_TOKEN / INVALID_CREDENTIALS) — passed
+  - Forged-signature token rejected (PRD §6.6 cross-tenant impossibility): AuthControllerIT.protectedEndpoint_withForgedSignature_returns401 — passed
+  - `./gradlew check` (spotlessCheck, checkstyleMain, checkstyleTest, test, jacocoTestCoverageVerification 70% gate) — BUILD SUCCESSFUL
+- Open TO-DOs created (with PRD reference): none. (Google/Apple OAuth login per PRD §6.1 remains future work tracked by its own task; rate limiting on auth endpoints per PRD §24.4 is TASK-related future work, not part of TASK-019 scope.)
+- Notes for next iteration:
+  - JWT keys: production MUST set `JWT_PRIVATE_KEY_PATH`/`JWT_PUBLIC_KEY_PATH` to persistent PEMs. The ephemeral fallback regenerates on every restart (all tokens invalidated) and logs a WARN.
+  - Login/refresh/logout intentionally run without a tenant context so the login DB user (RLS-exempt) can do the global email / token-hash lookups. Authenticated business requests get RLS scoping from the JWT `tenant_id` claim via `TenantContextFilter`.
+  - No protected business endpoints exist yet; the security chain is validated against a non-existent `/api/v1/secure-check` path (401 without token, 404 with a valid token).
+- Commits: (pending user review and PR approval)
+
 ---
 
 ## Notes for future agents
 
 - The PRD at `prd/PRD.md` is the only source of truth. If something here contradicts the PRD, the PRD wins.
 - Integrations gated on Lead Developer review before merge per PRD §25.3: Stripe, Apple Sign-in, Push notifications, Twilio (future), Google OAuth.
-- Completed through TASK-018: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018 (see `tasks.json`).
-- TASK-018 note: `TenantContextFilter` reads `X-Tenant-Id` header as a placeholder until TASK-019 (JWT) lands. The `RowLevelSecurityIT` forged-JWT test (Step 3 of acceptance criteria) is a TO-DO for TASK-019.
+- Completed through TASK-019: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019 (see `tasks.json`).
+- TASK-019 note: `TenantContextFilter` now reads the `tenant_id` claim from the validated JWT (the TASK-018 `X-Tenant-Id` placeholder is gone). Auth endpoints live under `/api/v1/auth/**` (permitAll); everything else requires a valid RS256 access token. Production must configure persistent JWT keys via `JWT_PRIVATE_KEY_PATH`/`JWT_PUBLIC_KEY_PATH`.

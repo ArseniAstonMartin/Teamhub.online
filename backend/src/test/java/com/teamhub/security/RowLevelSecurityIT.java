@@ -88,7 +88,9 @@ class RowLevelSecurityIT {
     assertThat(rows).isEmpty();
   }
 
-  // TO-DO (TASK-019): Add a test verifying that a request carrying a JWT whose tenant_id has been
-  // forged to point at a different tenant cannot read that tenant's data. This requires JWT
-  // validation infrastructure from TASK-019 to be in place.
+  // JWT-level forgery is covered by
+  // AuthControllerIT#protectedEndpoint_withForgedSignature_returns401
+  // (TASK-019): a token whose tenant_id is forged would require the RS256 private key to be signed,
+  // and any token signed with a different key is rejected with 401 before reaching the data layer.
+  // DB-level cross-tenant isolation is verified by rlsIsolatesUsersAcrossTenants above.
 }
