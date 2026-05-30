@@ -42,8 +42,6 @@ pnpm-debug.log*
 
 # Local agent and internal-only artifacts
 AGENTS.md
-progress.md
-tasks.json
 prd/
 .cursor/
 .cursorignore

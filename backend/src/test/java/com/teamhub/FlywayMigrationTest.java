@@ -16,6 +16,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class FlywayMigrationTest {
 
   @Autowired private JdbcTemplate jdbc;
+
   @Autowired private Flyway flyway;
 
   @Test
