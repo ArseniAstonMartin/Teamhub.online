@@ -113,6 +113,19 @@ class AuthServiceIT {
   }
 
   @Test
+  void refresh_afterUserDeactivated_throwsInvalidRefreshToken() {
+    AuthService.IssuedTokens tokens = authService.login("owner@plumbing.com", PASSWORD);
+
+    // Owner is terminated/deactivated after logging in.
+    user.setActive(false);
+    userRepository.save(user);
+
+    // The still-unexpired refresh token must no longer mint access tokens.
+    assertThatThrownBy(() -> authService.refresh(tokens.refreshToken()))
+        .isInstanceOf(InvalidRefreshTokenException.class);
+  }
+
+  @Test
   void refresh_unknownToken_throwsInvalidRefreshToken() {
     assertThatThrownBy(() -> authService.refresh("not-a-real-token"))
         .isInstanceOf(InvalidRefreshTokenException.class);

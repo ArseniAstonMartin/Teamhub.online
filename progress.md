@@ -258,6 +258,9 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - JWT keys: production MUST set `JWT_PRIVATE_KEY_PATH`/`JWT_PUBLIC_KEY_PATH` to persistent PEMs. The ephemeral fallback regenerates on every restart (all tokens invalidated) and logs a WARN.
   - Login/refresh/logout intentionally run without a tenant context so the login DB user (RLS-exempt) can do the global email / token-hash lookups. Authenticated business requests get RLS scoping from the JWT `tenant_id` claim via `TenantContextFilter`.
   - No protected business endpoints exist yet; the security chain is validated against a non-existent `/api/v1/secure-check` path (401 without token, 404 with a valid token).
+- Review fixes (post-implementation hardening):
+  - Refresh rotation race: `RefreshTokenRepository.findByHashForUpdate` adds `@Lock(PESSIMISTIC_WRITE)` (`SELECT ... FOR UPDATE`); `refresh()` now uses it so two concurrent refreshes of the same token serialise and the second re-reads the revoked row → single-use guarantee holds under READ COMMITTED.
+  - Deactivated-user lockout: `refresh()` now rejects when `user.isActive()` is false (mirrors `login()`), so a terminated employee is locked out immediately instead of retaining access for the 30-day refresh TTL. Covered by `AuthServiceIT.refresh_afterUserDeactivated_throwsInvalidRefreshToken`.
 - Commits: (pending user review and PR approval)
 
 ---

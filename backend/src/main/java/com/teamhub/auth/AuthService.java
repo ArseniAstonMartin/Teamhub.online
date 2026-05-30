@@ -76,13 +76,16 @@ public class AuthService {
    * Rotates a refresh token: validates the presented token, revokes it, and issues a brand-new
    * access + refresh pair.
    *
-   * @throws InvalidRefreshTokenException if the token is unknown, expired, or already revoked
+   * @throws InvalidRefreshTokenException if the token is unknown, expired, or already revoked, or
+   *     if the owning user has been deactivated
    */
   @Transactional
   public IssuedTokens refresh(String rawRefreshToken) {
+    // Pessimistic row lock serialises concurrent refreshes of the same token so rotation stays
+    // single-use under READ COMMITTED isolation (the second caller re-reads the revoked row).
     RefreshToken existing =
         refreshTokenRepository
-            .findByHash(hash(rawRefreshToken))
+            .findByHashForUpdate(hash(rawRefreshToken))
             .orElseThrow(InvalidRefreshTokenException::new);
 
     Instant now = Instant.now();
@@ -90,12 +93,19 @@ public class AuthService {
       throw new InvalidRefreshTokenException();
     }
 
-    existing.setRevokedAt(now);
-
     User user =
         userRepository
             .findById(existing.getUserId())
             .orElseThrow(InvalidRefreshTokenException::new);
+
+    // A deactivated user must be locked out immediately, not after the 30-day refresh TTL.
+    // Rejecting here (rather than issuing) blocks new access tokens; the throw rolls back so the
+    // row is left untouched for the audit trail.
+    if (!user.isActive()) {
+      throw new InvalidRefreshTokenException();
+    }
+
+    existing.setRevokedAt(now);
 
     return issueTokens(user);
   }
