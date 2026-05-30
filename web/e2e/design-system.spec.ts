@@ -13,7 +13,7 @@ test('design system page renders all primitives', async ({ page }) => {
   await expect(page.getByText('Color Palette — Brand Tokens')).toBeVisible();
   await expect(page.getByText('Buttons')).toBeVisible();
   await expect(page.getByText('Badges')).toBeVisible();
-  await expect(page.getByText('Card')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Card', exact: true })).toBeVisible();
   await expect(page.getByText('Form Controls — Input & Select')).toBeVisible();
   await expect(page.getByText('Dialog')).toBeVisible();
   await expect(page.getByText('Toast Notifications — Sonner')).toBeVisible();
