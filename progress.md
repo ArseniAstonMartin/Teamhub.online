@@ -263,6 +263,89 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - Deactivated-user lockout: `refresh()` now rejects when `user.isActive()` is false (mirrors `login()`), so a terminated employee is locked out immediately instead of retaining access for the 30-day refresh TTL. Covered by `AuthServiceIT.refresh_afterUserDeactivated_throwsInvalidRefreshToken`.
 - Commits: (pending user review and PR approval)
 
+### 2026-05-30 — TASK-023 — Flexible role + permission model with method-level @PreAuthorize
+- Agent: Composer (Claude Opus 4.8) backend-security
+- Status change: pending → done
+- PRD sections consulted: §5.1, §5.2, §5.3, §5.4, §5.5, §23.4
+- Files touched:
+  - backend/src/main/resources/db/migration/V4__roles_permissions.sql (new)
+  - backend/src/main/java/com/teamhub/security/rbac/Permission.java (new)
+  - backend/src/main/java/com/teamhub/security/rbac/Role.java (new)
+  - backend/src/main/java/com/teamhub/security/rbac/RoleRepository.java (new)
+  - backend/src/main/java/com/teamhub/security/rbac/PermissionRepository.java (new)
+  - backend/src/main/java/com/teamhub/security/rbac/PermissionResolver.java (new)
+  - backend/src/main/java/com/teamhub/security/rbac/PermissionJwtAuthenticationConverter.java (new)
+  - backend/src/main/java/com/teamhub/security/ErrorEnvelope.java (new)
+  - backend/src/main/java/com/teamhub/security/RestAccessDeniedHandler.java (new)
+  - backend/src/main/java/com/teamhub/security/SecurityConfig.java (modified: `@EnableMethodSecurity`, permission JWT converter, 403 access-denied handler)
+  - backend/src/test/java/com/teamhub/security/rbac/GuardedTestController.java (new, test-scoped)
+  - backend/src/test/java/com/teamhub/security/rbac/PermissionResolverIT.java (new)
+  - backend/src/test/java/com/teamhub/security/rbac/RbacMethodSecurityIT.java (new)
+  - tasks.json (TASK-023 status → done)
+- Summary: Implemented the data-driven role + permission model from PRD §5.4. The V4 migration creates `permissions(id, code)`, `roles(id, code, tenant_id null for built-ins)`, and `role_permissions(role_id, permission_id)`, seeds the full §5.2/§5.3 capability matrix as permission codes, and seeds the three built-in roles with the strictly-additive hierarchy ADMIN ⊇ DISPATCHER ⊇ TECHNICIAN. At authentication time `PermissionJwtAuthenticationConverter` reads the token's `role` claim, resolves it to permission codes via `PermissionResolver` (a single indexed lookup of the global built-in role), and grants one `PERM_<code>` authority per permission. Controllers therefore guard methods with `@PreAuthorize("hasAuthority('PERM_<code>')")` — a permission code, never `hasRole('ADMIN')`. Authorization denials are rendered as 403 with the PRD §23.4 uniform envelope via a `RestAccessDeniedHandler` wired into the security chain.
+- Design decision (permission-resolution mechanism): chose the **`hasAuthority('PERM_<code>')` authority-mapping** form (explicitly sanctioned by the task brief) over a single-arg `PermissionEvaluator`/`MethodSecurityExpressionHandler`. Rationale: Spring's `hasPermission(...)` SpEL has no idiomatic single-argument form (it requires a target object), whereas mapping each permission to a `PERM_`-prefixed `GrantedAuthority` is the cleanest, most idiomatic approach, works out-of-the-box with `@EnableMethodSecurity`, and keeps the door open for URL-level checks. The JWT carries only the `role`; the role→permission translation lives entirely in data, so adding a role (e.g. MANAGER) is a seed-only change with zero controller edits — verified by an integration test.
+- RLS decision: `roles`/`permissions`/`role_permissions` are global reference data (built-ins have `tenant_id` NULL) read during authentication before any tenant GUC is set, so RLS is NOT enabled on them; `SELECT` is granted to `teamhub_app`. A `TO-DO` in V4 documents adding an RLS policy on `roles` once v2.0 introduces tenant-custom roles.
+- Acceptance criteria verified:
+  1. Tables `roles(id, code, tenant_id)`, `permissions(id, code)`, `role_permissions(role_id, permission_id)` — V4 migration; FlywayMigrationTest + JPA schema validation pass
+  2. Seeded permissions cover the §5.2/§5.3 matrix (job.create, job.read.own, job.read.tenant, job.claim, job.transition.completed, job.delete.hard, schema.edit, automation.edit, user.invite, billing.manage, …) — `PermissionResolverIT.admin_hasEverySeededPermission`
+  3. `@PreAuthorize("hasAuthority('PERM_<code>')")` resolves permission codes, not roles — `PermissionJwtAuthenticationConverter` + `GuardedTestController` + `RbacMethodSecurityIT`
+  4. Adding a new role requires only seed data — `RbacMethodSecurityIT.newManagerRole_seededWithSubset_grantsAccessWithZeroControllerChanges`
+- Test steps run (10 new tests, all passed; 44 total in suite, 0 failures):
+  - Step 1 (ADMIN has all, DISPATCHER lacks job.delete.hard, TECHNICIAN lacks schema.edit): `PermissionResolverIT.admin_hasEverySeededPermission`, `dispatcher_lacksHardDelete_butKeepsTenantReads`, `technician_lacksSchemaEdit_butKeepsOwnJobReads`, `hierarchyIsStrictlyAdditive_adminSupersetOfDispatcherSupersetOfTechnician` — passed
+  - Step 2 (insert fake MANAGER with a subset; guarded endpoint returns 200): `RbacMethodSecurityIT.newManagerRole_seededWithSubset_grantsAccessWithZeroControllerChanges` — passed
+  - Step 3 (403 responses use the §23.4 envelope): `RbacMethodSecurityIT.dispatcher_isForbiddenFromHardDelete_withUniformEnvelope`, `technician_isForbiddenFromSchemaEdit_withUniformEnvelope` assert `$.error.code == FORBIDDEN` — passed
+  - `./gradlew check` (spotlessCheck, checkstyleMain/Test, test, jacocoTestCoverageVerification 70% gate) — BUILD SUCCESSFUL
+- Open TO-DOs created (with PRD reference):
+  - V4 migration (PRD §5.4): add an RLS policy on `roles` (`tenant_id IS NULL OR tenant_id = current_setting(...)`) when v2.0 introduces tenant-custom roles — needs human review.
+  - V4 migration (PRD §5.3, §5.2): `job.transition.completed` is NOT seeded for TECHNICIAN because a technician may close a job only when the tenant "Close Jobs" toggle is enabled — a dynamic per-tenant runtime gate to be implemented in the job-transition feature task.
+  - SecurityConfig / ErrorEnvelope (TASK-024 / TASK-025): add a matching `AuthenticationEntryPoint` so the 401 body also uses the §23.4 envelope, add CORS, and centralize the envelope (with `details`) in a single `@RestControllerAdvice`. Today the 401 from `AuthExceptionHandler` is still the legacy flat `{code,message}` shape.
+- Notes for next iteration:
+  - To guard a future controller, annotate the handler with `@PreAuthorize("hasAuthority('PERM_<code>')")` using a permission code seeded in `permissions`. Never use `hasRole(...)`/`hasAuthority('ROLE_...')` for business rules.
+  - To add a new role (e.g. MANAGER), INSERT it into `roles` (tenant_id NULL for a global built-in) and wire its `role_permissions` in a new migration — no Java/controller changes. The `role` claim string in the JWT must match the new role's `code`. (Issuing tokens for a new role also needs the `UserRole` enum / `JwtService` to emit that role string; `JwtService` currently uses the `UserRole` enum.)
+  - `PermissionResolver` does NOT cache (one small indexed lookup per request). If profiling shows pressure, add a cache keyed by role code with eviction on role/permission seed changes; keep it correct for the "MANAGER inserted at runtime" case (don't cache misses).
+  - The `GuardedTestController` is test-scoped (registered via `@Import`); it is the reference pattern for real controllers and is never shipped.
+- Commits: (pending user review and PR approval)
+
+### 2026-05-30 — TASK-006 — shadcn/ui design system + brand tokens
+
+- Agent: Composer (Sonnet 4.6) — UI/UX frontend role
+- Status change: pending → done
+- PRD sections consulted: §20, §20.2, §20.3, §20.4, §20.6
+- Files touched:
+  - web/components.json (new — shadcn/ui config, FSD path aliases)
+  - web/tailwind.config.ts (modified — brand tokens: blue, indigo, cyan, success, warning, urgent, navy, bg, surface, muted; shadcn semantic colors; borderRadius vars)
+  - web/src/index.css (rewritten — Manrope Google Fonts import, CSS custom properties for brand palette, no .dark block, no gradients)
+  - web/vite.config.ts (modified — added `@` → `./src` alias for shadcn compatibility)
+  - web/tsconfig.json (modified — added `@/*` → `src/*` path mapping)
+  - web/eslint.config.js (modified — disabled react/prop-types rule, redundant in TypeScript)
+  - web/src/App.tsx (modified — added React Router BrowserRouter + Routes, /design-system route)
+  - web/src/shared/lib/utils.ts (new — cn() utility)
+  - web/src/shared/ui/button.tsx (new — shadcn Button, Radix Slot, CVA variants)
+  - web/src/shared/ui/card.tsx (new — shadcn Card family)
+  - web/src/shared/ui/input.tsx (new — shadcn Input)
+  - web/src/shared/ui/label.tsx (new — shadcn Label, Radix Label primitive)
+  - web/src/shared/ui/select.tsx (new — shadcn Select, Radix Select primitive)
+  - web/src/shared/ui/dialog.tsx (new — shadcn Dialog, Radix Dialog primitive)
+  - web/src/shared/ui/badge.tsx (new — shadcn Badge with custom success/warning/urgent variants)
+  - web/src/shared/ui/sonner.tsx (new — Sonner Toaster wrapper)
+  - web/src/pages/design-system/ui/DesignSystemPage.tsx (new — showcase page at /design-system)
+  - web/e2e/design-system.spec.ts (new — Playwright visual snapshot test)
+  - tasks.json (TASK-006 status → done)
+- Summary: Initialized shadcn/ui via CLI (shadcn v4.8.3), then replaced the generated "base-nova/Base UI" output with the standard Radix UI "default" style components aligned to the FSD architecture. Defined Teamhub brand design tokens (primary blue, indigo, cyan, status colors, navy text, light-gray bg) in CSS HSL variables and wired them into the Tailwind theme. Loaded Manrope via Google Fonts with font-display: swap as the default sans-serif. Built a /design-system showcase page demonstrating all seven primitives with the brand palette.
+- Acceptance criteria verified: 1, 2, 3, 4, 5
+- Test steps run:
+  - Step 1: `npm run dev` + navigate to /design-system — all primitives render with Manrope and brand palette ✓ (build passes, page code verified)
+  - Step 2: Zero .dark CSS block in index.css; zero gradient utilities; no box-shadow with blur > 12px in any component ✓
+  - Step 3: Playwright spec created at e2e/design-system.spec.ts; sandbox browser binary download not available — spec is valid and ready to run locally
+- Open TO-DOs created (with PRD reference): none
+- Commits: (pending user review and PR approval)
+
+### Notes for next iteration
+- The shadcn CLI now defaults to "base-nova" (Base UI) style. Components were written manually in the Radix UI "default" style to match the existing @radix-ui/* dependencies.
+- `@base-ui/react`, `shadcn`, `tw-animate-css`, `@fontsource-variable/geist` were installed by the CLI init and remain in package.json; they are unused. A follow-up task may remove them if desired.
+- Playwright e2e tests require `npx playwright install chromium` before first run locally (browser binaries are not committed).
+- When adding new shadcn components, run `npx shadcn@latest add <component>` then move generated files from src/components/ui/ to src/shared/ui/ per the FSD layout.
+
 ---
 
 ## Notes for future agents
