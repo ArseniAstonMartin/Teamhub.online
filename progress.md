@@ -338,7 +338,7 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - Step 2: Zero .dark CSS block in index.css; zero gradient utilities; no box-shadow with blur > 12px in any component ✓
   - Step 3: Playwright spec created at e2e/design-system.spec.ts; sandbox browser binary download not available — spec is valid and ready to run locally
 - Open TO-DOs created (with PRD reference): none
-- Commits: (pending user review and PR approval)
+- Commits: e889803
 
 ### Notes for next iteration
 - The shadcn CLI now defaults to "base-nova" (Base UI) style. Components were written manually in the Radix UI "default" style to match the existing @radix-ui/* dependencies.
