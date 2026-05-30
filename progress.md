@@ -352,5 +352,6 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 - The PRD at `prd/PRD.md` is the only source of truth. If something here contradicts the PRD, the PRD wins.
 - Integrations gated on Lead Developer review before merge per PRD §25.3: Stripe, Apple Sign-in, Push notifications, Twilio (future), Google OAuth.
-- Completed through TASK-019: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019 (see `tasks.json`).
+- Completed through TASK-023: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023 (see `tasks.json`).
+- TASK-023 note: authorization is permission-based. Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")` (a permission code from the `permissions` table), never `hasRole('ADMIN')`. The JWT `role` claim is resolved to `PERM_*` authorities by `PermissionJwtAuthenticationConverter`. Adding a role is a seed-only change (new rows in `roles` + `role_permissions`). 403 denials use the PRD §23.4 envelope (`{"error":{"code":"FORBIDDEN",...}}`); the 401 envelope and CORS are deferred to TASK-024, and the unified `@RestControllerAdvice` envelope to TASK-025.
 - TASK-019 note: `TenantContextFilter` now reads the `tenant_id` claim from the validated JWT (the TASK-018 `X-Tenant-Id` placeholder is gone). Auth endpoints live under `/api/v1/auth/**` (permitAll); everything else requires a valid RS256 access token. Production must configure persistent JWT keys via `JWT_PRIVATE_KEY_PATH`/`JWT_PUBLIC_KEY_PATH`.
