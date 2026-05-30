@@ -18,6 +18,12 @@ GRANT USAGE ON SCHEMA public TO teamhub_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tenants TO teamhub_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON users TO teamhub_app;
 
+-- Allow the login DB user (who runs migrations and connects the app) to SET ROLE teamhub_app.
+DO $$
+BEGIN
+    EXECUTE format('GRANT teamhub_app TO %I', current_user);
+END $$;
+
 -- Enable RLS on users.
 -- FORCE ensures the policy also applies when the table owner queries the table.
 -- Superusers with BYPASSRLS still bypass the policy; those do not exist in production.
