@@ -5,49 +5,61 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.core.Ordered;
-import org.springframework.core.annotation.Order;
-import org.springframework.stereotype.Component;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Servlet filter that populates {@link TenantContext} for every HTTP request so that {@link
+ * Servlet filter that populates {@link TenantContext} from the validated JWT so that {@link
  * TenantAwareDataSource} can propagate the tenant identifier to the database session variable
  * {@code app.current_tenant_id} (PRD §7.2).
  *
- * <p>// TO-DO (TASK-019): Replace header-based extraction with JWT claims parsing. Once the RS256
- * access token is validated, read the {@code tenant_id} claim and call {@link TenantContext#set}
- * with the parsed UUID. The {@code X-Tenant-Id} header mechanism below is a placeholder that exists
- * only to wire the filter correctly before JWT infrastructure lands.
+ * <p>Registered inside the Spring Security filter chain <em>after</em> JWT authentication (see
+ * {@code SecurityConfig}), so the {@code tenant_id} claim of the authenticated token is available.
+ * Requests without a JWT (the public auth endpoints) leave the context unset, in which case {@link
+ * TenantAwareDataSource} resets the role and GUC — the login DB user then performs the global email
+ * / refresh-token lookups those flows require.
  */
-@Component
-@Order(Ordered.HIGHEST_PRECEDENCE)
 public class TenantContextFilter extends OncePerRequestFilter {
 
   private static final Logger log = LoggerFactory.getLogger(TenantContextFilter.class);
 
-  /** Placeholder header used until JWT extraction is implemented in TASK-019. */
-  static final String PLACEHOLDER_HEADER = "X-Tenant-Id";
+  /** JWT claim carrying the tenant identifier (set by {@code JwtService}). */
+  static final String TENANT_ID_CLAIM = "tenant_id";
 
   @Override
   protected void doFilterInternal(
       HttpServletRequest request, HttpServletResponse response, FilterChain chain)
       throws ServletException, IOException {
     try {
-      String headerValue = request.getHeader(PLACEHOLDER_HEADER);
-      if (headerValue != null && !headerValue.isBlank()) {
-        try {
-          TenantContext.set(UUID.fromString(headerValue.strip()));
-        } catch (IllegalArgumentException e) {
-          log.warn("Ignoring malformed tenant ID in {} header", PLACEHOLDER_HEADER);
-        }
-      }
+      resolveTenantId().ifPresent(TenantContext::set);
       chain.doFilter(request, response);
     } finally {
       TenantContext.clear();
+    }
+  }
+
+  private Optional<UUID> resolveTenantId() {
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    if (!(authentication instanceof JwtAuthenticationToken jwtAuth)) {
+      return Optional.empty();
+    }
+    Jwt jwt = jwtAuth.getToken();
+    String claim = jwt.getClaimAsString(TENANT_ID_CLAIM);
+    if (claim == null || claim.isBlank()) {
+      return Optional.empty();
+    }
+    try {
+      return Optional.of(UUID.fromString(claim));
+    } catch (IllegalArgumentException e) {
+      log.warn("Ignoring malformed {} claim in JWT", TENANT_ID_CLAIM);
+      return Optional.empty();
     }
   }
 }
