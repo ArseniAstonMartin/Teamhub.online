@@ -91,7 +91,7 @@ tasks.jacocoTestReport {
 tasks.jacocoTestCoverageVerification {
   violationRules {
     rule {
-      // Enforce 70 % line coverage on all business-logic classes.
+      // Enforce 80 % line coverage on all business-logic classes.
       // Excludes generated code (MapStruct mappers, Lombok, Spring config).
       excludes =
         listOf(
@@ -102,7 +102,7 @@ tasks.jacocoTestCoverageVerification {
       limit {
         counter = "LINE"
         value = "COVEREDRATIO"
-        minimum = "0.70".toBigDecimal()
+        minimum = "0.80".toBigDecimal()
       }
     }
   }
