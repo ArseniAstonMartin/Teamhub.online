@@ -118,6 +118,61 @@ class AuditLogIT {
   }
 
   // -------------------------------------------------------------------------
+  // Step 1b: toJsonString() paths — String passthrough and Object.toString() fallback.
+  // -------------------------------------------------------------------------
+
+  /**
+   * When {@code beforeState} is a {@link String} it must be forwarded verbatim to the {@code
+   * ::jsonb} cast (String-passthrough branch in {@code toJsonString}).
+   */
+  @Test
+  void record_withStringBeforeState_persistsJsonVerbatim() {
+    String jsonSnippet = "{\"key\":\"value\"}";
+
+    auditLogService.record(
+        AuditLog.builder()
+            .tenantId(tenant.getId())
+            .action("job.update")
+            .resourceType("job")
+            .beforeState(jsonSnippet)
+            .build());
+
+    List<Map<String, Object>> rows =
+        jdbcTemplate.queryForList("SELECT * FROM audit_log WHERE tenant_id = ?", tenant.getId());
+    assertThat(rows).hasSize(1);
+    assertThat(rows.get(0).get("before_state")).isNotNull();
+  }
+
+  /**
+   * When {@code afterState} is a non-{@link String} object, {@code toJsonString} must fall back to
+   * {@link Object#toString()}. We use an anonymous subclass whose {@code toString()} returns valid
+   * JSON so the {@code ::jsonb} cast succeeds at the database level.
+   */
+  @Test
+  void record_withObjectAfterState_usesToStringFallback() {
+    Object jsonObject =
+        new Object() {
+          @Override
+          public String toString() {
+            return "{\"status\":\"done\"}";
+          }
+        };
+
+    auditLogService.record(
+        AuditLog.builder()
+            .tenantId(tenant.getId())
+            .action("job.complete")
+            .resourceType("job")
+            .afterState(jsonObject)
+            .build());
+
+    List<Map<String, Object>> rows =
+        jdbcTemplate.queryForList("SELECT * FROM audit_log WHERE tenant_id = ?", tenant.getId());
+    assertThat(rows).hasSize(1);
+    assertThat(rows.get(0).get("after_state")).isNotNull();
+  }
+
+  // -------------------------------------------------------------------------
   // Step 2: UPDATE as teamhub_app → Postgres permission denied.
   // -------------------------------------------------------------------------
 
