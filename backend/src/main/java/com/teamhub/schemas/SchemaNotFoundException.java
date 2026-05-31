@@ -11,4 +11,8 @@ public class SchemaNotFoundException extends DomainException {
   public SchemaNotFoundException(String name, int version) {
     super(CODE, HttpStatus.NOT_FOUND, "Schema '" + name + "' version " + version + " not found");
   }
+
+  public SchemaNotFoundException(java.util.UUID id) {
+    super(CODE, HttpStatus.NOT_FOUND, "Schema with id '" + id + "' not found");
+  }
 }

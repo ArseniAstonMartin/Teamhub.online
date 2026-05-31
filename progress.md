@@ -644,11 +644,48 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 ---
 
+### 2026-05-31 — TASK-041 — Schema editing endpoints (Admin-only GET/POST/PATCH /api/v1/schemas)
+
+- Agent: Composer (Sonnet 4.6)
+- Status change: pending → done
+- PRD sections consulted: §5.3, §8.2, §19
+- Files touched:
+  - backend/src/main/java/com/teamhub/schemas/AppointmentSchemaRepository.java (added `findAllByTenantIdOrderByNameAscVersionDesc`)
+  - backend/src/main/java/com/teamhub/schemas/SchemaNotFoundException.java (added UUID constructor)
+  - backend/src/main/java/com/teamhub/schemas/SchemaService.java (added `listByTenant`, `deactivateById`)
+  - backend/src/main/java/com/teamhub/schemas/dto/PublishSchemaRequest.java (new)
+  - backend/src/main/java/com/teamhub/schemas/dto/SchemaResponse.java (new)
+  - backend/src/main/java/com/teamhub/schemas/SchemaController.java (new — GET/POST/PATCH, no DELETE)
+  - backend/src/test/java/com/teamhub/schemas/SchemaControllerIT.java (new — 6 tests)
+  - tasks.json (TASK-041 status → done)
+- Summary: Implemented the Admin-only `/api/v1/schemas` REST surface (PRD §5.3, §8.2). The controller is guarded by `@PreAuthorize("hasAuthority('PERM_schema.edit')")` at the class level (seeded for ADMIN only in V4 migration). `POST /api/v1/schemas` publishes a new schema version via `SchemaService.publishNewVersion`, then emits a `schema.update` / `appointment_schema` audit row via `AuditLogService.record` (REQUIRES_NEW transaction). `PATCH /api/v1/schemas/{id}` deactivates the named version without deleting it. `GET /api/v1/schemas` returns the full version history ordered by name then version descending. No DELETE handler is registered — the URI template matches the PATCH handler, so Spring returns 405 METHOD_NOT_ALLOWED, enforcing the append-only invariant of the `appointment_schemas` table.
+- Acceptance criteria verified:
+  1. `GET /schemas` returns the tenant's schema history — confirmed by `list_asAdmin_returnsAllVersions` test
+  2. `POST /schemas` publishes a new version (validates with TASK-039 rules) — confirmed by `publish_asAdmin_returns201AndEmitsAuditRow` test
+  3. `PATCH /schemas/{id}` can mark inactive but never deletes — confirmed by `deactivate_asAdmin_setsActiveFalseAndEmitsAuditRow` test
+  4. Only ADMIN role passes `@PreAuthorize` — confirmed by `publish_asDispatcher_returns403` and `listSchemas_withoutToken_returns401` tests
+  5. All write operations emit a `schema.update` audit row — confirmed by both `publish_*` and `deactivate_*` tests querying `audit_log` table directly
+- Test steps run (6 new tests in SchemaControllerIT, 133 total tests, 0 failures):
+  - Step 1 (`publish_asAdmin_returns201AndEmitsAuditRow`): ADMIN POST → 201; `audit_log` queried for `action=schema.update, resource_type=appointment_schema` — row found with matching `resource_id` — passed
+  - Step 2 (`publish_asDispatcher_returns403`): DISPATCHER POST → 403 with `error.code=FORBIDDEN` envelope (PRD §23.4) — passed
+  - Step 3 (`delete_noHandlerRegistered_returnsMethodNotAllowed`): `DELETE /api/v1/schemas/{id}` → 405 METHOD_NOT_ALLOWED (PATCH handler matches URI template, no DELETE handler registered) — passed; confirms no delete endpoint exists
+  - Additional: `list_asAdmin_returnsAllVersions`, `deactivate_asAdmin_setsActiveFalseAndEmitsAuditRow`, `listSchemas_withoutToken_returns401` — all passed
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 133 tests, 0 failures
+- Open TO-DOs created (with PRD reference): none
+- Notes for next iteration:
+  - No DELETE endpoint is intentionally omitted; `appointment_schemas` rows are append-only per PRD §8.2. DELETE attempts return 405 (Spring method-not-allowed) rather than 404 because the URI template `/api/v1/schemas/{id}` is matched by the PATCH handler.
+  - The `actor_user_id` audit field requires the JWT subject to be a real user UUID present in the `users` table. In tests, `InternalTenantService.provision()` creates the admin user; `UserRepository.findByEmail()` retrieves the ID for use as the JWT subject.
+  - `AuditLogService.record()` runs in REQUIRES_NEW; the audit row is committed even if the surrounding business transaction rolls back. Tests must NOT use class-level `@Transactional` when verifying audit rows; manual `@AfterEach` cleanup via JDBC is required instead.
+  - TASK-041 depends on TASK-027 (`AuditLogService`), which was merged from `feat/task-027-audit-log` before implementation.
+- Commits: (see below)
+
+---
+
 ## Notes for future agents
 
 - The PRD at `prd/PRD.md` is the only source of truth. If something here contradicts the PRD, the PRD wins.
 - Integrations gated on Lead Developer review before merge per PRD §25.3: Stripe, Apple Sign-in, Push notifications, Twilio (future), Google OAuth.
-- Completed through TASK-040/TASK-027: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 036, 037, 039, 040 (see `tasks.json`).
+- Completed through TASK-041: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 036, 037, 039, 040, 041 (see `tasks.json`).
 - TASK-025 note: all domain exceptions must extend `DomainException` (in `com.teamhub.exception`). Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")`. The full §23.4 envelope `{"error":{"code":"…","message":"…","details":{…}}}` is returned by `GlobalExceptionHandler` for validation (422), domain (custom status), and unexpected (500) errors. Auth exceptions (`InvalidCredentialsException`, `InvalidRefreshTokenException`) now return the full envelope (was legacy flat shape).
 - TASK-024 note: the security filter chain now returns 401 with the §23.4 `ErrorEnvelope` (`{"error":{"code":"UNAUTHORIZED",...}}`) for both anonymous and invalid-token requests via `RestAuthenticationEntryPoint`. CORS allows only the `CORS_ALLOWED_ORIGIN` env-var origin (dev: `http://localhost:5173`, prod: `https://app.teamhub.online`). All other 401/403 logic is unchanged from TASK-019/023. The `AuthExceptionHandler` legacy flat 401 body (for `InvalidCredentialsException`/`InvalidRefreshTokenException`) was reconciled to the full envelope in TASK-025.
 - TASK-023 note: authorization is permission-based. Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")` (a permission code from the `permissions` table), never `hasRole('ADMIN')`. The JWT `role` claim is resolved to `PERM_*` authorities by `PermissionJwtAuthenticationConverter`. Adding a role is a seed-only change (new rows in `roles` + `role_permissions`). 403 denials use the PRD §23.4 envelope (`{"error":{"code":"FORBIDDEN",...}}`); the 401 envelope and CORS are deferred to TASK-024, and the unified `@RestControllerAdvice` envelope to TASK-025.

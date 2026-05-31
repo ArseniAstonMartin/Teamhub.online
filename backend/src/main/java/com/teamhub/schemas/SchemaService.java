@@ -97,6 +97,36 @@ public class SchemaService {
   }
 
   /**
+   * Returns all schema versions for the given tenant, ordered by name then version descending.
+   * Intended for the admin list endpoint (PRD §5.3, §8.2).
+   */
+  @Transactional(readOnly = true)
+  public List<AppointmentSchema> listByTenant(UUID tenantId) {
+    return schemaRepository.findAllByTenantIdOrderByNameAscVersionDesc(tenantId);
+  }
+
+  /**
+   * Marks the schema with the given {@code id} as inactive ({@code is_active = false}).
+   *
+   * <p>Deactivation never deletes rows — the record remains for historical job-validation purposes
+   * (PRD §8.2). Only the schema owner's tenant may deactivate its own schemas.
+   *
+   * @param tenantId the requesting tenant
+   * @param id the schema row to deactivate
+   * @return the updated (now-inactive) schema
+   * @throws SchemaNotFoundException when the id does not exist within this tenant
+   */
+  public AppointmentSchema deactivateById(UUID tenantId, UUID id) {
+    AppointmentSchema schema =
+        schemaRepository
+            .findById(id)
+            .filter(s -> s.getTenantId().equals(tenantId))
+            .orElseThrow(() -> new SchemaNotFoundException(id));
+    schema.setActive(false);
+    return schemaRepository.save(schema);
+  }
+
+  /**
    * Validates field definitions before persisting.
    *
    * <p>Rules:
