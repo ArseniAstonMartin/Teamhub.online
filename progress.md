@@ -419,6 +419,34 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 ---
 
+### 2026-05-31 — TASK-107 — SonarCloud static analysis wired to backend CI
+- Agent: Composer (Sonnet 4.6)
+- Status change: pending → done
+- PRD sections consulted: §21.6
+- Files touched:
+  - backend/build.gradle.kts (added `org.sonarqube` plugin v7.3.0.8198; added `tasks.named("sonar")` dependency on `jacocoTestReport`; added `sonar {}` properties block)
+  - .github/workflows/backend-ci.yml (added "SonarCloud analysis" step after JaCoCo artifact upload; TO-DO comment about disabling Automatic Analysis)
+- Summary: Wired SonarCloud static analysis into the backend CI pipeline (PRD §21.6). The `org.sonarqube` Gradle plugin (7.3.0.8198) is added to `build.gradle.kts` and configured with the SonarCloud host, organization key (`teamhub`), project key (`ArseniAstonMartin_Teamhub.online`), and the path to the pre-existing JaCoCo XML report. `sonar.qualitygate.wait=true` causes the Gradle task to poll SonarCloud and fail if the Quality Gate is not green. The CI step uses the repository secret `TEAMHUB_SONAR_TOKEN` and also exposes `GITHUB_TOKEN` so the scanner can decorate pull requests. A TO-DO comment in `backend-ci.yml` instructs the human operator to disable SonarCloud Automatic Analysis to prevent double scans.
+- Acceptance criteria verified:
+  1. SonarQube scanner Gradle plugin configured (`org.sonarqube` v7.3.0.8198, `sonar {}` block with host/org/project/coverage/Java-source props) — confirmed in `build.gradle.kts`
+  2. CI job runs `./gradlew sonar` against the project's quality gate — confirmed in `backend-ci.yml`; `sonar.qualitygate.wait=true` makes the task exit non-zero on gate failure
+  3. Quality gate settings (no blockers, no critical issues, coverage ≥ 70%) are configured in SonarCloud UI; coverage data is surfaced via the JaCoCo XML report — TO-DO for human to verify gate thresholds in SonarCloud project settings
+  4. TO-DO marker for disabling SonarCloud Automatic Analysis — present in `backend-ci.yml` with the exact admin URL
+- Test steps run:
+  - `./gradlew spotlessCheck --no-daemon` — BUILD SUCCESSFUL (Kotlin Gradle file passes ktlint)
+  - Live quality gate test (Step 1 introduce blocker, Step 2 fix, Step 3 coverage visible) requires a live SonarCloud project — deferred to first CI run
+- Open TO-DOs created (with PRD reference):
+  - `backend-ci.yml` (PRD §21.6): Disable SonarCloud Automatic Analysis at `https://sonarcloud.io/project/administration?id=ArseniAstonMartin_Teamhub.online` → Administration → Analysis Method to avoid double scans
+  - SonarCloud quality gate thresholds (PRD §21.6, no blockers/critical, coverage ≥ 70%): verify/configure the quality gate in SonarCloud UI — the Gradle plugin enforces the gate that is set there
+- Notes for next iteration:
+  - The `TEAMHUB_SONAR_TOKEN` repository secret must be configured in GitHub → Settings → Secrets. The user confirmed it is already set.
+  - SonarCloud Automatic Analysis must be turned off to avoid double scans (see TO-DO above).
+  - `sonar.qualitygate.wait=true` is set in `build.gradle.kts`, so local `./gradlew sonar` calls also wait for the gate — this requires `SONAR_TOKEN` to be set locally; without it the task will fail.
+  - The JaCoCo XML report path is resolved at configuration time via `layout.buildDirectory.get()`, so the path is always absolute and correct regardless of where Gradle is invoked from.
+- Commits: (pending user review)
+
+---
+
 ## Notes for future agents
 
 - The PRD at `prd/PRD.md` is the only source of truth. If something here contradicts the PRD, the PRD wins.
