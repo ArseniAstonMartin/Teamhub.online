@@ -609,11 +609,46 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 ---
 
+### 2026-05-31 — TASK-027 — Audit log table, append-only writer role, AuditLogService
+
+- Agent: Composer (Sonnet 4.6) backend-security
+- Status change: pending → done
+- PRD sections consulted: §19, §7.2
+- Files touched:
+  - backend/src/main/resources/db/migration/V8__audit_log.sql (new)
+  - backend/src/main/java/com/teamhub/audit/AuditLog.java (new — JPA entity, builder)
+  - backend/src/main/java/com/teamhub/audit/AuditLogRepository.java (new)
+  - backend/src/main/java/com/teamhub/audit/AuditLogService.java (new — append-only writer using app_audit_writer role)
+  - backend/src/main/java/com/teamhub/audit/package-info.java (new)
+  - backend/src/test/java/com/teamhub/audit/AuditLogIT.java (new — 3 tests covering all 3 task steps)
+  - tasks.json (TASK-027 status → done)
+- Summary: Created the `audit_log` table (PRD §19) with all required columns (id, tenant_id, actor_user_id, action, resource_type, resource_id, before_state jsonb, after_state jsonb, ip_address inet, user_agent, occurred_at). V8 Flyway migration creates the table, a covering index on (tenant_id, occurred_at DESC), enables RLS + FORCE RLS with the standard tenant_isolation policy (identical predicate to V2/V5/V7), grants `teamhub_app` SELECT only (no INSERT/UPDATE/DELETE), and creates + grants INSERT only to a new `app_audit_writer` role. `AuditLogService.record()` runs in REQUIRES_NEW (independent of caller's transaction), switches to `app_audit_writer` via `SET LOCAL ROLE`, explicitly sets the tenant GUC from the entry's tenantId (required for audit events fired before a tenant context is established, e.g. login_failed), then executes the native INSERT via JdbcTemplate. The LOCAL keyword auto-reverts role and GUC at transaction end, leaving pooled connections clean.
+- Acceptance criteria verified:
+  1. V8 migration creates `audit_log` with all PRD §19 columns; Flyway + JPA schema validation pass — confirmed
+  2. `app_audit_writer` has INSERT only; `teamhub_app` has SELECT only on `audit_log` — confirmed in migration SQL and enforced by tests 2 and 3
+  3. `AuditLogService.record()` runs `SET LOCAL ROLE app_audit_writer` + `SET LOCAL app.current_tenant_id` before the INSERT — confirmed in source; test 1 verifies the row is written
+  4. RLS enabled with FORCE; standard `tenant_isolation` policy using `NULLIF(current_setting('app.current_tenant_id', true), '')::uuid` — confirmed in migration SQL
+- Test steps run (3 new tests in AuditLogIT, 101 total tests, 0 failures):
+  - Step 1 (`record_insertsRow_withExpectedFieldValues`): builds an AuditLog entry, calls `record()`, queries via postgres superuser; asserts action, resource_type, resource_id, ip_address, user_agent all match; `occurred_at` asserted after `.truncatedTo(ChronoUnit.MICROS)` — passed
+  - Step 2 (`updateAsAppRole_isRejectedWithPermissionDenied`): inserts a row, then within a TransactionTemplate runs `SET LOCAL ROLE teamhub_app` + tries `UPDATE audit_log SET action='x'`; asserts `DataAccessException` is thrown with "permission denied" in message or cause — passed
+  - Step 3 (`deleteAsAppRole_isRejectedWithPermissionDenied`): same pattern for `DELETE FROM audit_log` — asserts `DataAccessException` with "permission denied" — passed
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 101 tests, 0 failures
+- Open TO-DOs created (with PRD reference):
+  - `AuditLogService.toJsonString` (PRD §19): wire Jackson ObjectMapper for richer before/after state snapshots (currently Object.toString() is used for non-String values)
+- Notes for next iteration:
+  - `AuditLogService.record()` uses `REQUIRES_NEW` so audit rows commit independently of the caller's transaction. For login_failed events (PRD §19.2), the caller has no tenant context; the service explicitly sets the GUC from `entry.getTenantId()` to satisfy the RLS INSERT CHECK.
+  - `app_audit_writer` is granted to the Flyway login user (postgres) in V8 migration via `GRANT app_audit_writer TO <current_user>`. The `teamhub_app` role does NOT have `app_audit_writer` membership and cannot INSERT into `audit_log`.
+  - The `AuditLogRepository` (JpaRepository) is provided for SELECT reads (e.g. export support per PRD §19.3). Direct `save()` calls from application code must not be used; they would connect as `teamhub_app` which has SELECT only.
+  - For the permission-denied integration tests, `TransactionTemplate` was used instead of `@Transactional` on the test method: the `REQUIRES_NEW` in `record()` needs the tenant row to already be committed (FK constraint), so tests provision the tenant without a wrapping test-level transaction.
+- Commits: (see below)
+
+---
+
 ## Notes for future agents
 
 - The PRD at `prd/PRD.md` is the only source of truth. If something here contradicts the PRD, the PRD wins.
 - Integrations gated on Lead Developer review before merge per PRD §25.3: Stripe, Apple Sign-in, Push notifications, Twilio (future), Google OAuth.
-- Completed through TASK-040: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 036, 037, 039, 040 (see `tasks.json`).
+- Completed through TASK-040/TASK-027: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 036, 037, 039, 040 (see `tasks.json`).
 - TASK-025 note: all domain exceptions must extend `DomainException` (in `com.teamhub.exception`). Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")`. The full §23.4 envelope `{"error":{"code":"…","message":"…","details":{…}}}` is returned by `GlobalExceptionHandler` for validation (422), domain (custom status), and unexpected (500) errors. Auth exceptions (`InvalidCredentialsException`, `InvalidRefreshTokenException`) now return the full envelope (was legacy flat shape).
 - TASK-024 note: the security filter chain now returns 401 with the §23.4 `ErrorEnvelope` (`{"error":{"code":"UNAUTHORIZED",...}}`) for both anonymous and invalid-token requests via `RestAuthenticationEntryPoint`. CORS allows only the `CORS_ALLOWED_ORIGIN` env-var origin (dev: `http://localhost:5173`, prod: `https://app.teamhub.online`). All other 401/403 logic is unchanged from TASK-019/023. The `AuthExceptionHandler` legacy flat 401 body (for `InvalidCredentialsException`/`InvalidRefreshTokenException`) was reconciled to the full envelope in TASK-025.
 - TASK-023 note: authorization is permission-based. Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")` (a permission code from the `permissions` table), never `hasRole('ADMIN')`. The JWT `role` claim is resolved to `PERM_*` authorities by `PermissionJwtAuthenticationConverter`. Adding a role is a seed-only change (new rows in `roles` + `role_permissions`). 403 denials use the PRD §23.4 envelope (`{"error":{"code":"FORBIDDEN",...}}`); the 401 envelope and CORS are deferred to TASK-024, and the unified `@RestControllerAdvice` envelope to TASK-025.
