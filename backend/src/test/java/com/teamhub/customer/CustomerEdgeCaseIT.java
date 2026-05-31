@@ -348,7 +348,7 @@ class CustomerEdgeCaseIT {
 
   @Test
   void onPrePersist_withPreSetTimestamps_preservesOriginalValues() {
-    Instant fixedCreated = Instant.now().minus(1, ChronoUnit.DAYS);
+    Instant fixedCreated = Instant.now().minus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.MICROS);
     Instant fixedUpdated = Instant.now().minus(1, ChronoUnit.HOURS);
 
     Customer c = buildCustomerEntity(tenantId, "+15037770007");
