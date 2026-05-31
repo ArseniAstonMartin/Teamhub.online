@@ -87,23 +87,29 @@ class AuthControllerIT {
 
   @Test
   void login_badPassword_returns401WithCode() throws Exception {
+    // Reconciled in TASK-025: AuthExceptionHandler replaced by GlobalExceptionHandler.
+    // InvalidCredentialsException now extends DomainException, so the response uses the
+    // §23.4 envelope ($.error.code) instead of the legacy flat shape ($.code).
     mockMvc
         .perform(
             post("/api/v1/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new LoginRequest(EMAIL, "wrong"))))
         .andExpect(status().isUnauthorized())
-        .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"));
+        .andExpect(jsonPath("$.error.code").value("INVALID_CREDENTIALS"));
   }
 
   @Test
-  void login_invalidBody_returns400() throws Exception {
+  void login_invalidBody_returns422WithFieldDetails() throws Exception {
+    // Reconciled in TASK-025: GlobalExceptionHandler maps MethodArgumentNotValidException to 422.
     mockMvc
         .perform(
             post("/api/v1/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new LoginRequest("not-an-email", ""))))
-        .andExpect(status().isBadRequest());
+        .andExpect(status().isUnprocessableEntity())
+        .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"))
+        .andExpect(jsonPath("$.error.details.fields").isArray());
   }
 
   @Test
