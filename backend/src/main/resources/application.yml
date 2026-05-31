@@ -29,6 +29,9 @@ management:
       enabled: false
 
 teamhub:
+  cors:
+    # In production override with https://app.teamhub.online; dev default is the Vite dev server.
+    allowed-origin: ${CORS_ALLOWED_ORIGIN:http://localhost:5173}
   jwt:
     # RS256 keypair PEM paths. When blank, an ephemeral keypair is generated at startup
     # (development/test only — configure persistent keys in production, PRD §24.4).
