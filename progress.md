@@ -378,7 +378,7 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - Production deployment must set `CORS_ALLOWED_ORIGIN=https://app.teamhub.online`. The dev default (`http://localhost:5173`) is intentionally insecure and must never reach production.
   - Both the `AuthenticationEntryPoint` in `exceptionHandling` (anonymous requests) and in `oauth2ResourceServer` (invalid/expired tokens) now use `RestAuthenticationEntryPoint`, so all 401 paths return the same `{"error":{"code":"UNAUTHORIZED",...}}` envelope.
   - The `AuthExceptionHandler` in `com.teamhub.auth` still returns the legacy flat `{code, message}` shape for `InvalidCredentialsException` / `InvalidRefreshTokenException` (auth domain logic, not the security filter chain). Reconciling those to the §23.4 envelope is deferred to TASK-025 (`@RestControllerAdvice`).
-- Commits: (pending)
+- Commits: 0755c29
 
 ---
 
