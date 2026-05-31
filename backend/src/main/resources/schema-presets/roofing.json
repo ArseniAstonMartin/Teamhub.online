@@ -1,0 +1,57 @@
+[
+  {
+    "key": "roof_type",
+    "label": "Roof Type",
+    "type": "dropdown",
+    "required": true,
+    "order": 1,
+    "options": ["Asphalt Shingle", "Metal", "Tile", "Flat / TPO", "Wood Shake", "Other"],
+    "depends_on": null,
+    "options_by_parent": null,
+    "validation": null
+  },
+  {
+    "key": "square_footage",
+    "label": "Square Footage",
+    "type": "number",
+    "required": false,
+    "order": 2,
+    "options": null,
+    "depends_on": null,
+    "options_by_parent": null,
+    "validation": {"min": 0, "max": 100000, "regex": null}
+  },
+  {
+    "key": "damage_type",
+    "label": "Damage / Service Type",
+    "type": "dropdown",
+    "required": true,
+    "order": 3,
+    "options": ["Leak", "Wind Damage", "Hail Damage", "Age / Wear", "New Installation", "Inspection", "Other"],
+    "depends_on": null,
+    "options_by_parent": null,
+    "validation": null
+  },
+  {
+    "key": "problem_description",
+    "label": "Problem Description",
+    "type": "text",
+    "required": true,
+    "order": 4,
+    "options": null,
+    "depends_on": null,
+    "options_by_parent": null,
+    "validation": null
+  },
+  {
+    "key": "photos",
+    "label": "Photos",
+    "type": "image",
+    "required": false,
+    "order": 5,
+    "options": null,
+    "depends_on": null,
+    "options_by_parent": null,
+    "validation": null
+  }
+]

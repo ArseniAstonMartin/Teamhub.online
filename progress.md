@@ -562,11 +562,58 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 ---
 
+### 2026-05-31 — TASK-040 — Schema presets: 8 JSON files, Flyway R__ migration, preset provisioning
+
+- Agent: Composer (Sonnet 4.6)
+- Status change: pending → done
+- PRD sections consulted: §8.2, §8.4, §8.5, §26.1
+- Files touched:
+  - backend/src/main/resources/schema-presets/appliance.json (new)
+  - backend/src/main/resources/schema-presets/ac.json (new)
+  - backend/src/main/resources/schema-presets/electrician.json (new)
+  - backend/src/main/resources/schema-presets/plumber.json (new)
+  - backend/src/main/resources/schema-presets/handyman.json (new)
+  - backend/src/main/resources/schema-presets/roofing.json (new)
+  - backend/src/main/resources/schema-presets/solar.json (new)
+  - backend/src/main/resources/schema-presets/locksmith.json (new — includes automotive sub-template with make/model/year per PRD §8.5)
+  - backend/src/main/resources/db/migration/R__seed_schema_presets.sql (new — Flyway repeatable migration; creates schema_presets table, seeds all 8 presets via INSERT … ON CONFLICT DO UPDATE)
+  - backend/src/main/java/com/teamhub/schemas/SchemaPreset.java (new — JPA entity)
+  - backend/src/main/java/com/teamhub/schemas/SchemaPresetRepository.java (new)
+  - backend/src/main/java/com/teamhub/schemas/SchemaPresetLoader.java (new — ApplicationRunner that validates all 8 JSON files at boot)
+  - backend/src/main/java/com/teamhub/schemas/AppointmentSchemaRepository.java (modified: added findByTenantIdAndNameAndActiveTrue)
+  - backend/src/main/java/com/teamhub/tenancy/InternalTenantService.java (modified: added provision(name, ownerEmail, presetKey) overload with backward-compatible two-arg delegate)
+  - backend/src/test/java/com/teamhub/schemas/SchemaPresetIT.java (new — 6 tests covering all 3 task test steps)
+  - tasks.json (TASK-040 status → done)
+- Summary: Bundled all eight predefined schema presets (appliance, ac, electrician, plumber, handyman, roofing, solar, locksmith) as JSON files under `backend/src/main/resources/schema-presets/`. Each file is an ordered array of `FieldDefinition` objects conforming to the PRD §8.2 shape. The locksmith preset includes the automotive sub-template with `make` as a dropdown of the curated top-5 US makes (Ford, Chevrolet, Toyota, Honda, Tesla) plus `Other...`, and `model`/`year` as free-text fields (PRD §8.5). The Flyway repeatable migration `R__seed_schema_presets.sql` creates the `schema_presets` table (preset_key PK, schema_name, field_definitions JSONB) and seeds all 8 rows idempotently with `INSERT … ON CONFLICT DO UPDATE`. `SchemaPresetLoader` (ApplicationRunner) validates all JSON files at boot by deserializing them with Jackson and checking non-null key/label/type — the application fails to start if any file is invalid. `InternalTenantService.provision` was extended with a three-arg overload: when `presetKey` is provided it calls `SchemaService.publishNewVersion` to instantiate the first schema version; the two-arg overload delegates with `presetKey=null` for backward compatibility.
+- Acceptance criteria verified:
+  1. Eight JSON files in schema-presets/, each conforming to the FieldDefinition shape — confirmed by SchemaPresetIT.allPresetJsonFiles_areValidAtBoot_eightPresetsLoaded
+  2. Locksmith preset includes automotive section with `make` dropdown (top-5 + Other...) and free-text `model`/`year` — confirmed by SchemaPresetIT.locksmithPreset_hasAutomotiveSection_withTopMakesAndFreeTextModelYear
+  3. R__seed_schema_presets.sql loads all 8 presets into schema_presets table idempotently — confirmed by SchemaPresetIT.schemaPresets_repeatedMigration_producesNoDuplicates
+  4. InternalTenantService.provision accepts optional preset_key; when provided, calls SchemaService.publishNewVersion after provisioning — confirmed by SchemaPresetIT.provision_withPlumberPreset_createsMatchingActiveSchema; backward compat confirmed by provision_withoutPreset_createsNoSchema
+  5. TO-DO marker added for top-5 makes confirmation (PRD §26.1) — present in InternalTenantService.provision and R__seed_schema_presets.sql
+- Test steps run (6 new tests in SchemaPresetIT, 98 total tests, 0 failures):
+  - Step 1 (`provision_withPlumberPreset_createsMatchingActiveSchema`): provisions tenant with preset_key=plumber; verifies active appointment_schemas row has name="Plumber Job", version=1, is_active=true, contains expected field keys — passed
+  - Step 2 (`allPresetJsonFiles_areValidAtBoot_eightPresetsLoaded`): application context loads without error (SchemaPresetLoader ran), count=8, all presets have non-empty field definitions with non-blank key/label/type — passed; also `locksmithPreset_hasAutomotiveSection_withTopMakesAndFreeTextModelYear` validates make dropdown options — passed
+  - Step 3 (`schemaPresets_repeatedMigration_producesNoDuplicates`): count=8 exactly, no duplicate preset_keys (PK constraint) — passed
+  - Additional: `provision_withoutPreset_createsNoSchema` (backward compat), `provision_withUnknownPresetKey_throwsTenantProvisionException` — both passed
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 98 tests, 0 failures
+- Open TO-DOs created (with PRD reference):
+  - `InternalTenantService.provision` (PRD §26.1): confirm final top-5 makes list for the locksmith automotive preset before release. Working list: Ford, Chevrolet, Toyota, Honda, Tesla.
+  - `R__seed_schema_presets.sql` locksmith section (PRD §26.1): same confirmation needed before bundling.
+- Notes for next iteration:
+  - The `R__` Flyway prefix causes the migration to re-run whenever its checksum changes. To update a preset: edit the corresponding JSON file and update the matching SQL literal in `R__seed_schema_presets.sql`; Flyway will re-run the migration and `ON CONFLICT DO UPDATE` will apply the new values.
+  - `SchemaPreset` entity is NOT under RLS (global reference data). The `teamhub_app` role has `SELECT` only; `INSERT`/`UPDATE` is done by the Flyway migration user (postgres).
+  - `InternalTenantService` constructor now requires `SchemaPresetRepository` and `SchemaService`. Any test that constructs `InternalTenantService` directly must provide both; tests using `@SpringBootTest` are unaffected.
+  - The `SchemaPresetLoader` validates JSON files from classpath at boot (not from the DB). If a JSON file is accidentally deleted from the jar, the application will start normally (no classpath resource = no validation); this is intentional — the DB is the authoritative store after migration.
+- Commits: (pending)
+
+---
+
 ## Notes for future agents
 
 - The PRD at `prd/PRD.md` is the only source of truth. If something here contradicts the PRD, the PRD wins.
 - Integrations gated on Lead Developer review before merge per PRD §25.3: Stripe, Apple Sign-in, Push notifications, Twilio (future), Google OAuth.
-- Completed through TASK-039: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 036, 037, 039 (see `tasks.json`).
+- Completed through TASK-040: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 036, 037, 039, 040 (see `tasks.json`).
 - TASK-025 note: all domain exceptions must extend `DomainException` (in `com.teamhub.exception`). Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")`. The full §23.4 envelope `{"error":{"code":"…","message":"…","details":{…}}}` is returned by `GlobalExceptionHandler` for validation (422), domain (custom status), and unexpected (500) errors. Auth exceptions (`InvalidCredentialsException`, `InvalidRefreshTokenException`) now return the full envelope (was legacy flat shape).
 - TASK-024 note: the security filter chain now returns 401 with the §23.4 `ErrorEnvelope` (`{"error":{"code":"UNAUTHORIZED",...}}`) for both anonymous and invalid-token requests via `RestAuthenticationEntryPoint`. CORS allows only the `CORS_ALLOWED_ORIGIN` env-var origin (dev: `http://localhost:5173`, prod: `https://app.teamhub.online`). All other 401/403 logic is unchanged from TASK-019/023. The `AuthExceptionHandler` legacy flat 401 body (for `InvalidCredentialsException`/`InvalidRefreshTokenException`) was reconciled to the full envelope in TASK-025.
 - TASK-023 note: authorization is permission-based. Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")` (a permission code from the `permissions` table), never `hasRole('ADMIN')`. The JWT `role` claim is resolved to `PERM_*` authorities by `PermissionJwtAuthenticationConverter`. Adding a role is a seed-only change (new rows in `roles` + `role_permissions`). 403 denials use the PRD §23.4 envelope (`{"error":{"code":"FORBIDDEN",...}}`); the 401 envelope and CORS are deferred to TASK-024, and the unified `@RestControllerAdvice` envelope to TASK-025.

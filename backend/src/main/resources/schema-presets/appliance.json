@@ -1,0 +1,79 @@
+[
+  {
+    "key": "appliance_type",
+    "label": "Appliance Type",
+    "type": "dropdown",
+    "required": true,
+    "order": 1,
+    "options": ["Refrigerator", "Washer", "Dryer", "Dishwasher", "Oven / Range", "Microwave", "HVAC Unit", "Other"],
+    "depends_on": null,
+    "options_by_parent": null,
+    "validation": null
+  },
+  {
+    "key": "brand",
+    "label": "Brand",
+    "type": "text",
+    "required": false,
+    "order": 2,
+    "options": null,
+    "depends_on": null,
+    "options_by_parent": null,
+    "validation": null
+  },
+  {
+    "key": "model_number",
+    "label": "Model Number",
+    "type": "text",
+    "required": false,
+    "order": 3,
+    "options": null,
+    "depends_on": null,
+    "options_by_parent": null,
+    "validation": null
+  },
+  {
+    "key": "serial_number",
+    "label": "Serial Number",
+    "type": "text",
+    "required": false,
+    "order": 4,
+    "options": null,
+    "depends_on": null,
+    "options_by_parent": null,
+    "validation": null
+  },
+  {
+    "key": "warranty_status",
+    "label": "Warranty Status",
+    "type": "dropdown",
+    "required": false,
+    "order": 5,
+    "options": ["In Warranty", "Out of Warranty", "Unknown"],
+    "depends_on": null,
+    "options_by_parent": null,
+    "validation": null
+  },
+  {
+    "key": "problem_description",
+    "label": "Problem Description",
+    "type": "text",
+    "required": true,
+    "order": 6,
+    "options": null,
+    "depends_on": null,
+    "options_by_parent": null,
+    "validation": null
+  },
+  {
+    "key": "photos",
+    "label": "Photos",
+    "type": "image",
+    "required": false,
+    "order": 7,
+    "options": null,
+    "depends_on": null,
+    "options_by_parent": null,
+    "validation": null
+  }
+]
