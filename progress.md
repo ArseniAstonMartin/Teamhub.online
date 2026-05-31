@@ -605,7 +605,7 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - `SchemaPreset` entity is NOT under RLS (global reference data). The `teamhub_app` role has `SELECT` only; `INSERT`/`UPDATE` is done by the Flyway migration user (postgres).
   - `InternalTenantService` constructor now requires `SchemaPresetRepository` and `SchemaService`. Any test that constructs `InternalTenantService` directly must provide both; tests using `@SpringBootTest` are unaffected.
   - The `SchemaPresetLoader` validates JSON files from classpath at boot (not from the DB). If a JSON file is accidentally deleted from the jar, the application will start normally (no classpath resource = no validation); this is intentional — the DB is the authoritative store after migration.
-- Commits: (pending)
+- Commits: f0a3b23 (PR #16)
 
 ---
 
