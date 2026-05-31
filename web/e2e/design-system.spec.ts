@@ -1,8 +1,6 @@
 import { test, expect } from '@playwright/test';
-import path from 'path';
-import fs from 'fs';
 
-test('design system page renders all primitives', async ({ page }) => {
+test('design system page renders all primitives', async ({ page }, testInfo) => {
   await page.goto('/design-system');
 
   // Page title (h1)
@@ -20,14 +18,10 @@ test('design system page renders all primitives', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Dialog', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Toast Notifications — Sonner', exact: true })).toBeVisible();
 
-  // Save screenshot as baseline
-  const screenshotDir = path.join(__dirname, 'screenshots');
-  if (!fs.existsSync(screenshotDir)) {
-    fs.mkdirSync(screenshotDir, { recursive: true });
-  }
-
+  // Save screenshot as baseline — use Playwright's testInfo.outputPath() which
+  // works in both CJS and ESM (no __dirname needed) and auto-creates the directory.
   await page.screenshot({
-    path: path.join(screenshotDir, 'design-system-baseline.png'),
+    path: testInfo.outputPath('design-system-baseline.png'),
     fullPage: true,
   });
 });
