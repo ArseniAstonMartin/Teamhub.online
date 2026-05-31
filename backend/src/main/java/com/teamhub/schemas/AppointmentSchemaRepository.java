@@ -1,5 +1,6 @@
 package com.teamhub.schemas;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -42,4 +43,11 @@ public interface AppointmentSchemaRepository extends JpaRepository<AppointmentSc
    * Optional#empty()} if no active version exists.
    */
   Optional<AppointmentSchema> findByTenantIdAndNameAndActiveTrue(UUID tenantId, String name);
+
+  /**
+   * Returns all schema versions for the given tenant, ordered by name ascending then version
+   * descending (newest version first within each schema name). Used by the admin list endpoint (PRD
+   * §5.3, §8.2).
+   */
+  List<AppointmentSchema> findAllByTenantIdOrderByNameAscVersionDesc(UUID tenantId);
 }
