@@ -1,0 +1,8 @@
+title = "teamhub gitleaks config"
+
+# Fictional AWS access key id used only in tasks.json (TASK-106 test_steps example).
+# Not a real credential — allowlisted so CI/history scans do not fail on documentation.
+[[allowlists]]
+description = "Fictional AWS key in task description examples"
+regexes = ['''AKIA1234567890ABCDEF''']
+commits = ["e84926922dcccd53b27f53a63ed828dfb8257c9f"]
