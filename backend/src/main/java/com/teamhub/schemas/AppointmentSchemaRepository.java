@@ -36,4 +36,10 @@ public interface AppointmentSchemaRepository extends JpaRepository<AppointmentSc
    */
   Optional<AppointmentSchema> findByTenantIdAndNameAndVersion(
       UUID tenantId, String name, int version);
+
+  /**
+   * Returns the currently active schema for the given tenant and schema name, or {@link
+   * Optional#empty()} if no active version exists.
+   */
+  Optional<AppointmentSchema> findByTenantIdAndNameAndActiveTrue(UUID tenantId, String name);
 }

@@ -1,0 +1,90 @@
+[
+  {
+    "key": "unit_type",
+    "label": "Unit Type",
+    "type": "dropdown",
+    "required": true,
+    "order": 1,
+    "options": ["Central AC", "Split System", "Window Unit", "Portable", "Heat Pump", "Other"],
+    "depends_on": null,
+    "options_by_parent": null,
+    "validation": null
+  },
+  {
+    "key": "brand",
+    "label": "Brand",
+    "type": "text",
+    "required": false,
+    "order": 2,
+    "options": null,
+    "depends_on": null,
+    "options_by_parent": null,
+    "validation": null
+  },
+  {
+    "key": "model_number",
+    "label": "Model Number",
+    "type": "text",
+    "required": false,
+    "order": 3,
+    "options": null,
+    "depends_on": null,
+    "options_by_parent": null,
+    "validation": null
+  },
+  {
+    "key": "tonnage",
+    "label": "Tonnage",
+    "type": "dropdown",
+    "required": false,
+    "order": 4,
+    "options": ["1 ton", "1.5 ton", "2 ton", "2.5 ton", "3 ton", "3.5 ton", "4 ton", "5 ton", "Other"],
+    "depends_on": null,
+    "options_by_parent": null,
+    "validation": null
+  },
+  {
+    "key": "refrigerant_type",
+    "label": "Refrigerant Type",
+    "type": "dropdown",
+    "required": false,
+    "order": 5,
+    "options": ["R-22", "R-410A", "R-32", "Other"],
+    "depends_on": null,
+    "options_by_parent": null,
+    "validation": null
+  },
+  {
+    "key": "last_service_date",
+    "label": "Last Service Date",
+    "type": "date",
+    "required": false,
+    "order": 6,
+    "options": null,
+    "depends_on": null,
+    "options_by_parent": null,
+    "validation": null
+  },
+  {
+    "key": "problem_description",
+    "label": "Problem Description",
+    "type": "text",
+    "required": true,
+    "order": 7,
+    "options": null,
+    "depends_on": null,
+    "options_by_parent": null,
+    "validation": null
+  },
+  {
+    "key": "photos",
+    "label": "Photos",
+    "type": "image",
+    "required": false,
+    "order": 8,
+    "options": null,
+    "depends_on": null,
+    "options_by_parent": null,
+    "validation": null
+  }
+]

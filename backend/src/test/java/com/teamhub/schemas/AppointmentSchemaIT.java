@@ -230,6 +230,138 @@ class AppointmentSchemaIT {
   }
 
   // ---------------------------------------------------------------------------
+  // SchemaNotFoundException coverage
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Requesting a non-existent version must throw {@link SchemaNotFoundException} with a message
+   * that includes the schema name and the missing version number.
+   */
+  @Test
+  void getByVersion_nonexistentVersion_throwsSchemaNotFoundException() {
+    assertThatThrownBy(() -> schemaService.getByVersion(tenantId, SCHEMA_NAME, 99))
+        .isInstanceOf(SchemaNotFoundException.class)
+        .hasMessageContaining(SCHEMA_NAME)
+        .hasMessageContaining("99");
+  }
+
+  // ---------------------------------------------------------------------------
+  // SchemaService edge-case branches
+  // ---------------------------------------------------------------------------
+
+  /**
+   * A field that declares {@code options_by_parent} but omits {@code depends_on} must fail with
+   * {@link SchemaValidationException} before any DB write. Covers the guard on line 130.
+   */
+  @Test
+  void publishNewVersion_optionsByParentWithoutDependsOn_throwsSchemaValidationException() {
+    FieldDefinition badField =
+        new FieldDefinition(
+            "model",
+            "Vehicle Model",
+            "dropdown",
+            false,
+            1,
+            null,
+            null, // depends_on is null — but options_by_parent is present
+            Map.of("Ford", List.of("F-150")),
+            null);
+
+    assertThatThrownBy(
+            () -> schemaService.publishNewVersion(tenantId, SCHEMA_NAME, List.of(badField)))
+        .isInstanceOf(SchemaValidationException.class)
+        .hasMessageContaining("options_by_parent")
+        .hasMessageContaining("depends_on");
+  }
+
+  /**
+   * A field whose {@code options_by_parent} is an empty map (non-null, but empty) must not trigger
+   * the depends_on check and must be persisted successfully. Covers the {@code
+   * !optionsByParent.isEmpty()} false branch (line 128) in {@link
+   * SchemaService#validateFieldDefinitions}.
+   */
+  @Test
+  void publishNewVersion_emptyOptionsByParent_schemaPersistedSuccessfully() {
+    FieldDefinition field =
+        new FieldDefinition(
+            "status",
+            "Status",
+            "dropdown",
+            false,
+            1,
+            List.of("open", "closed"),
+            null,
+            Map.of(), // non-null but empty → validation block skipped
+            null);
+
+    AppointmentSchema schema =
+        schemaService.publishNewVersion(tenantId, SCHEMA_NAME, List.of(field));
+
+    assertThat(schema.getId()).isNotNull();
+    assertThat(schema.getFieldDefinitions()).hasSize(1);
+  }
+
+  /**
+   * When the parent field referenced by {@code depends_on} has {@code null} options (e.g. a text
+   * field), the {@code options_by_parent} key-set check is skipped and the schema is saved
+   * successfully. Covers the {@code if (parentOptions != null)} false branch in {@link
+   * SchemaService#validateFieldDefinitions}.
+   */
+  @Test
+  void publishNewVersion_optionsByParentParentHasNullOptions_schemaPersistedSuccessfully() {
+    FieldDefinition parentTextField =
+        new FieldDefinition("category", "Category", "text", true, 1, null, null, null, null);
+
+    FieldDefinition childField =
+        new FieldDefinition(
+            "sub_category",
+            "Sub-category",
+            "dropdown",
+            false,
+            2,
+            null,
+            "category", // depends_on a text field whose options == null
+            Map.of("residential", List.of("kitchen", "bathroom")),
+            null);
+
+    AppointmentSchema schema =
+        schemaService.publishNewVersion(
+            tenantId, SCHEMA_NAME, List.of(parentTextField, childField));
+
+    assertThat(schema.getId()).isNotNull();
+    assertThat(schema.getFieldDefinitions()).hasSize(2);
+  }
+
+  // ---------------------------------------------------------------------------
+  // AppointmentSchema @PrePersist branch: createdAt already set
+  // ---------------------------------------------------------------------------
+
+  /**
+   * When an {@link AppointmentSchema} row is saved with {@code createdAt} pre-set, the
+   * {@code @PrePersist} callback must leave the value unchanged (covers the {@code createdAt !=
+   * null} branch that skips the {@code Instant.now()} assignment).
+   */
+  @Test
+  void save_withPresetCreatedAt_prePersistDoesNotOverwriteTimestamp() {
+    java.time.Instant fixed =
+        java.time.Instant.parse("2025-01-01T00:00:00Z")
+            .truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+
+    AppointmentSchema schema = new AppointmentSchema();
+    schema.setTenantId(tenantId);
+    schema.setName(SCHEMA_NAME);
+    schema.setVersion(7);
+    schema.setActive(true);
+    schema.setCreatedAt(fixed);
+    schema.setFieldDefinitions(List.of(makeField("x", "X", 1)));
+
+    AppointmentSchema saved = schemaRepository.save(schema);
+
+    assertThat(saved.getCreatedAt().truncatedTo(java.time.temporal.ChronoUnit.MICROS))
+        .isEqualTo(fixed);
+  }
+
+  // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
 
