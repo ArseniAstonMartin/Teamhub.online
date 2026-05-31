@@ -120,6 +120,19 @@ jobs:
           path: backend/build/reports/jacoco/test/html/
           retention-days: 14
 
+      # TO-DO: Disable SonarCloud Automatic Analysis for this project to avoid
+      # double scans (this CI scanner + the automatic analysis triggered by
+      # GitHub events). Go to:
+      #   https://sonarcloud.io/project/administration?id=ArseniAstonMartin_Teamhub.online
+      #   Administration → Analysis Method → turn off "Automatic Analysis".
+      - name: SonarCloud analysis
+        working-directory: backend
+        env:
+          SONAR_TOKEN: ${{ secrets.TEAMHUB_SONAR_TOKEN }}
+          # Expose GitHub context so the scanner decorates PRs and links commits.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./gradlew sonar --no-daemon
+
       - name: Scan for secrets (gitleaks)
         uses: gitleaks/gitleaks-action@v2
         env:

@@ -3,6 +3,7 @@ plugins {
   checkstyle
   jacoco
   id("com.diffplug.spotless") version "6.25.0"
+  id("org.sonarqube") version "7.3.0.8198"
   id("org.springframework.boot") version "3.5.14"
   id("io.spring.dependency-management") version "1.1.7"
 }
@@ -109,4 +110,25 @@ tasks.jacocoTestCoverageVerification {
 
 tasks.check {
   dependsOn(tasks.jacocoTestCoverageVerification)
+}
+
+// Sonar task must run after the JaCoCo XML report is generated.
+tasks.named("sonar") {
+  dependsOn(tasks.jacocoTestReport)
+}
+
+sonar {
+  properties {
+    property("sonar.host.url", "https://sonarcloud.io")
+    property("sonar.organization", "teamhub")
+    property("sonar.projectKey", "ArseniAstonMartin_Teamhub.online")
+    // Reuse the JaCoCo XML report already produced by the jacocoTestReport task.
+    property(
+      "sonar.coverage.jacoco.xmlReportPaths",
+      "${layout.buildDirectory.get()}/reports/jacoco/test/jacocoTestReport.xml",
+    )
+    property("sonar.java.source", "21")
+    // Fail CI if the SonarCloud Quality Gate is not green.
+    property("sonar.qualitygate.wait", "true")
+  }
 }
