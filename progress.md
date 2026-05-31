@@ -380,13 +380,51 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - The `AuthExceptionHandler` in `com.teamhub.auth` still returns the legacy flat `{code, message}` shape for `InvalidCredentialsException` / `InvalidRefreshTokenException` (auth domain logic, not the security filter chain). Reconciling those to the §23.4 envelope is deferred to TASK-025 (`@RestControllerAdvice`).
 - Commits: 0755c29
 
+### 2026-05-31 — TASK-025 — Uniform error envelope: @RestControllerAdvice + DomainException
+- Agent: Composer (Sonnet 4.6) backend-security
+- Status change: pending → done
+- PRD sections consulted: §23.4
+- Files touched:
+  - backend/src/main/java/com/teamhub/security/ErrorEnvelope.java (modified: added `details: Map<String, Object>` to `ErrorBody`; added `of(code, message, details)` factory; `@JsonInclude(NON_NULL)` so `details` is omitted when null)
+  - backend/src/main/java/com/teamhub/exception/DomainException.java (new: abstract base with `code` and `httpStatus`)
+  - backend/src/main/java/com/teamhub/exception/GlobalExceptionHandler.java (new: `@RestControllerAdvice` handling validation/422, domain/custom-status, unexpected/500)
+  - backend/src/main/java/com/teamhub/auth/InvalidCredentialsException.java (modified: extends `DomainException` with code `INVALID_CREDENTIALS`, status 401)
+  - backend/src/main/java/com/teamhub/auth/InvalidRefreshTokenException.java (modified: extends `DomainException` with code `INVALID_REFRESH_TOKEN`, status 401)
+  - backend/src/main/java/com/teamhub/auth/AuthExceptionHandler.java (deleted: replaced by `GlobalExceptionHandler`)
+  - backend/src/test/java/com/teamhub/exception/ErrorEnvelopeTestController.java (new, test-scoped: endpoints to drive test steps 1–3)
+  - backend/src/test/java/com/teamhub/exception/GlobalExceptionHandlerIT.java (new: 5 tests for TASK-025 test steps)
+  - backend/src/test/java/com/teamhub/auth/AuthControllerIT.java (modified: `$.code` → `$.error.code` assertion; `isBadRequest` → `isUnprocessableEntity` + field details assertion)
+  - tasks.json (TASK-025 status → done)
+- Summary: Implemented the uniform error envelope from PRD §23.4. `ErrorEnvelope.ErrorBody` gains an optional `details` field (omitted from JSON when null, preserving existing 401/403 filter-layer responses). The abstract `DomainException` base class carries a machine-readable `code` and `HttpStatus`, enabling typed error definitions with zero handler changes — adding a new domain error is a single new subclass. `GlobalExceptionHandler` handles three categories: (1) `MethodArgumentNotValidException` → 422 with `details.fields` array; (2) `DomainException` → exception-defined status and code; (3) `Exception` → 500 with a generated `request_id` in `details`, full stack trace at ERROR level in logs, no stack in body. Spring Security exceptions (`AccessDeniedException`, `AuthenticationException`) are re-thrown so they propagate to the security filter chain; Spring 6 `ErrorResponse` exceptions (e.g. `NoResourceFoundException`) are passed through with their declared status and an empty body to avoid infinite resolver loops. The tracked TASK-023/024 TO-DO is resolved: `AuthExceptionHandler` is deleted and both auth exceptions now extend `DomainException`, so login/refresh failures return `{"error":{"code":"INVALID_CREDENTIALS",...}}`.
+- Acceptance criteria verified:
+  1. Envelope shape `{"error":{"code":"…","message":"…","details":{…}}}` — confirmed in `ErrorEnvelope`, `DomainException`, `GlobalExceptionHandler`; `GlobalExceptionHandlerIT` + `AuthControllerIT` assert `$.error.code` and `$.error.details`
+  2. Validation failures aggregate field errors under `details.fields` — `GlobalExceptionHandlerIT.invalidRequest_returns422WithFieldErrors` asserts array length and field/message keys; `invalidRequest_fieldNamesArePresentInDetails` verifies field name propagation
+  3. Domain exceptions extend `DomainException` with `code` and `httpStatus` — confirmed in `InvalidCredentialsException`, `InvalidRefreshTokenException`, `JobAlreadyClaimedException` (test-scoped)
+  4. 500s log full stack with `request_id`; response contains only `request_id`, never stack trace — `unexpectedException_returns500WithRequestId_noStackTrace` asserts `$.error.details.request_id` exists and response body does not contain "NullPointerException", "at com.teamhub", or "stackTrace"
+- Test steps run (59 total, 0 failures; 5 new in GlobalExceptionHandlerIT):
+  - Step 1 (invalid login request → 422 with per-field error details): `AuthControllerIT.login_invalidBody_returns422WithFieldDetails` (status 422, `$.error.code == VALIDATION_FAILED`, `$.error.details.fields` is array); `GlobalExceptionHandlerIT.invalidRequest_returns422WithFieldErrors` (2 fields, each with field/message keys); `invalidRequest_fieldNamesArePresentInDetails` (field name "anotherField" present) — all passed
+  - Step 2 (domain exception with code JOB_ALREADY_CLAIMED → 409): `GlobalExceptionHandlerIT.domainException_returns409WithCode` — status 409, `$.error.code == JOB_ALREADY_CLAIMED` — passed
+  - Step 3 (forced NPE → 500 with envelope, no stack trace in body): `GlobalExceptionHandlerIT.unexpectedException_returns500WithRequestId_noStackTrace` — status 500, `$.error.code == INTERNAL_SERVER_ERROR`, `$.error.details.request_id` non-empty, body does not contain "NullPointerException"/"at com.teamhub"/"stackTrace" — passed
+  - Reconciliation sanity: `AuthControllerIT.login_badPassword_returns401WithCode` — `$.error.code == INVALID_CREDENTIALS` (was `$.code`) — passed
+  - Security filter chain guard: `GlobalExceptionHandlerIT.anonymousAccess_toTestEndpoint_returns401FromFilterChain` — `$.error.code == UNAUTHORIZED` from filter-layer handler — passed
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 59 tests, 0 failures
+- Open TO-DOs created (with PRD reference):
+  - `UserAlreadyExistsException` and `TenantProvisionException` do not yet extend `DomainException` (they have no REST surface yet; extend when their user/tenant REST APIs are built in future tasks — PRD §6.4, §6.5)
+- Notes for next iteration:
+  - To add a new domain error: create a subclass of `DomainException` with a `CODE` constant, the `HttpStatus`, and a message. `GlobalExceptionHandler` will automatically handle it — zero handler changes needed.
+  - The `GlobalExceptionHandler.handleUnexpected` re-throws Spring Security exceptions (`AccessDeniedException`, `AuthenticationException`) to the filter chain, and passes Spring 6 `ErrorResponse` exceptions (including `NoResourceFoundException`) through with their original status code. This keeps 404/405/etc. transparent while ensuring only true application bugs return 500 with the envelope.
+  - `ErrorEnvelope.ErrorBody.details` is `@JsonInclude(NON_NULL)` — filter-layer 401/403 handlers (which use the two-arg `ErrorEnvelope.of(code, message)`) continue to emit clean envelopes without a `details` field.
+  - `JOB_ALREADY_CLAIMED` is a test-scoped inner exception in `ErrorEnvelopeTestController`. The real job-domain exception will live in `com.teamhub.jobs` when the job feature is built.
+- Commits: (pending)
+
 ---
 
 ## Notes for future agents
 
 - The PRD at `prd/PRD.md` is the only source of truth. If something here contradicts the PRD, the PRD wins.
 - Integrations gated on Lead Developer review before merge per PRD §25.3: Stripe, Apple Sign-in, Push notifications, Twilio (future), Google OAuth.
-- Completed through TASK-024: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024 (see `tasks.json`).
-- TASK-024 note: the security filter chain now returns 401 with the §23.4 `ErrorEnvelope` (`{"error":{"code":"UNAUTHORIZED",...}}`) for both anonymous and invalid-token requests via `RestAuthenticationEntryPoint`. CORS allows only the `CORS_ALLOWED_ORIGIN` env-var origin (dev: `http://localhost:5173`, prod: `https://app.teamhub.online`). All other 401/403 logic is unchanged from TASK-019/023. The `AuthExceptionHandler` legacy flat 401 body (for `InvalidCredentialsException`/`InvalidRefreshTokenException`) is reconciled to the full envelope in TASK-025.
+- Completed through TASK-025: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025 (see `tasks.json`).
+- TASK-025 note: all domain exceptions must extend `DomainException` (in `com.teamhub.exception`). Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")`. The full §23.4 envelope `{"error":{"code":"…","message":"…","details":{…}}}` is returned by `GlobalExceptionHandler` for validation (422), domain (custom status), and unexpected (500) errors. Auth exceptions (`InvalidCredentialsException`, `InvalidRefreshTokenException`) now return the full envelope (was legacy flat shape).
+- TASK-024 note: the security filter chain now returns 401 with the §23.4 `ErrorEnvelope` (`{"error":{"code":"UNAUTHORIZED",...}}`) for both anonymous and invalid-token requests via `RestAuthenticationEntryPoint`. CORS allows only the `CORS_ALLOWED_ORIGIN` env-var origin (dev: `http://localhost:5173`, prod: `https://app.teamhub.online`). All other 401/403 logic is unchanged from TASK-019/023. The `AuthExceptionHandler` legacy flat 401 body (for `InvalidCredentialsException`/`InvalidRefreshTokenException`) was reconciled to the full envelope in TASK-025.
 - TASK-023 note: authorization is permission-based. Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")` (a permission code from the `permissions` table), never `hasRole('ADMIN')`. The JWT `role` claim is resolved to `PERM_*` authorities by `PermissionJwtAuthenticationConverter`. Adding a role is a seed-only change (new rows in `roles` + `role_permissions`). 403 denials use the PRD §23.4 envelope (`{"error":{"code":"FORBIDDEN",...}}`); the 401 envelope and CORS are deferred to TASK-024, and the unified `@RestControllerAdvice` envelope to TASK-025.
 - TASK-019 note: `TenantContextFilter` now reads the `tenant_id` claim from the validated JWT (the TASK-018 `X-Tenant-Id` placeholder is gone). Auth endpoints live under `/api/v1/auth/**` (permitAll); everything else requires a valid RS256 access token. Production must configure persistent JWT keys via `JWT_PRIVATE_KEY_PATH`/`JWT_PUBLIC_KEY_PATH`.
