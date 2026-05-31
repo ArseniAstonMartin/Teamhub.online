@@ -447,11 +447,126 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 ---
 
+### 2026-05-31 — TASK-036 — Customer entity, repository, and spatial migration
+
+- Agent: Composer (Sonnet 4.6) backend-security
+- Status change: pending → done
+- PRD sections consulted: §11.1, §7.2
+- Files touched:
+  - backend/src/main/resources/db/migration/V5__customers.sql (new)
+  - backend/src/main/java/com/teamhub/customer/Customer.java (new)
+  - backend/src/main/java/com/teamhub/customer/CustomerRepository.java (new)
+  - backend/src/test/java/com/teamhub/customer/CustomerIT.java (new)
+  - tasks.json (TASK-036 status → done)
+- Summary: Created the `customers` table (PRD §11.1) with all required columns including a PostGIS `geography(Point,4326)` location column. V5 Flyway migration creates the table, adds a GIST spatial index on `location` for ST_DWithin queries, grants DML to `teamhub_app`, and enables RLS + FORCE RLS with the standard tenant isolation policy (same predicate as V2/V3). The `Customer` JPA entity maps the `geography(Point,4326)` column via `org.locationtech.jts.geom.Point` (Hibernate Spatial, already a project dependency). `CustomerRepository` extends `JpaRepository<Customer, UUID>`. `@PrePersist` / `@PreUpdate` lifecycle hooks maintain `created_at` and `updated_at` on the Java side.
+- Acceptance criteria verified:
+  1. V5 migration creates `customers` with all PRD §11.1 columns (id, tenant_id, name, company_name, phone, email, address_line, city, state, zip, location, created_at, updated_at, archived_at) — confirmed in migration SQL; Flyway + JPA schema validation pass
+  2. GIST index `customers_location_gist` on `location` — confirmed in migration SQL; EXPLAIN test uses `SET LOCAL enable_seqscan = off` and verifies plan contains `customers_location_gist`
+  3. RLS enabled with FORCE; standard `tenant_isolation` policy using `NULLIF(current_setting('app.current_tenant_id', true), '')::uuid` — confirmed in migration SQL; `crossTenantSelect_returnsZeroRows` passes
+  4. `Customer` entity uses `org.locationtech.jts.geom.Point` with `columnDefinition = "geography(Point,4326)"` — confirmed in entity; Hibernate validates against the real PostGIS column
+- Test steps run (3 new tests in CustomerIT, 62 total tests, 0 failures):
+  - Step 1 (`insertCustomer_locationStoredAndReturnedAsPoint`): saves a customer at Hillsboro lat/lon via JPA; queries `ST_X(location::geometry)` and `ST_Y(location::geometry)` within 0.0001°; `ST_AsText(location)` starts with `POINT(` — passed
+  - Step 2 (`spatialQuery_stDWithinFindsNearbyCustomer_andGistIndexIsUsed`): ST_DWithin(1 km) returns only the Hillsboro customer, not a Portland one ~20 km away; EXPLAIN with `enable_seqscan = off` confirms `customers_location_gist` is used — passed
+  - Step 3 (`crossTenantSelect_returnsZeroRows`): inserts a row as postgres (BYPASSRLS), switches to `teamhub_app` role with no GUC → 0 rows; with a different tenant's UUID in GUC → 0 rows — passed
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 62 tests, 0 failures
+- Open TO-DOs created (with PRD reference): none
+- Notes for next iteration:
+  - `hibernate-spatial` was already a project dependency (TASK-002). No new Gradle dependency was needed.
+  - The SRID must be set on the JTS `GeometryFactory` (SRID 4326) when creating a `Point`; otherwise PostgreSQL may reject the geometry type mismatch.
+  - `ST_DWithin` on `geography` columns measures geodesic distance in metres, which is correct for field-service radius searches.
+  - PRD §11.3: address geocoding (Google Maps Geocoding API) and customer upsert on job creation are future work — not in TASK-036 scope.
+  - The `archived_at` soft-delete column is present; filtering `WHERE archived_at IS NULL` in default list queries is deferred to the Customer REST API task.
+- Commits: (pending)
+
+---
+
+### 2026-05-31 — TASK-037 — Customer CRUD endpoints with upsert-on-phone and phone masking
+
+- Agent: Composer (Sonnet 4.6) backend-security
+- Status change: pending → done
+- PRD sections consulted: §11.2, §11.3
+- Files touched:
+  - backend/src/main/resources/db/migration/V6__customer_technician_permission.sql (new)
+  - backend/src/main/java/com/teamhub/customer/CustomerNotFoundException.java (new)
+  - backend/src/main/java/com/teamhub/customer/dto/CreateCustomerRequest.java (new)
+  - backend/src/main/java/com/teamhub/customer/dto/UpdateCustomerRequest.java (new)
+  - backend/src/main/java/com/teamhub/customer/dto/CustomerResponse.java (new)
+  - backend/src/main/java/com/teamhub/customer/CustomerRepository.java (modified: added `search()` and `findByTenantIdAndPhoneAndArchivedAtIsNull()`)
+  - backend/src/main/java/com/teamhub/customer/CustomerService.java (new)
+  - backend/src/main/java/com/teamhub/customer/CustomerController.java (new)
+  - backend/src/test/java/com/teamhub/customer/CustomerControllerIT.java (new)
+  - tasks.json (TASK-037 status → done)
+- Summary: Implemented five customer CRUD endpoints under `/api/v1/customers` (GET list, GET /{id}, POST, PATCH /{id}, DELETE /{id}). The POST endpoint uses upsert-on-phone semantics (PRD §11.3): if a customer with the same phone already exists in the tenant, the existing record is returned and non-null fields from the request are merged. The DELETE endpoint soft-archives (sets `archived_at`); the default list excludes archived records unless `?include_archived=true` is supplied. The GET list and GET /{id} endpoints apply phone masking for TECHNICIAN callers (`+15033334444` → `+1503***4444`), with a clear TO-DO for the future jobs-link check (PRD §11.2). A V6 Flyway migration grants `customer.read.tenant` to the TECHNICIAN role. The OpenAPI spec is auto-generated by springdoc from controller annotations (`@Tag`, `@Operation`).
+- Acceptance criteria verified:
+  1. Endpoints `GET /customers` (paginated, search by `q`), `GET /customers/{id}`, `POST /customers`, `PATCH /customers/{id}`, `DELETE /customers/{id}` (soft-archive) — all implemented and tested
+  2. POST upsert-on-phone: `upsert_samePhone_returnsExistingId_andMergesFields` asserts second call returns first id with merged fields — passed
+  3. TECHNICIAN sees masked phones (V6 migration + `isTechnician()` check in controller); DISPATCHER and ADMIN see full phones — `listCustomers_technicianSeesMaskedPhones_dispatcherSeesFullPhones` passed; write operations guarded by `PERM_job.create` (DISPATCHER+) — `technician_cannotCreateCustomer_returns403` passed
+  4. All responses use the `ErrorEnvelope` (via `GlobalExceptionHandler`); `CustomerNotFoundException` extends `DomainException`; OpenAPI spec updated via `@Tag`/`@Operation` annotations — confirmed
+- Test steps run (7 new tests in CustomerControllerIT, 69 total tests, 0 failures):
+  - Step 1 (`upsert_samePhone_returnsExistingId_andMergesFields`): two POST calls with same phone; second response carries first id, updated name/email/companyName — passed
+  - Step 2 (`archive_excludedFromDefaultList_includedWithFlag`): POST → DELETE → GET (totalElements=0) → GET?include_archived=true (totalElements=1, id matches) — passed
+  - Step 3 (`listCustomers_technicianSeesMaskedPhones_dispatcherSeesFullPhones`): Dispatcher list → full phone; Technician list → masked phone — passed
+  - Additional tests: `listCustomers_withoutToken_returns401`, `patch_updatesNonNullFields_leavesOthersUnchanged`, `technician_cannotCreateCustomer_returns403`, `getById_unknownId_returns404` — all passed
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 69 tests, 0 failures
+- Open TO-DOs created (with PRD reference):
+  - `CustomerResponse.maskPhone` (PRD §11.2): Replace blanket TECHNICIAN masking with a per-customer jobs-link check once the `jobs` table exists — unmask phone only for customers linked to a job claimed by the requesting technician.
+  - `CustomerController.isTechnician` (PRD §11.2): Same note — pass customer id and check jobs-link when jobs table is available.
+  - `CreateCustomerRequest` (PRD §11.3): Remove `lat`/`lon` from the request DTO and derive coordinates server-side via Google Maps Geocoding API when that integration lands.
+- Notes for next iteration:
+  - The write endpoints (POST, PATCH, DELETE) are guarded by `PERM_job.create` (DISPATCHER+) since V4 seeds no dedicated `customer.write.tenant` permission. A future task should seed `customer.create` / `customer.edit` / `customer.archive` permissions and re-guard accordingly if the product team decides finer-grained customer write control is needed.
+  - V6 migration is idempotent if re-run because the `INSERT INTO role_permissions` is protected by the `PRIMARY KEY (role_id, permission_id)` constraint; a duplicate insert will fail, which is correct behaviour for migration reruns.
+  - The `search()` JPQL query uses explicit `c.tenantId = :tenantId` filtering for test safety (tests connect as postgres superuser which bypasses RLS). In production the PostgreSQL RLS policy on `customers` provides a second isolation layer.
+  - The `CustomerService.GF` `GeometryFactory` is a static singleton (SRID 4326). JTS `GeometryFactory` is thread-safe.
+- Commits: (see below)
+
+---
+
+### 2026-05-31 — TASK-039 — appointment_schemas table and SchemaService
+
+- Agent: Composer (Sonnet 4.6)
+- Status change: pending → done
+- PRD sections consulted: §8.2, §8.3, §7.2
+- Files touched:
+  - backend/src/main/resources/db/migration/V7__appointment_schemas.sql (new)
+  - backend/src/main/java/com/teamhub/schemas/FieldDefinition.java (new)
+  - backend/src/main/java/com/teamhub/schemas/FieldValidation.java (new)
+  - backend/src/main/java/com/teamhub/schemas/AppointmentSchema.java (new)
+  - backend/src/main/java/com/teamhub/schemas/AppointmentSchemaRepository.java (new)
+  - backend/src/main/java/com/teamhub/schemas/SchemaValidationException.java (new)
+  - backend/src/main/java/com/teamhub/schemas/SchemaNotFoundException.java (new)
+  - backend/src/main/java/com/teamhub/schemas/SchemaService.java (new)
+  - backend/src/test/java/com/teamhub/schemas/AppointmentSchemaIT.java (new)
+  - backend/src/test/java/com/teamhub/customer/CustomerEdgeCaseIT.java (added — was untracked; removed unused jakarta.persistence imports)
+  - backend/src/test/java/com/teamhub/customer/dto/CustomerResponseTest.java (added — was untracked)
+  - tasks.json (TASK-039 status → done)
+- Summary: Implemented the `appointment_schemas` table (PRD §8.2) as a versioned, append-only store. V7 Flyway migration creates the table with all PRD §8.2 columns (id, tenant_id, name, version, is_active, field_definitions jsonb, created_at), a unique constraint on (tenant_id, name, version), a covering index for active-schema lookups, and the standard RLS pattern (ENABLE + FORCE + tenant_isolation policy + GRANT to teamhub_app). The `FieldDefinition` and `FieldValidation` Java records map to the JSONB column shape (PRD §8.2), serialized/deserialized by Hibernate 6's built-in JSON type via `@JdbcTypeCode(SqlTypes.JSON)`. `SchemaService.publishNewVersion` sets previous active rows to is_active=false (single-active semantics), increments the version counter, and validates field definitions before saving. `SchemaService.getByVersion` retrieves a historical version for job validation (PRD §8.2 append-only guarantee). The branch also carries the pre-existing TASK-036/037 customer implementation (V5/V6 migrations, Customer entity, CustomerService, CustomerController, CustomerControllerIT, CustomerIT) and the untracked CustomerEdgeCaseIT and CustomerResponseTest files.
+- Acceptance criteria verified:
+  1. V7 migration creates `appointment_schemas` with all PRD §8.2 columns — confirmed in migration SQL; Flyway + JPA schema validation pass
+  2. `SchemaService.publishNewVersion` inserts a new row with `version = max(version)+1` and `is_active = true`; previous active row's `is_active` is set to `false` (single-active semantics, documented in SchemaService Javadoc) — `publishNewVersion_v1ThenV2_v1BecomesInactiveAndV2IsActive`
+  3. Existing jobs can reference `schema_version` and validate against that version (SchemaService.getByVersion retrieves any version, not just active) — `getByVersion_returnsHistoricalV1FieldsAfterV2Published`
+  4. `depends_on` references validated; `options_by_parent` keys must be ⊆ parent.options — `publishNewVersion_dependsOnNonexistentField_throwsSchemaValidationException` and `publishNewVersion_optionsByParentWithInvalidKey_throwsSchemaValidationException`
+- Test steps run (5 new tests in AppointmentSchemaIT, 92 total tests in suite, 0 failures):
+  - Step 1 (`publishNewVersion_v1ThenV2_v1BecomesInactiveAndV2IsActive`): v1 published with `make` field (version=1, is_active=true); v2 published adding `model` (version=2, is_active=true); v1 refreshed from DB shows is_active=false — passed
+  - Step 2 (`publishNewVersion_dependsOnNonexistentField_throwsSchemaValidationException`): schema with `depends_on: 'nonexistent_field'` throws `SchemaValidationException` (DomainException, 422) with message containing "nonexistent_field" — passed
+  - Step 3 (`getByVersion_returnsHistoricalV1FieldsAfterV2Published`): after v1 and v2 published, getByVersion(1) returns only `make` field; getByVersion(2) returns `make`+`model`; proves historical job with schema_version=1 validates against v1, not v2 — passed
+  - Additional (`publishNewVersion_optionsByParentWithInvalidKey_throwsSchemaValidationException`): `options_by_parent` with "Honda" key where parent only has ["Ford","Toyota"] throws — passed
+  - Additional (`publishNewVersion_validOptionsWithDependentDropdown_persists`): valid dependent dropdown (Ford→F-150/Focus, Toyota→Camry/Corolla) persists and is correctly deserialized from JSONB — passed
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 92 tests, 0 failures
+- Open TO-DOs created (with PRD reference): none
+- Notes for next iteration:
+  - `@Modifying(clearAutomatically = true, flushAutomatically = true)` is required on `deactivateAllByTenantIdAndName` to ensure the JPQL bulk UPDATE is flushed before it runs and the first-level cache is cleared afterward. Without both flags, the entity cache can return stale `is_active = true` within the same @Transactional test.
+  - Hibernate 6 serializes `List<FieldDefinition>` to JSONB automatically using the registered Jackson ObjectMapper. The `FieldDefinition` and `FieldValidation` are Java records; Jackson 2.15+ (included in Spring Boot 3.5) deserializes records natively without `@JsonCreator`.
+  - The branch includes the TASK-036/037 customer code (previously on `feat/task-036-customers-entity`, not yet merged to main). The PR for this branch will carry V5–V7 migrations and the full customer + schema implementation.
+  - TASK-039 depends on TASK-018 (RLS) which is in main. TASK-040 (appointment schema REST endpoints) and TASK-041 (jobs) are the next tasks in this branch.
+- Commits: (pending)
+
+---
+
 ## Notes for future agents
 
 - The PRD at `prd/PRD.md` is the only source of truth. If something here contradicts the PRD, the PRD wins.
 - Integrations gated on Lead Developer review before merge per PRD §25.3: Stripe, Apple Sign-in, Push notifications, Twilio (future), Google OAuth.
-- Completed through TASK-025: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025 (see `tasks.json`).
+- Completed through TASK-039: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 036, 037, 039 (see `tasks.json`).
 - TASK-025 note: all domain exceptions must extend `DomainException` (in `com.teamhub.exception`). Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")`. The full §23.4 envelope `{"error":{"code":"…","message":"…","details":{…}}}` is returned by `GlobalExceptionHandler` for validation (422), domain (custom status), and unexpected (500) errors. Auth exceptions (`InvalidCredentialsException`, `InvalidRefreshTokenException`) now return the full envelope (was legacy flat shape).
 - TASK-024 note: the security filter chain now returns 401 with the §23.4 `ErrorEnvelope` (`{"error":{"code":"UNAUTHORIZED",...}}`) for both anonymous and invalid-token requests via `RestAuthenticationEntryPoint`. CORS allows only the `CORS_ALLOWED_ORIGIN` env-var origin (dev: `http://localhost:5173`, prod: `https://app.teamhub.online`). All other 401/403 logic is unchanged from TASK-019/023. The `AuthExceptionHandler` legacy flat 401 body (for `InvalidCredentialsException`/`InvalidRefreshTokenException`) was reconciled to the full envelope in TASK-025.
 - TASK-023 note: authorization is permission-based. Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")` (a permission code from the `permissions` table), never `hasRole('ADMIN')`. The JWT `role` claim is resolved to `PERM_*` authorities by `PermissionJwtAuthenticationConverter`. Adding a role is a seed-only change (new rows in `roles` + `role_permissions`). 403 denials use the PRD §23.4 envelope (`{"error":{"code":"FORBIDDEN",...}}`); the 401 envelope and CORS are deferred to TASK-024, and the unified `@RestControllerAdvice` envelope to TASK-025.
