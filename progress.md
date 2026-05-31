@@ -558,7 +558,7 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - Hibernate 6 serializes `List<FieldDefinition>` to JSONB automatically using the registered Jackson ObjectMapper. The `FieldDefinition` and `FieldValidation` are Java records; Jackson 2.15+ (included in Spring Boot 3.5) deserializes records natively without `@JsonCreator`.
   - The branch includes the TASK-036/037 customer code (previously on `feat/task-036-customers-entity`, not yet merged to main). The PR for this branch will carry V5–V7 migrations and the full customer + schema implementation.
   - TASK-039 depends on TASK-018 (RLS) which is in main. TASK-040 (appointment schema REST endpoints) and TASK-041 (jobs) are the next tasks in this branch.
-- Commits: (pending)
+- Commits: 5beaf86
 
 ---
 
