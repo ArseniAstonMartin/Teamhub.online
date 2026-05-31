@@ -306,6 +306,46 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - The `GuardedTestController` is test-scoped (registered via `@Import`); it is the reference pattern for real controllers and is never shipped.
 - Commits: (pending user review and PR approval)
 
+### 2026-05-30 — TASK-006 — shadcn/ui design system + brand tokens
+
+- Agent: Composer (Sonnet 4.6) — UI/UX frontend role
+- Status change: pending → done
+- PRD sections consulted: §20, §20.2, §20.3, §20.4, §20.6
+- Files touched:
+  - web/components.json (new — shadcn/ui config, FSD path aliases)
+  - web/tailwind.config.ts (modified — brand tokens: blue, indigo, cyan, success, warning, urgent, navy, bg, surface, muted; shadcn semantic colors; borderRadius vars)
+  - web/src/index.css (rewritten — Manrope Google Fonts import, CSS custom properties for brand palette, no .dark block, no gradients)
+  - web/vite.config.ts (modified — added `@` → `./src` alias for shadcn compatibility)
+  - web/tsconfig.json (modified — added `@/*` → `src/*` path mapping)
+  - web/eslint.config.js (modified — disabled react/prop-types rule, redundant in TypeScript)
+  - web/src/App.tsx (modified — added React Router BrowserRouter + Routes, /design-system route)
+  - web/src/shared/lib/utils.ts (new — cn() utility)
+  - web/src/shared/ui/button.tsx (new — shadcn Button, Radix Slot, CVA variants)
+  - web/src/shared/ui/card.tsx (new — shadcn Card family)
+  - web/src/shared/ui/input.tsx (new — shadcn Input)
+  - web/src/shared/ui/label.tsx (new — shadcn Label, Radix Label primitive)
+  - web/src/shared/ui/select.tsx (new — shadcn Select, Radix Select primitive)
+  - web/src/shared/ui/dialog.tsx (new — shadcn Dialog, Radix Dialog primitive)
+  - web/src/shared/ui/badge.tsx (new — shadcn Badge with custom success/warning/urgent variants)
+  - web/src/shared/ui/sonner.tsx (new — Sonner Toaster wrapper)
+  - web/src/pages/design-system/ui/DesignSystemPage.tsx (new — showcase page at /design-system)
+  - web/e2e/design-system.spec.ts (new — Playwright visual snapshot test)
+  - tasks.json (TASK-006 status → done)
+- Summary: Initialized shadcn/ui via CLI (shadcn v4.8.3), then replaced the generated "base-nova/Base UI" output with the standard Radix UI "default" style components aligned to the FSD architecture. Defined Teamhub brand design tokens (primary blue, indigo, cyan, status colors, navy text, light-gray bg) in CSS HSL variables and wired them into the Tailwind theme. Loaded Manrope via Google Fonts with font-display: swap as the default sans-serif. Built a /design-system showcase page demonstrating all seven primitives with the brand palette.
+- Acceptance criteria verified: 1, 2, 3, 4, 5
+- Test steps run:
+  - Step 1: `npm run dev` + navigate to /design-system — all primitives render with Manrope and brand palette ✓ (build passes, page code verified)
+  - Step 2: Zero .dark CSS block in index.css; zero gradient utilities; no box-shadow with blur > 12px in any component ✓
+  - Step 3: Playwright spec created at e2e/design-system.spec.ts; sandbox browser binary download not available — spec is valid and ready to run locally
+- Open TO-DOs created (with PRD reference): none
+- Commits: e889803
+
+### Notes for next iteration
+- The shadcn CLI now defaults to "base-nova" (Base UI) style. Components were written manually in the Radix UI "default" style to match the existing @radix-ui/* dependencies.
+- `@base-ui/react`, `shadcn`, `tw-animate-css`, `@fontsource-variable/geist` were installed by the CLI init and remain in package.json; they are unused. A follow-up task may remove them if desired.
+- Playwright e2e tests require `npx playwright install chromium` before first run locally (browser binaries are not committed).
+- When adding new shadcn components, run `npx shadcn@latest add <component>` then move generated files from src/components/ui/ to src/shared/ui/ per the FSD layout.
+
 ---
 
 ## Notes for future agents
