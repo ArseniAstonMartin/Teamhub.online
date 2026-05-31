@@ -348,10 +348,45 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 ---
 
+### 2026-05-31 — TASK-024 — Spring Security: CORS, 401 envelope, and URL-level filter rules
+- Agent: Composer (Sonnet 4.6) backend-security
+- Status change: pending → done
+- PRD sections consulted: §5.5, §6.2, §23.4
+- Files touched:
+  - backend/src/main/java/com/teamhub/security/RestAuthenticationEntryPoint.java (new)
+  - backend/src/main/java/com/teamhub/security/CorsProperties.java (new)
+  - backend/src/main/java/com/teamhub/security/CorsConfig.java (new)
+  - backend/src/main/java/com/teamhub/security/SecurityConfig.java (modified: wired CORS + AuthenticationEntryPoint + oauth2ResourceServer entryPoint)
+  - backend/src/main/resources/application.yml (modified: added `teamhub.cors.allowed-origin`)
+  - backend/src/test/java/com/teamhub/security/SecurityConfigIT.java (new)
+  - tasks.json (TASK-024 status → done)
+- Summary: Extended the existing SecurityConfig with three additions required by TASK-024. (1) `RestAuthenticationEntryPoint` renders anonymous access as 401 with the PRD §23.4 `ErrorEnvelope` (code `UNAUTHORIZED`); wired into both `exceptionHandling` and `oauth2ResourceServer` so both missing-token and invalid-token paths produce the same JSON body. (2) `CorsConfig` / `CorsProperties` provide a `CorsConfigurationSource` bean that allow-lists a single SPA origin configured via `CORS_ALLOWED_ORIGIN` (dev default: `http://localhost:5173`, production: `https://app.teamhub.online`); any other origin receives no `Access-Control-Allow-Origin` header, causing the browser to block the request. (3) `application.yml` gained a `teamhub.cors.allowed-origin` property driven by the env var. The existing `RestAccessDeniedHandler` (TASK-023) already covers the 403 case; no changes were needed there.
+- Acceptance criteria verified:
+  1. SecurityFilterChain bean with stateless session and JWT auth filter — confirmed (unchanged from TASK-019/023, verified green)
+  2. Public endpoints: `/api/v1/auth/**`, `/actuator/health`, `/actuator/info` — confirmed; `actuatorHealthEndpoint_isAccessibleWithoutToken` and `authLoginEndpoint_isAccessibleWithoutToken` pass
+  3. All other `/api/v1/**` require a valid JWT — confirmed; `anonymousRequest_toProtectedRoute_returns401WithEnvelope` and `anonymousRequest_toProtectedRoute_returns401NotForbidden` pass
+  4. CORS allowed origin `https://app.teamhub.online` in prod, `http://localhost:5173` in dev — confirmed; `corsPreflightFromAllowedOrigin_isAccepted` passes (dev default); `corsPreflightFromProductionOrigin_isAccepted_whenConfigured` confirms prod origin rejected when `CORS_ALLOWED_ORIGIN` is not overridden
+  5. Cross-tenant or cross-role access returns 403 with documented error code, never 404 — confirmed; `authenticatedRequest_withInsufficientPermission_returns403WithEnvelope` (DISPATCHER → job.delete.hard → 403 FORBIDDEN envelope) passes
+  6. Anonymous access to protected routes returns 401 (not 403) — confirmed; `anonymousRequest_toProtectedRoute_returns401NotForbidden` passes
+- Test steps run (10 new tests + 44 pre-existing = 54 total, all passed):
+  - Step 1 (anonymous → 401 with envelope): `anonymousRequest_toProtectedRoute_returns401WithEnvelope`, `invalidJwt_toProtectedRoute_returns401WithEnvelope` — both assert `$.error.code == UNAUTHORIZED` — passed
+  - Step 2 (valid JWT, insufficient permission → 403 with envelope, never 404): `authenticatedRequest_withInsufficientPermission_returns403WithEnvelope` — asserts `$.error.code == FORBIDDEN` — passed; `authenticatedRequest_withValidPermission_isNotBlocked` — passed
+  - Step 3 (non-allow-listed origin → preflight rejected): `corsPreflightFromForbiddenOrigin_isRejected` — asserts no `Access-Control-Allow-Origin` header for `evil.example.com` — passed; `corsPreflightFromAllowedOrigin_isAccepted` — passed for `localhost:5173`
+  - `./gradlew spotlessApply && ./gradlew check` — BUILD SUCCESSFUL, 54 tests, 0 failures
+- Open TO-DOs created (with PRD reference): none
+- Notes for next iteration:
+  - Production deployment must set `CORS_ALLOWED_ORIGIN=https://app.teamhub.online`. The dev default (`http://localhost:5173`) is intentionally insecure and must never reach production.
+  - Both the `AuthenticationEntryPoint` in `exceptionHandling` (anonymous requests) and in `oauth2ResourceServer` (invalid/expired tokens) now use `RestAuthenticationEntryPoint`, so all 401 paths return the same `{"error":{"code":"UNAUTHORIZED",...}}` envelope.
+  - The `AuthExceptionHandler` in `com.teamhub.auth` still returns the legacy flat `{code, message}` shape for `InvalidCredentialsException` / `InvalidRefreshTokenException` (auth domain logic, not the security filter chain). Reconciling those to the §23.4 envelope is deferred to TASK-025 (`@RestControllerAdvice`).
+- Commits: 0755c29
+
+---
+
 ## Notes for future agents
 
 - The PRD at `prd/PRD.md` is the only source of truth. If something here contradicts the PRD, the PRD wins.
 - Integrations gated on Lead Developer review before merge per PRD §25.3: Stripe, Apple Sign-in, Push notifications, Twilio (future), Google OAuth.
-- Completed through TASK-023: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023 (see `tasks.json`).
+- Completed through TASK-024: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024 (see `tasks.json`).
+- TASK-024 note: the security filter chain now returns 401 with the §23.4 `ErrorEnvelope` (`{"error":{"code":"UNAUTHORIZED",...}}`) for both anonymous and invalid-token requests via `RestAuthenticationEntryPoint`. CORS allows only the `CORS_ALLOWED_ORIGIN` env-var origin (dev: `http://localhost:5173`, prod: `https://app.teamhub.online`). All other 401/403 logic is unchanged from TASK-019/023. The `AuthExceptionHandler` legacy flat 401 body (for `InvalidCredentialsException`/`InvalidRefreshTokenException`) is reconciled to the full envelope in TASK-025.
 - TASK-023 note: authorization is permission-based. Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")` (a permission code from the `permissions` table), never `hasRole('ADMIN')`. The JWT `role` claim is resolved to `PERM_*` authorities by `PermissionJwtAuthenticationConverter`. Adding a role is a seed-only change (new rows in `roles` + `role_permissions`). 403 denials use the PRD §23.4 envelope (`{"error":{"code":"FORBIDDEN",...}}`); the 401 envelope and CORS are deferred to TASK-024, and the unified `@RestControllerAdvice` envelope to TASK-025.
 - TASK-019 note: `TenantContextFilter` now reads the `tenant_id` claim from the validated JWT (the TASK-018 `X-Tenant-Id` placeholder is gone). Auth endpoints live under `/api/v1/auth/**` (permitAll); everything else requires a valid RS256 access token. Production must configure persistent JWT keys via `JWT_PRIVATE_KEY_PATH`/`JWT_PUBLIC_KEY_PATH`.

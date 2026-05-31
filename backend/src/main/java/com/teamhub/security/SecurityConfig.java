@@ -10,8 +10,10 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 /**
  * Stateless JWT security (PRD §6.2, §7.2) with permission-based method security (PRD §5.4, §5.5).
@@ -27,8 +29,9 @@ import org.springframework.security.web.access.AccessDeniedHandler;
  *
  * <p>{@code @EnableMethodSecurity} activates {@code @PreAuthorize} processing. Authorization
  * denials are rendered as 403 with the uniform error envelope (PRD §23.4) by {@link
- * RestAccessDeniedHandler}. TO-DO (TASK-024): add a matching {@code AuthenticationEntryPoint} so
- * the 401 body also uses the §23.4 envelope, plus CORS configuration.
+ * RestAccessDeniedHandler}. Unauthenticated access is rendered as 401 with the same envelope by
+ * {@link RestAuthenticationEntryPoint}. CORS allows only the single SPA origin configured via
+ * {@link CorsConfig} / {@code CORS_ALLOWED_ORIGIN}.
  */
 @Configuration
 @EnableMethodSecurity
@@ -38,11 +41,14 @@ public class SecurityConfig {
   public SecurityFilterChain securityFilterChain(
       HttpSecurity http,
       PermissionJwtAuthenticationConverter jwtAuthenticationConverter,
-      AccessDeniedHandler accessDeniedHandler)
+      AccessDeniedHandler accessDeniedHandler,
+      AuthenticationEntryPoint authenticationEntryPoint,
+      CorsConfigurationSource corsConfigurationSource)
       throws Exception {
     http.csrf(AbstractHttpConfigurer::disable)
         .httpBasic(AbstractHttpConfigurer::disable)
         .formLogin(AbstractHttpConfigurer::disable)
+        .cors(cors -> cors.configurationSource(corsConfigurationSource))
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
@@ -56,8 +62,15 @@ public class SecurityConfig {
                     .anyRequest()
                     .authenticated())
         .oauth2ResourceServer(
-            oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)))
-        .exceptionHandling(handling -> handling.accessDeniedHandler(accessDeniedHandler))
+            oauth2 ->
+                oauth2
+                    .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter))
+                    .authenticationEntryPoint(authenticationEntryPoint))
+        .exceptionHandling(
+            handling ->
+                handling
+                    .accessDeniedHandler(accessDeniedHandler)
+                    .authenticationEntryPoint(authenticationEntryPoint))
         .addFilterAfter(new TenantContextFilter(), BearerTokenAuthenticationFilter.class);
 
     return http.build();
