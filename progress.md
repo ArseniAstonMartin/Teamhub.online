@@ -723,11 +723,53 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 ---
 
+---
+
+### 2026-06-01 — TASK-029 — Eventing tables: outbox_events, processed_events, delayed_jobs
+
+- Agent: Composer (Sonnet 4.6)
+- Status change: pending → done
+- PRD sections consulted: §22, §22.5, §22.5.3, §22.5.4, §22.5.6, §7.2
+- Files touched:
+  - backend/src/main/resources/db/migration/V10__eventing_tables.sql (new)
+  - backend/src/main/java/com/teamhub/eventing/OutboxEvent.java (new)
+  - backend/src/main/java/com/teamhub/eventing/OutboxEventRepository.java (new)
+  - backend/src/main/java/com/teamhub/eventing/ProcessedEventId.java (new)
+  - backend/src/main/java/com/teamhub/eventing/ProcessedEvent.java (new)
+  - backend/src/main/java/com/teamhub/eventing/ProcessedEventRepository.java (new)
+  - backend/src/main/java/com/teamhub/eventing/DelayedJobStatus.java (new)
+  - backend/src/main/java/com/teamhub/eventing/DelayedJob.java (new)
+  - backend/src/main/java/com/teamhub/eventing/DelayedJobRepository.java (new)
+  - backend/src/test/java/com/teamhub/eventing/EventingTablesIT.java (new)
+  - backend/src/test/java/com/teamhub/eventing/EventingEntityTest.java (new)
+  - tasks.json (TASK-029 status → done)
+- Summary: Created all three eventing infrastructure tables from PRD §22 in a single V10 Flyway migration. `outbox_events` stores transactional outbox events with a relay-scan index on `(processed_at NULLS FIRST, created_at)`. `processed_events` is a month-partitioned table (PARTITION BY RANGE on processed_at) with the current month's partition (`processed_events_2026_06`) created inline; the physical PK is `(event_id, consumer_group, processed_at)` because PostgreSQL declarative partitioning requires the partition key in every unique constraint. `delayed_jobs` stores time-scheduled work items with a `(status, run_at)` index for dispatcher scans. All three tables follow the same RLS pattern as V2/V5/V7/V8 (ENABLE + FORCE + `tenant_isolation` policy using `NULLIF(current_setting('app.current_tenant_id', true), '')::uuid`). Java domain classes (`OutboxEvent`, `ProcessedEvent`, `DelayedJob` with their repositories and `DelayedJobStatus` enum) live in `com.teamhub.eventing`. New-code coverage: eventing package 100%, overall 95.4%.
+- Acceptance criteria verified:
+  1. V10 migration creates all three tables with exact columns from PRD §22 — confirmed; Flyway + JPA schema validation pass
+  2. `outbox_events` index `idx_outbox_events_relay` on `(processed_at NULLS FIRST, created_at)` — confirmed; `step1_relayIndexExistsOnOutboxEvents`
+  3. `delayed_jobs` index `idx_delayed_jobs_status_run_at` on `(status, run_at)` — confirmed; `step1_statusRunAtIndexExistsOnDelayedJobs`
+  4. `processed_events` partitioned by month — confirmed; `step3_processedEventsIsDeclarativeRangePartitionedTable`, `step3_processedEventsHasPartitionForCurrentMonth`
+  5. RLS enabled on all three tables — confirmed; `step1_rlsIsEnabledAndForcedOnAllThreeTables`
+- Test steps run (169 total tests, 0 failures; 30 new in EventingTablesIT + EventingEntityTest):
+  - Step 1 (`step1_allThreeTablesExistAfterV10Migration`, `step1_relayIndexExistsOnOutboxEvents`, `step1_statusRunAtIndexExistsOnDelayedJobs`, `step1_rlsIsEnabledAndForcedOnAllThreeTables`): tables and indexes present — passed
+  - Step 2 (`step2_outboxEventsRlsIsolatesAcrossTenants`, `step2_delayedJobsRlsIsolatesAcrossTenants`, `step2_processedEventsRlsIsolatesAcrossTenants`, `step2_withoutGucSet_outboxEventsReturnsNoRows`): RLS isolation across two tenants — passed
+  - Step 3 (`step3_processedEventsHasPartitionForCurrentMonth`, `step3_processedEventsIsDeclarativeRangePartitionedTable`, `step3_insertIntoProcessedEventsLandsInCurrentMonthPartition`): partition for current month (2026-06) present and receives inserts — passed
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 169 tests, 0 failures
+- Open TO-DOs created (with PRD reference): none
+- Notes for next iteration:
+  - `processed_events` partitions for future months must be created before month rollover. A partition-management scheduled task (or a separate migration per month) is needed before each new month begins; this is out of scope for TASK-029. The partition for the current month (June 2026) is created by V10.
+  - The physical PK on `processed_events` is `(event_id, consumer_group, processed_at)` — not the logical `(event_id, consumer_group)` stated in the PRD schema snippet — because PostgreSQL declarative range partitioning requires the partition key column to be part of every unique constraint. The de-dup semantic (`INSERT … ON CONFLICT DO NOTHING` on event_id + consumer_group) is still correct because both columns are in the PK; timestamps are generated server-side so collisions are impossible.
+  - `outbox_events.processed_at` is updated by the relay worker (native UPDATE), not through the JPA entity. Do not use `OutboxEventRepository.save()` to mark an event as processed; the relay owns this field.
+  - The `teamhub_app` role receives `SELECT, INSERT, UPDATE` on `outbox_events` (relay needs to update `processed_at`) and `delayed_jobs` (dispatcher needs to update `status`). It receives `SELECT, INSERT` on `processed_events` (de-dup only, no updates needed).
+- Commits: (see below)
+
+---
+
 ## Notes for future agents
 
 - The PRD at `prd/PRD.md` is the only source of truth. If something here contradicts the PRD, the PRD wins.
 - Integrations gated on Lead Developer review before merge per PRD §25.3: Stripe, Apple Sign-in, Push notifications, Twilio (future), Google OAuth.
-- Completed through TASK-028: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 036, 037, 039, 040, 041 (see `tasks.json`).
+- Completed through TASK-029: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 036, 037, 039, 040, 041 (see `tasks.json`).
 - TASK-025 note: all domain exceptions must extend `DomainException` (in `com.teamhub.exception`). Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")`. The full §23.4 envelope `{"error":{"code":"…","message":"…","details":{…}}}` is returned by `GlobalExceptionHandler` for validation (422), domain (custom status), and unexpected (500) errors. Auth exceptions (`InvalidCredentialsException`, `InvalidRefreshTokenException`) now return the full envelope (was legacy flat shape).
 - TASK-024 note: the security filter chain now returns 401 with the §23.4 `ErrorEnvelope` (`{"error":{"code":"UNAUTHORIZED",...}}`) for both anonymous and invalid-token requests via `RestAuthenticationEntryPoint`. CORS allows only the `CORS_ALLOWED_ORIGIN` env-var origin (dev: `http://localhost:5173`, prod: `https://app.teamhub.online`). All other 401/403 logic is unchanged from TASK-019/023. The `AuthExceptionHandler` legacy flat 401 body (for `InvalidCredentialsException`/`InvalidRefreshTokenException`) was reconciled to the full envelope in TASK-025.
 - TASK-023 note: authorization is permission-based. Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")` (a permission code from the `permissions` table), never `hasRole('ADMIN')`. The JWT `role` claim is resolved to `PERM_*` authorities by `PermissionJwtAuthenticationConverter`. Adding a role is a seed-only change (new rows in `roles` + `role_permissions`). 403 denials use the PRD §23.4 envelope (`{"error":{"code":"FORBIDDEN",...}}`); the 401 envelope and CORS are deferred to TASK-024, and the unified `@RestControllerAdvice` envelope to TASK-025.
