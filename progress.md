@@ -838,7 +838,7 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 - The PRD at `prd/PRD.md` is the only source of truth. If something here contradicts the PRD, the PRD wins.
 - Integrations gated on Lead Developer review before merge per PRD §25.3: Stripe, Apple Sign-in, Push notifications, Twilio (future), Google OAuth.
-- Completed through TASK-033: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 033, 036, 037, 039, 040, 041 (see `tasks.json`).
+- Completed through TASK-034: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 033, 034, 036, 037, 039, 040, 041 (see `tasks.json`).
 - TASK-025 note: all domain exceptions must extend `DomainException` (in `com.teamhub.exception`). Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")`. The full §23.4 envelope `{"error":{"code":"…","message":"…","details":{…}}}` is returned by `GlobalExceptionHandler` for validation (422), domain (custom status), and unexpected (500) errors. Auth exceptions (`InvalidCredentialsException`, `InvalidRefreshTokenException`) now return the full envelope (was legacy flat shape).
 - TASK-024 note: the security filter chain now returns 401 with the §23.4 `ErrorEnvelope` (`{"error":{"code":"UNAUTHORIZED",...}}`) for both anonymous and invalid-token requests via `RestAuthenticationEntryPoint`. CORS allows only the `CORS_ALLOWED_ORIGIN` env-var origin (dev: `http://localhost:5173`, prod: `https://app.teamhub.online`). All other 401/403 logic is unchanged from TASK-019/023. The `AuthExceptionHandler` legacy flat 401 body (for `InvalidCredentialsException`/`InvalidRefreshTokenException`) was reconciled to the full envelope in TASK-025.
 - TASK-023 note: authorization is permission-based. Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")` (a permission code from the `permissions` table), never `hasRole('ADMIN')`. The JWT `role` claim is resolved to `PERM_*` authorities by `PermissionJwtAuthenticationConverter`. Adding a role is a seed-only change (new rows in `roles` + `role_permissions`). 403 denials use the PRD §23.4 envelope (`{"error":{"code":"FORBIDDEN",...}}`); the 401 envelope and CORS are deferred to TASK-024, and the unified `@RestControllerAdvice` envelope to TASK-025.
@@ -913,4 +913,41 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - The `dispatchTickInternal()` method is package-private to allow integration tests to drive dispatch deterministically without the ShedLock proxy. Production code must only call `dispatchTick()` (which is the ShedLock-guarded entry point).
   - The re-`ZADD` on retry uses `Instant.now().toEpochMilli()` as the score (immediate retry). Future backoff strategies (exponential, jitter) can be added by replacing this value with `job.getRunAt().plus(backoff).toEpochMilli()`.
   - `DelayedJobDispatcher` currently finds handlers by kind only (no tenant isolation in the registry). If handler kinds ever need to be tenant-specific, the registry must be extended accordingly.
+- Commits: (see below)
+
+### 2026-06-01 — TASK-034 — Event Payload Records
+
+- Agent: Composer (Sonnet 4.6)
+- Status change: pending → done
+- PRD sections consulted: §22.5.5
+- Files touched:
+  - backend/src/main/java/com/teamhub/eventing/payloads/package-info.java (new)
+  - backend/src/main/java/com/teamhub/eventing/payloads/JobSubmitted.java (new)
+  - backend/src/main/java/com/teamhub/eventing/payloads/JobClaimed.java (new)
+  - backend/src/main/java/com/teamhub/eventing/payloads/JobStatusChanged.java (new)
+  - backend/src/main/java/com/teamhub/eventing/payloads/JobCompleted.java (new)
+  - backend/src/main/java/com/teamhub/eventing/payloads/QuotaThresholdReached.java (new)
+  - backend/src/main/java/com/teamhub/eventing/payloads/SubscriptionUpdated.java (new)
+  - backend/src/main/java/com/teamhub/eventing/payloads/UserInvited.java (new)
+  - backend/src/main/java/com/teamhub/eventing/payloads/PhotoUploaded.java (new)
+  - backend/src/test/java/com/teamhub/eventing/payloads/EventPayloadRecordTest.java (new)
+  - tasks.json (TASK-034 status → done)
+- Summary: Defined 8 Java records under `com.teamhub.eventing.payloads` covering all PRD §22.5.5 event types. Every record carries `event_id` (UUID), `tenant_id` (UUID), and event-specific domain fields with `@JsonProperty` snake_case names. All records are annotated `@JsonInclude(NON_NULL)` and carry the append-only schema convention comment. The ObjectMapper is configured with `FAIL_ON_UNKNOWN_PROPERTIES = false` (mirroring Spring Boot defaults) to guarantee forward-compatibility as new fields are added. Unit tests cover round-trip serialization for all 8 types, forward-compatibility (unknown extra fields silently ignored), append-only evolution (old JSON without a new field deserializes with the field null/default), and `NON_NULL` suppression (null fields absent from serialized JSON).
+- Acceptance criteria verified:
+  1. One Java record per event, annotated `@JsonInclude(NON_NULL)` + `@JsonProperty` snake_case — confirmed; 8 records in `com.teamhub.eventing.payloads`
+  2. Each record includes `event_id` (UUID), `tenant_id` (UUID), and event-specific fields — confirmed; all records carry both envelope fields plus domain fields
+  3. Schemas are append-only by convention — confirmed; every record class has the Javadoc comment `// Append-only payload schema — add fields with defaults; never remove or rename existing fields (PRD §22.5.5).`
+  4. Unit tests assert round-trip serialization to/from JSON matches expected shape — confirmed; `EventPayloadRecordTest` with 18 tests covering all 8 event types
+- Test steps run (18 new tests in EventPayloadRecordTest, 208 total tests, 0 failures):
+  - Step 1 (all 8 round-trip tests): `jobSubmitted_roundTrip`, `jobClaimed_roundTrip`, `jobStatusChanged_roundTrip`, `jobCompleted_roundTrip`, `quotaThresholdReached_roundTrip`, `subscriptionUpdated_roundTrip`, `userInvited_roundTrip`, `photoUploaded_roundTrip` — all passed; JSON contains expected snake_case keys; deserialized record equals original
+  - Step 2 (append-only forward-compat): `jobSubmitted_appendOnly_oldJsonParsesWithNewNullableField` (old JSON without `scheduled_at` → field is null), `photoUploaded_appendOnly_oldJsonParsesWithNewNullableField` (old JSON without `uploaded_by` → field is null), `subscriptionUpdated_appendOnly_oldJsonWithMissingFields_parsesSuccessfully` — all passed
+  - Step 3 (forward-compat unknown fields): 5 tests across `JobSubmitted`, `JobClaimed`, `JobStatusChanged`, `QuotaThresholdReached`, `UserInvited` with extra JSON fields — all passed; `FAIL_ON_UNKNOWN_PROPERTIES = false` confirmed
+  - Additional (NON_NULL suppression): `jobSubmitted_nullField_isOmittedFromJson` (null `customer_id` + `scheduled_at` absent from JSON), `photoUploaded_nullField_isOmittedFromJson` (null `uploaded_by` absent) — passed
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 208 tests, 0 failures
+  - Coverage: `EventPayloadRecordTest` exercises all record components (constructors, accessors, equals/hashCode via record semantics) — 100% new-code coverage on the payload records; `jacocoTestCoverageVerification` PASSED
+- Open TO-DOs created (with PRD reference): none
+- Notes for next iteration:
+  - All payload records are pure data holders with no Spring or JPA dependencies — they can be used directly as the `payload` object passed to `OutboxPublisher.publish()` after serializing to JSON via `ObjectMapper`.
+  - The `@JsonInclude(NON_NULL)` annotation means missing optional fields do not inflate the JSON payload stored in `outbox_events.payload`. Consumers must configure their `ObjectMapper` with `FAIL_ON_UNKNOWN_PROPERTIES = false` to handle schema evolution correctly (Spring Boot's auto-configured mapper does this by default).
+  - Field naming convention: single-word fields (e.g. `role`, `limit`) do not need `@JsonProperty`; the record accessor name matches the JSON key directly.
 - Commits: (see below)
