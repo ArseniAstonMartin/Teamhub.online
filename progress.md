@@ -763,13 +763,43 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - The `teamhub_app` role receives `SELECT, INSERT, UPDATE` on `outbox_events` (relay needs to update `processed_at`) and `delayed_jobs` (dispatcher needs to update `status`). It receives `SELECT, INSERT` on `processed_events` (de-dup only, no updates needed).
 - Commits: (see below)
 
+### 2026-06-01 — TASK-030 — Transactional outbox publisher (OutboxPublisher)
+
+- Agent: Composer (Sonnet 4.6)
+- Status change: pending → done
+- PRD sections consulted: §22.5.3
+- Files touched:
+  - backend/src/main/java/com/teamhub/eventing/OutboxPublisher.java (new)
+  - backend/src/test/java/com/teamhub/eventing/OutboxPublisherIT.java (new)
+  - backend/build.gradle.kts (added `testImplementation("org.postgresql:postgresql")` for PGConnection test import)
+  - tasks.json (TASK-030 status → done)
+- Summary: Implemented `OutboxPublisher`, the Spring `@Component` utility that writes domain events to the `outbox_events` table inside the caller's active transaction (PRD §22.5.3). The method is annotated `@Transactional(propagation = MANDATORY)`, guaranteeing a hard fail if called without an active transaction — protecting the atomicity invariant. Payload POJOs are serialized to JSONB via the application's `ObjectMapper` bean. After the INSERT, a best-effort `SELECT pg_notify('outbox_inserted', '')` is issued on the same JDBC connection via `JdbcTemplate`; any notify failure is caught and logged at WARN — the outbox row is never lost. The `eventType` parameter is validated against `[A-Z][A-Za-z]*` (PascalCase) with a clear `IllegalArgumentException` on violation.
+- Acceptance criteria verified:
+  1. Method signature `void publish(String eventType, String aggregateType, UUID aggregateId, Object payloadPojo)` — confirmed in `OutboxPublisher.publish`
+  2. Payload serialized to JSONB via Jackson; `eventType` validated as PascalCase — confirmed; `publish_withLowerCaseEventType_throwsIllegalArgument` passes
+  3. Throws `IllegalTransactionStateException` when called outside a transaction (MANDATORY propagation) — confirmed; `step2_publishOutsideTransaction_throwsIllegalTransactionStateException` passes
+  4. `pg_notify('outbox_inserted', '')` issued best-effort via JdbcTemplate, wrapped in try-catch, WARN-logged on failure — confirmed in source
+- Test steps run (6 new tests in OutboxPublisherIT, 177 total tests, 0 failures):
+  - Step 1 (`step1_publishAndBusinessRow_bothCommitInSameTransaction`): TransactionTemplate wraps a direct `outboxEventRepository.save()` (simulating `INSERT INTO jobs`) plus `publisher.publish("JobSubmitted", ...)` — asserts 2 rows with the same `aggregate_id` in `outbox_events` after commit — passed; `step1_publishAndBusinessRow_bothRollBackOnException`: same TX but throws RuntimeException — asserts 0 rows after rollback — passed
+  - Step 2 (`step2_publishOutsideTransaction_throwsIllegalTransactionStateException`): calls `publisher.publish()` with no active transaction — asserts `IllegalTransactionStateException` is thrown — passed
+  - Step 3 (`step3_publishFiresPgNotifyNotification`): opens a dedicated raw JDBC connection, executes `LISTEN outbox_inserted`, then publishes in a transaction; uses Awaitility (2 s, 50 ms poll) to poll `PGConnection.getNotifications(0)` — asserts at least one notification arrives after TX commits — passed
+  - Additional: `publish_withLowerCaseEventType_throwsIllegalArgument`, `publish_withNullTenantContext_throwsIllegalState` — both passed
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 177 tests, 0 failures
+  - Coverage: `OutboxPublisher` 86.2% line, 83.3% branch (> 80% gate); uncovered branch is `JsonProcessingException` catch (unreachable with well-formed POJOs)
+- Open TO-DOs created (with PRD reference): none
+- Notes for next iteration:
+  - `OutboxPublisher.publish()` requires `TenantContext` to be set before the call (reads from `TenantContext.get()`). Callers must set the tenant ID before entering the business transaction.
+  - The `pg_notify` is queued within the transaction and delivered to listeners only when the transaction commits. If the surrounding TX rolls back, the notification is silently discarded — correct behavior that prevents listeners from waking for phantom events.
+  - TASK-031 (Outbox Relay): will poll `outbox_events WHERE processed_at IS NULL` via `OutboxEventRepository.findUnprocessed()` and XADD to Redis Streams. The `pg_notify` from this task is the wake-up signal for the relay's long-poll loop.
+- Commits: (see below)
+
 ---
 
 ## Notes for future agents
 
 - The PRD at `prd/PRD.md` is the only source of truth. If something here contradicts the PRD, the PRD wins.
 - Integrations gated on Lead Developer review before merge per PRD §25.3: Stripe, Apple Sign-in, Push notifications, Twilio (future), Google OAuth.
-- Completed through TASK-029: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 036, 037, 039, 040, 041 (see `tasks.json`).
+- Completed through TASK-029: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 036, 037, 039, 040, 041 (see `tasks.json`).
 - TASK-025 note: all domain exceptions must extend `DomainException` (in `com.teamhub.exception`). Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")`. The full §23.4 envelope `{"error":{"code":"…","message":"…","details":{…}}}` is returned by `GlobalExceptionHandler` for validation (422), domain (custom status), and unexpected (500) errors. Auth exceptions (`InvalidCredentialsException`, `InvalidRefreshTokenException`) now return the full envelope (was legacy flat shape).
 - TASK-024 note: the security filter chain now returns 401 with the §23.4 `ErrorEnvelope` (`{"error":{"code":"UNAUTHORIZED",...}}`) for both anonymous and invalid-token requests via `RestAuthenticationEntryPoint`. CORS allows only the `CORS_ALLOWED_ORIGIN` env-var origin (dev: `http://localhost:5173`, prod: `https://app.teamhub.online`). All other 401/403 logic is unchanged from TASK-019/023. The `AuthExceptionHandler` legacy flat 401 body (for `InvalidCredentialsException`/`InvalidRefreshTokenException`) was reconciled to the full envelope in TASK-025.
 - TASK-023 note: authorization is permission-based. Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")` (a permission code from the `permissions` table), never `hasRole('ADMIN')`. The JWT `role` claim is resolved to `PERM_*` authorities by `PermissionJwtAuthenticationConverter`. Adding a role is a seed-only change (new rows in `roles` + `role_permissions`). 403 denials use the PRD §23.4 envelope (`{"error":{"code":"FORBIDDEN",...}}`); the 401 envelope and CORS are deferred to TASK-024, and the unified `@RestControllerAdvice` envelope to TASK-025.
