@@ -681,11 +681,53 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 ---
 
+---
+
+### 2026-06-01 — TASK-028 — Auth audit log events (login, login_failed, logout, token_refresh)
+
+- Agent: Composer (Sonnet 4.6) backend-security
+- Status change: pending → done
+- PRD sections consulted: §19.2, §6.2
+- Files touched:
+  - backend/src/main/resources/db/migration/V9__sentinel_tenant.sql (new)
+  - backend/src/main/java/com/teamhub/config/AsyncConfig.java (new — `@EnableAsync` + `AsyncUncaughtExceptionHandler`)
+  - backend/src/main/java/com/teamhub/audit/AsyncAuditService.java (new — thin `@Async` wrapper around `AuditLogService`)
+  - backend/src/main/java/com/teamhub/auth/AuthService.java (modified — added `AsyncAuditService` injection; login overload with `sourceIp`; async audit in login, refresh, logout)
+  - backend/src/main/java/com/teamhub/auth/AuthController.java (modified — `HttpServletRequest` injection in login; passes `getRemoteAddr()` to service)
+  - backend/src/test/java/com/teamhub/auth/AuthAuditIT.java (new — 5 tests: steps 1 & 2)
+  - backend/src/test/java/com/teamhub/auth/AuthAuditResilienceIT.java (new — 2 tests: step 3)
+  - backend/src/test/java/com/teamhub/tenancy/InternalTenantServiceIT.java (modified — fixed count assertion to be relative to pre-existing rows)
+  - tasks.json (TASK-028 status → done)
+- Summary: Wired `AuditLogService.record(...)` into every auth flow (login, login_failed, token_refresh, logout) via a thin `AsyncAuditService` `@Async` bean. Audit writes are fire-and-forget — the business transaction returns before the audit INSERT commits. The `AsyncUncaughtExceptionHandler` in `AsyncConfig` catches any DB failures and logs them at ERROR level (TO-DO to route to Sentry). For `login_failed` events where the email doesn't exist in `users`, a sentinel tenant (UUID all-zeros, inserted by V9 migration) satisfies the `audit_log.tenant_id NOT NULL FK`. The `auth.login_failed` row stores the full attempted email and source IP in `after_state` JSON per PRD §19.2 (no PII redaction). Password-reset audit is a TO-DO pending the password-reset endpoint.
+- Design decision (sentinel tenant): Rather than making `audit_log.tenant_id` nullable (which would weaken the schema for all events) or silently dropping failed-login rows (violates PRD §19.2), V9 migration inserts a sentinel tenant row with UUID `00000000-0000-0000-0000-000000000000`. `AuthService` first tries to find the real tenant from the user row; only completely unknown emails fall back to the sentinel. This approach satisfies the FK without data-model changes and keeps all auth failures audited.
+- Acceptance criteria verified:
+  1. `auth.login` row emitted on successful login — `login_success_emitsAuthLoginAuditRow`
+  2. `auth.login_failed` row with email + IP in `after_state` on bad password — `login_wrongPassword_emitsLoginFailedAuditRowWithEmailAndIp`; sentinel tenant used for unknown email — `login_unknownEmail_emitsLoginFailedWithSentinelTenant`
+  3. `auth.logout` row on logout — `logout_emitsLogoutAuditRow`; `auth.token_refresh` on refresh — `refresh_emitsTokenRefreshAuditRow`; password_reset TO-DO (no endpoint yet)
+  4. Audit writes async via `@Async`/`AsyncAuditService`; failures logged at ERROR via `AsyncUncaughtExceptionHandler`, never propagated to caller — `auditFailure_doesNotBreakSuccessfulLoginResponse`, `auditFailure_doesNotBreakFailedLoginResponse`
+- Test steps run (7 new tests in AuthAuditIT + AuthAuditResilienceIT, 136 total tests, 0 failures):
+  - Step 1 (`login_success_emitsAuthLoginAuditRow`): login → Awaitility polls within 1 s → `audit_log` has `auth.login` row with correct actor/IP — passed
+  - Step 2 (`login_wrongPassword_emitsLoginFailedAuditRowWithEmailAndIp`): wrong password → `audit_log` has `auth.login_failed` row; `after_state` contains email + IP — passed; `login_unknownEmail_emitsLoginFailedWithSentinelTenant`: completely unknown email → row in sentinel tenant's bucket — passed
+  - Step 3 (`auditFailure_doesNotBreakSuccessfulLoginResponse` + `auditFailure_doesNotBreakFailedLoginResponse`): SpyBean makes `AuditLogService.record` throw; login returns 200 / failed login returns 401; verify spy was called — both passed
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 136 tests, 0 failures
+  - Coverage: `com.teamhub.auth` 95%, `com.teamhub.audit` 99%, `com.teamhub.config` 100%
+- Open TO-DOs created (with PRD reference):
+  - `AsyncConfig` (PRD §19.2): route audit failures to Sentry once TASK-Sentry lands (`// TO-DO: route to Sentry once TASK-Sentry lands` comment in `AuditAsyncUncaughtExceptionHandler`)
+  - `AuthService` (PRD §19.2): add `auth.password_reset` audit call once the password-reset endpoint is implemented (no endpoint exists yet)
+- Notes for next iteration:
+  - The `@Async` annotation on `AsyncAuditService.recordAsync()` requires `AsyncConfig.@EnableAsync`. Without it the annotation is ignored and the call is synchronous — the application still works but blocks the auth response.
+  - V9 sentinel tenant (`00000000-0000-0000-0000-000000000000`) is a permanent fixture in the `tenants` table. It must never be returned in tenant-scoped API responses (add `WHERE id != '00000000-...'` to any list endpoint that queries all tenants).
+  - The existing `InternalTenantServiceIT.provision_twoCallsWithDifferentEmailsSucceed` test was updated to use a relative count assertion (`countBefore + 2`) so it stays green when seed/sentinel rows are present.
+  - `AuthAuditIT` and `AuthAuditResilienceIT` do NOT use class-level `@Transactional` (data must be committed before the async thread's `REQUIRES_NEW` transaction can see it). Cleanup is done in `@AfterEach` via direct JDBC DELETE.
+- Commits: e65659e
+
+---
+
 ## Notes for future agents
 
 - The PRD at `prd/PRD.md` is the only source of truth. If something here contradicts the PRD, the PRD wins.
 - Integrations gated on Lead Developer review before merge per PRD §25.3: Stripe, Apple Sign-in, Push notifications, Twilio (future), Google OAuth.
-- Completed through TASK-041: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 036, 037, 039, 040, 041 (see `tasks.json`).
+- Completed through TASK-028: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 036, 037, 039, 040, 041 (see `tasks.json`).
 - TASK-025 note: all domain exceptions must extend `DomainException` (in `com.teamhub.exception`). Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")`. The full §23.4 envelope `{"error":{"code":"…","message":"…","details":{…}}}` is returned by `GlobalExceptionHandler` for validation (422), domain (custom status), and unexpected (500) errors. Auth exceptions (`InvalidCredentialsException`, `InvalidRefreshTokenException`) now return the full envelope (was legacy flat shape).
 - TASK-024 note: the security filter chain now returns 401 with the §23.4 `ErrorEnvelope` (`{"error":{"code":"UNAUTHORIZED",...}}`) for both anonymous and invalid-token requests via `RestAuthenticationEntryPoint`. CORS allows only the `CORS_ALLOWED_ORIGIN` env-var origin (dev: `http://localhost:5173`, prod: `https://app.teamhub.online`). All other 401/403 logic is unchanged from TASK-019/023. The `AuthExceptionHandler` legacy flat 401 body (for `InvalidCredentialsException`/`InvalidRefreshTokenException`) was reconciled to the full envelope in TASK-025.
 - TASK-023 note: authorization is permission-based. Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")` (a permission code from the `permissions` table), never `hasRole('ADMIN')`. The JWT `role` claim is resolved to `PERM_*` authorities by `PermissionJwtAuthenticationConverter`. Adding a role is a seed-only change (new rows in `roles` + `role_permissions`). 403 denials use the PRD §23.4 envelope (`{"error":{"code":"FORBIDDEN",...}}`); the 401 envelope and CORS are deferred to TASK-024, and the unified `@RestControllerAdvice` envelope to TASK-025.

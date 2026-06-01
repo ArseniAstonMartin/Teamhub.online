@@ -4,6 +4,7 @@ import com.teamhub.auth.dto.LoginRequest;
 import com.teamhub.auth.dto.LogoutRequest;
 import com.teamhub.auth.dto.RefreshRequest;
 import com.teamhub.auth.dto.TokenResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,9 +24,18 @@ public class AuthController {
     this.authService = authService;
   }
 
+  /**
+   * Authenticates with email + password and issues a token pair.
+   *
+   * <p>The source IP is extracted from {@code HttpServletRequest} and forwarded to {@link
+   * AuthService#login(String, String, String)} so it can be captured in the {@code
+   * auth.login_failed} audit row per PRD §19.2.
+   */
   @PostMapping("/login")
-  public TokenResponse login(@Valid @RequestBody LoginRequest request) {
-    return TokenResponse.from(authService.login(request.email(), request.password()));
+  public TokenResponse login(
+      @Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
+    String sourceIp = httpRequest.getRemoteAddr();
+    return TokenResponse.from(authService.login(request.email(), request.password(), sourceIp));
   }
 
   @PostMapping("/refresh")
