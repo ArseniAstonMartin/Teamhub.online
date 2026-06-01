@@ -24,6 +24,7 @@ repositories {
 
 val mapstructVersion = "1.6.3"
 val springdocVersion = "2.8.17"
+val shedlockVersion = "6.6.0"
 
 dependencies {
   implementation("org.springframework.boot:spring-boot-starter-actuator")
@@ -37,6 +38,8 @@ dependencies {
   implementation("org.hibernate.orm:hibernate-spatial")
   implementation("org.mapstruct:mapstruct:$mapstructVersion")
   implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:$springdocVersion")
+  implementation("net.javacrumbs.shedlock:shedlock-spring:$shedlockVersion")
+  implementation("net.javacrumbs.shedlock:shedlock-provider-jdbc-template:$shedlockVersion")
 
   compileOnly("org.projectlombok:lombok")
   annotationProcessor("org.projectlombok:lombok")
@@ -53,6 +56,7 @@ dependencies {
   testImplementation("org.springframework.security:spring-security-test")
   testImplementation("org.testcontainers:junit-jupiter")
   testImplementation("org.testcontainers:postgresql")
+  testImplementation("org.postgresql:postgresql")
   testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

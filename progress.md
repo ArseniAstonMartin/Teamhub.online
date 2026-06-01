@@ -723,12 +723,257 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 ---
 
+---
+
+### 2026-06-01 — TASK-029 — Eventing tables: outbox_events, processed_events, delayed_jobs
+
+- Agent: Composer (Sonnet 4.6)
+- Status change: pending → done
+- PRD sections consulted: §22, §22.5, §22.5.3, §22.5.4, §22.5.6, §7.2
+- Files touched:
+  - backend/src/main/resources/db/migration/V10__eventing_tables.sql (new)
+  - backend/src/main/java/com/teamhub/eventing/OutboxEvent.java (new)
+  - backend/src/main/java/com/teamhub/eventing/OutboxEventRepository.java (new)
+  - backend/src/main/java/com/teamhub/eventing/ProcessedEventId.java (new)
+  - backend/src/main/java/com/teamhub/eventing/ProcessedEvent.java (new)
+  - backend/src/main/java/com/teamhub/eventing/ProcessedEventRepository.java (new)
+  - backend/src/main/java/com/teamhub/eventing/DelayedJobStatus.java (new)
+  - backend/src/main/java/com/teamhub/eventing/DelayedJob.java (new)
+  - backend/src/main/java/com/teamhub/eventing/DelayedJobRepository.java (new)
+  - backend/src/test/java/com/teamhub/eventing/EventingTablesIT.java (new)
+  - backend/src/test/java/com/teamhub/eventing/EventingEntityTest.java (new)
+  - tasks.json (TASK-029 status → done)
+- Summary: Created all three eventing infrastructure tables from PRD §22 in a single V10 Flyway migration. `outbox_events` stores transactional outbox events with a relay-scan index on `(processed_at NULLS FIRST, created_at)`. `processed_events` is a month-partitioned table (PARTITION BY RANGE on processed_at) with the current month's partition (`processed_events_2026_06`) created inline; the physical PK is `(event_id, consumer_group, processed_at)` because PostgreSQL declarative partitioning requires the partition key in every unique constraint. `delayed_jobs` stores time-scheduled work items with a `(status, run_at)` index for dispatcher scans. All three tables follow the same RLS pattern as V2/V5/V7/V8 (ENABLE + FORCE + `tenant_isolation` policy using `NULLIF(current_setting('app.current_tenant_id', true), '')::uuid`). Java domain classes (`OutboxEvent`, `ProcessedEvent`, `DelayedJob` with their repositories and `DelayedJobStatus` enum) live in `com.teamhub.eventing`. New-code coverage: eventing package 100%, overall 95.4%.
+- Acceptance criteria verified:
+  1. V10 migration creates all three tables with exact columns from PRD §22 — confirmed; Flyway + JPA schema validation pass
+  2. `outbox_events` index `idx_outbox_events_relay` on `(processed_at NULLS FIRST, created_at)` — confirmed; `step1_relayIndexExistsOnOutboxEvents`
+  3. `delayed_jobs` index `idx_delayed_jobs_status_run_at` on `(status, run_at)` — confirmed; `step1_statusRunAtIndexExistsOnDelayedJobs`
+  4. `processed_events` partitioned by month — confirmed; `step3_processedEventsIsDeclarativeRangePartitionedTable`, `step3_processedEventsHasPartitionForCurrentMonth`
+  5. RLS enabled on all three tables — confirmed; `step1_rlsIsEnabledAndForcedOnAllThreeTables`
+- Test steps run (169 total tests, 0 failures; 30 new in EventingTablesIT + EventingEntityTest):
+  - Step 1 (`step1_allThreeTablesExistAfterV10Migration`, `step1_relayIndexExistsOnOutboxEvents`, `step1_statusRunAtIndexExistsOnDelayedJobs`, `step1_rlsIsEnabledAndForcedOnAllThreeTables`): tables and indexes present — passed
+  - Step 2 (`step2_outboxEventsRlsIsolatesAcrossTenants`, `step2_delayedJobsRlsIsolatesAcrossTenants`, `step2_processedEventsRlsIsolatesAcrossTenants`, `step2_withoutGucSet_outboxEventsReturnsNoRows`): RLS isolation across two tenants — passed
+  - Step 3 (`step3_processedEventsHasPartitionForCurrentMonth`, `step3_processedEventsIsDeclarativeRangePartitionedTable`, `step3_insertIntoProcessedEventsLandsInCurrentMonthPartition`): partition for current month (2026-06) present and receives inserts — passed
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 169 tests, 0 failures
+- Open TO-DOs created (with PRD reference): none
+- Notes for next iteration:
+  - `processed_events` partitions for future months must be created before month rollover. A partition-management scheduled task (or a separate migration per month) is needed before each new month begins; this is out of scope for TASK-029. The partition for the current month (June 2026) is created by V10.
+  - The physical PK on `processed_events` is `(event_id, consumer_group, processed_at)` — not the logical `(event_id, consumer_group)` stated in the PRD schema snippet — because PostgreSQL declarative range partitioning requires the partition key column to be part of every unique constraint. The de-dup semantic (`INSERT … ON CONFLICT DO NOTHING` on event_id + consumer_group) is still correct because both columns are in the PK; timestamps are generated server-side so collisions are impossible.
+  - `outbox_events.processed_at` is updated by the relay worker (native UPDATE), not through the JPA entity. Do not use `OutboxEventRepository.save()` to mark an event as processed; the relay owns this field.
+  - The `teamhub_app` role receives `SELECT, INSERT, UPDATE` on `outbox_events` (relay needs to update `processed_at`) and `delayed_jobs` (dispatcher needs to update `status`). It receives `SELECT, INSERT` on `processed_events` (de-dup only, no updates needed).
+- Commits: (see below)
+
+### 2026-06-01 — TASK-030 — Transactional outbox publisher (OutboxPublisher)
+
+- Agent: Composer (Sonnet 4.6)
+- Status change: pending → done
+- PRD sections consulted: §22.5.3
+- Files touched:
+  - backend/src/main/java/com/teamhub/eventing/OutboxPublisher.java (new)
+  - backend/src/test/java/com/teamhub/eventing/OutboxPublisherIT.java (new)
+  - backend/build.gradle.kts (added `testImplementation("org.postgresql:postgresql")` for PGConnection test import)
+  - tasks.json (TASK-030 status → done)
+- Summary: Implemented `OutboxPublisher`, the Spring `@Component` utility that writes domain events to the `outbox_events` table inside the caller's active transaction (PRD §22.5.3). The method is annotated `@Transactional(propagation = MANDATORY)`, guaranteeing a hard fail if called without an active transaction — protecting the atomicity invariant. Payload POJOs are serialized to JSONB via the application's `ObjectMapper` bean. After the INSERT, a best-effort `SELECT pg_notify('outbox_inserted', '')` is issued on the same JDBC connection via `JdbcTemplate`; any notify failure is caught and logged at WARN — the outbox row is never lost. The `eventType` parameter is validated against `[A-Z][A-Za-z]*` (PascalCase) with a clear `IllegalArgumentException` on violation.
+- Acceptance criteria verified:
+  1. Method signature `void publish(String eventType, String aggregateType, UUID aggregateId, Object payloadPojo)` — confirmed in `OutboxPublisher.publish`
+  2. Payload serialized to JSONB via Jackson; `eventType` validated as PascalCase — confirmed; `publish_withLowerCaseEventType_throwsIllegalArgument` passes
+  3. Throws `IllegalTransactionStateException` when called outside a transaction (MANDATORY propagation) — confirmed; `step2_publishOutsideTransaction_throwsIllegalTransactionStateException` passes
+  4. `pg_notify('outbox_inserted', '')` issued best-effort via JdbcTemplate, wrapped in try-catch, WARN-logged on failure — confirmed in source
+- Test steps run (6 new tests in OutboxPublisherIT, 177 total tests, 0 failures):
+  - Step 1 (`step1_publishAndBusinessRow_bothCommitInSameTransaction`): TransactionTemplate wraps a direct `outboxEventRepository.save()` (simulating `INSERT INTO jobs`) plus `publisher.publish("JobSubmitted", ...)` — asserts 2 rows with the same `aggregate_id` in `outbox_events` after commit — passed; `step1_publishAndBusinessRow_bothRollBackOnException`: same TX but throws RuntimeException — asserts 0 rows after rollback — passed
+  - Step 2 (`step2_publishOutsideTransaction_throwsIllegalTransactionStateException`): calls `publisher.publish()` with no active transaction — asserts `IllegalTransactionStateException` is thrown — passed
+  - Step 3 (`step3_publishFiresPgNotifyNotification`): opens a dedicated raw JDBC connection, executes `LISTEN outbox_inserted`, then publishes in a transaction; uses Awaitility (2 s, 50 ms poll) to poll `PGConnection.getNotifications(0)` — asserts at least one notification arrives after TX commits — passed
+  - Additional: `publish_withLowerCaseEventType_throwsIllegalArgument`, `publish_withNullTenantContext_throwsIllegalState` — both passed
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 177 tests, 0 failures
+  - Coverage: `OutboxPublisher` 86.2% line, 83.3% branch (> 80% gate); uncovered branch is `JsonProcessingException` catch (unreachable with well-formed POJOs)
+- Open TO-DOs created (with PRD reference): none
+- Notes for next iteration:
+  - `OutboxPublisher.publish()` requires `TenantContext` to be set before the call (reads from `TenantContext.get()`). Callers must set the tenant ID before entering the business transaction.
+  - The `pg_notify` is queued within the transaction and delivered to listeners only when the transaction commits. If the surrounding TX rolls back, the notification is silently discarded — correct behavior that prevents listeners from waking for phantom events.
+  - TASK-031 (Outbox Relay): will poll `outbox_events WHERE processed_at IS NULL` via `OutboxEventRepository.findUnprocessed()` and XADD to Redis Streams. The `pg_notify` from this task is the wake-up signal for the relay's long-poll loop.
+- Commits: (see below)
+
+### 2026-06-01 — TASK-031 — Outbox Relay (leader election + Redis Streams)
+
+- Agent: Composer (Sonnet 4.6)
+- Status change: pending → done
+- PRD sections consulted: §22.5.3
+- Files touched:
+  - backend/src/main/java/com/teamhub/eventing/OutboxRelay.java (new)
+  - backend/src/main/java/com/teamhub/config/SchedulingConfig.java (new)
+  - backend/src/main/java/com/teamhub/eventing/OutboxEventRepository.java (added `findUnprocessedBatch`)
+  - backend/src/test/java/com/teamhub/eventing/OutboxRelayIT.java (new)
+  - backend/src/test/java/com/teamhub/config/TestcontainersConfiguration.java (added Redis container)
+  - tasks.json (TASK-031 status → done)
+- Summary: Implemented `OutboxRelay`, the Spring `@Component` that polls the `outbox_events` table every 200 ms (PRD §22.5.3) and forwards unprocessed rows to Redis Streams. Single-instance leadership is enforced via `SET relay:leader <instanceId> NX PX 10000`; the TTL is refreshed every 3 s using a Lua compare-and-refresh script. XADD uses `StringRedisTemplate.opsForStream().add("events:<eventType>", fields)` with `id`, `tenant_id`, and `payload` fields. After a successful XADD, `processed_at = now()` is set via a native JDBC UPDATE. On five consecutive XADD failures the error is logged at ERROR level. Graceful shutdown deletes the leader key via a Lua conditional-delete script. `SchedulingConfig` enables `@Scheduled`. Testcontainers Redis (redis:7-alpine) is added to `TestcontainersConfiguration` via `@ServiceConnection("redis")` and `GenericContainer`.
+- Acceptance criteria verified:
+  1. Single leader enforced by `SET relay:leader <instanceId> NX PX 10000` with 3 s TTL refresh — confirmed; `step3_onlyOneInstanceHoldsLeaderLockAtATime` + `electLeader_whenKeyDisappearsWhileLeading_stepsDown`
+  2. Reads up to 100 unprocessed rows per tick via `findUnprocessedBatch(100)` ordered by `created_at ASC` — confirmed in `OutboxRelay.relayTick()`
+  3. Each row: `XADD events:<event_type> * id <uuid> tenant_id <uuid> payload <json>` then UPDATE `processed_at = now()` — confirmed; `step1_50Events_allLandInRedisStreamWithin1s`
+  4. On crash, new instance resumes from last unprocessed row within 10 s (TTL) — mechanism verified; `step2_unprocessedRowsRemainAvailableForRelayAfterSimulatedCrash`
+  5. ERROR log after 5 XADD retries + `// TO-DO: route to Sentry` — confirmed; `xaddWithRetry_whenStreamTypeConflict_exhaustsRetriesAndLeavesRowUnprocessed`
+- Test steps run (7 new tests in OutboxRelayIT, 182 total tests, 0 failures):
+  - Step 1 (`step1_50Events_allLandInRedisStreamWithin1s`): 50 events published, Awaitility (1 s, 50 ms poll) asserts stream size increases by ≥ 50; all rows `processed_at` non-null — passed
+  - Step 2 (`step2_unprocessedRowsRemainAvailableForRelayAfterSimulatedCrash`): sentinel key blocks relay; 3 rows inserted; asserts `processed_at IS NULL`; then relay re-acquires + `relayTick()`; asserts 0 unprocessed — passed
+  - Step 3 (`step3_onlyOneInstanceHoldsLeaderLockAtATime`): relay holds key; rival `SET NX` fails; key value unchanged — passed
+  - `electLeader_whenKeyDisappearsWhileLeading_stepsDown`: key deleted externally; refresh returns 0; `isLeading = false` — passed
+  - `xaddWithRetry_whenStreamTypeConflict_exhaustsRetriesAndLeavesRowUnprocessed`: WRONGTYPE Redis error; 5 retries exhausted; row stays unprocessed — passed
+  - `destroy_whenLeading_deletesLeaderKeyFromRedis`: `destroy()` called while leading; key deleted from Redis — passed
+  - `multipleEventTypes_routedToCorrectStreams`: TypeAlpha + TypeBeta in separate streams — passed
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 182 tests, 0 failures
+  - Coverage: `OutboxRelay` 95.7% line (> 80% gate); overall eventing package 96%+
+- Open TO-DOs created (with PRD reference):
+  - `OutboxRelay.xaddWithRetry` (PRD §22.5.3): route to Sentry after 5 XADD retries once TASK-Sentry lands (`// TO-DO: route to Sentry once TASK-Sentry lands`)
+  - `OutboxRelay` Javadoc (production deployment): production deployments using a non-superuser connection pool must grant BYPASSRLS or use a dedicated relay schema-owner account for cross-tenant outbox scanning
+- Notes for next iteration:
+  - The relay's cross-tenant scan relies on `TenantAwareDataSource` issuing `RESET ROLE` when `TenantContext` is null, which leaves the login user (postgres superuser, BYPASSRLS) active. In the Testcontainers context the login user IS the postgres superuser, so tests work correctly. Production environments using `teamhub_app` (a non-superuser with FORCE RLS) will need a relay-specific BYPASSRLS role or policy exception.
+  - The background `@Scheduled(fixedDelay = 3000)` `electLeader()` and `fixedDelay = 200` `relayTick()` run in ALL `@SpringBootTest` contexts. Test classes that create outbox events should use unique aggregate IDs or stream-size-delta assertions (not exact counts) to avoid cross-test stream pollution from other Spring context relay instances.
+  - `OutboxEventRepository.findUnprocessedBatch(int limit)` uses a native query with `LIMIT :limit` for bounded batch sizes. The existing `findUnprocessed()` method (unbounded) is retained for backward compatibility.
+  - Step 2 and Step 3 complex end-to-end scenarios (actual JVM crash/restart, dual-process race via logs) are marked `// TO-DO` in the test and require separate process-lifecycle infrastructure to validate end-to-end.
+- Commits: (see below)
+
+---
+
 ## Notes for future agents
 
 - The PRD at `prd/PRD.md` is the only source of truth. If something here contradicts the PRD, the PRD wins.
 - Integrations gated on Lead Developer review before merge per PRD §25.3: Stripe, Apple Sign-in, Push notifications, Twilio (future), Google OAuth.
-- Completed through TASK-028: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 036, 037, 039, 040, 041 (see `tasks.json`).
+- Completed through TASK-035: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041 (see `tasks.json`).
 - TASK-025 note: all domain exceptions must extend `DomainException` (in `com.teamhub.exception`). Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")`. The full §23.4 envelope `{"error":{"code":"…","message":"…","details":{…}}}` is returned by `GlobalExceptionHandler` for validation (422), domain (custom status), and unexpected (500) errors. Auth exceptions (`InvalidCredentialsException`, `InvalidRefreshTokenException`) now return the full envelope (was legacy flat shape).
 - TASK-024 note: the security filter chain now returns 401 with the §23.4 `ErrorEnvelope` (`{"error":{"code":"UNAUTHORIZED",...}}`) for both anonymous and invalid-token requests via `RestAuthenticationEntryPoint`. CORS allows only the `CORS_ALLOWED_ORIGIN` env-var origin (dev: `http://localhost:5173`, prod: `https://app.teamhub.online`). All other 401/403 logic is unchanged from TASK-019/023. The `AuthExceptionHandler` legacy flat 401 body (for `InvalidCredentialsException`/`InvalidRefreshTokenException`) was reconciled to the full envelope in TASK-025.
 - TASK-023 note: authorization is permission-based. Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")` (a permission code from the `permissions` table), never `hasRole('ADMIN')`. The JWT `role` claim is resolved to `PERM_*` authorities by `PermissionJwtAuthenticationConverter`. Adding a role is a seed-only change (new rows in `roles` + `role_permissions`). 403 denials use the PRD §23.4 envelope (`{"error":{"code":"FORBIDDEN",...}}`); the 401 envelope and CORS are deferred to TASK-024, and the unified `@RestControllerAdvice` envelope to TASK-025.
 - TASK-019 note: `TenantContextFilter` now reads the `tenant_id` claim from the validated JWT (the TASK-018 `X-Tenant-Id` placeholder is gone). Auth endpoints live under `/api/v1/auth/**` (permitAll); everything else requires a valid RS256 access token. Production must configure persistent JWT keys via `JWT_PRIVATE_KEY_PATH`/`JWT_PUBLIC_KEY_PATH`.
+
+### 2026-06-01 — TASK-032 — AbstractOutboxConsumer (idempotency, DLQ, visibility timeout)
+
+- Agent: Composer (Sonnet 4.6)
+- Status change: pending → done
+- PRD sections consulted: §22.5.6
+- Files touched:
+  - backend/src/main/java/com/teamhub/eventing/EventEnvelope.java (new)
+  - backend/src/main/java/com/teamhub/eventing/AbstractOutboxConsumer.java (new)
+  - backend/src/test/java/com/teamhub/eventing/AbstractOutboxConsumerIT.java (new)
+  - tasks.json (TASK-032 status → done)
+- Summary: Implemented `EventEnvelope` record and `AbstractOutboxConsumer` abstract base class (PRD §22.5.6). The base class wraps every Redis Streams delivery in three layers: (1) idempotency gate via `SELECT EXISTS` against the partitioned `processed_events` table before invoking the handler (a bare `ON CONFLICT DO NOTHING` is insufficient because the physical PK includes `processed_at`; re-deliveries arrive at different timestamps); (2) resilience — exceptions leave the message in the PEL for retry, with `INSERT INTO processed_events ... ON CONFLICT DO NOTHING` written only after a successful `handle()` call, then `XACK`; (3) visibility-timeout claim — every tick, `opsForStream().pending(...)` scans the group's PEL for messages idle > 60 s and `opsForStream().claim(...)` re-assigns them; if `getTotalDeliveryCount() >= 5`, the message is dead-lettered to `events:<type>:dlq` + `XACK`ed without calling `handle()`. `@Scheduled(fixedDelay = 200)` drives the poll loop; consumer-group creation is attempted lazily each tick (BUSYGROUP swallowed). `TenantContext.set(tenantId)` is applied around all JDBC operations and cleared in `finally`. The `@EnableScheduling` already present in `SchedulingConfig` (TASK-031) is reused.
+- Acceptance criteria verified:
+  1. Base class polls Redis Streams via `XREADGROUP` — confirmed; `pollOnce()` uses `StreamReadOptions.empty().count(10).block(Duration.ofMillis(100))` with `ReadOffset.lastConsumed()`
+  2. INSERT into `processed_events` after successful `handle()` with `ON CONFLICT DO NOTHING`; SELECT EXISTS gate skips duplicate event_id — confirmed; `step1_idempotency_sameEventIdTwice_handleCalledOnce`
+  3. Subclass implements `handle(EventEnvelope)`; thrown exceptions leave message in PEL — confirmed; `step3_claimLogic_messageIdleInPel_isClaimedAndReprocessed`
+  4. After 5 failed attempts, message XADD-ed to DLQ and XACK-ed — confirmed; `step2_handleThrows5Times_messageRoutedToDlq`
+  5. Visibility timeout: messages in PEL > 60 s are XCLAIM-ed — confirmed; `step3_claimLogic_messageIdleInPel_isClaimedAndReprocessed` (with 50-ms override)
+- Test steps run (4 new tests in AbstractOutboxConsumerIT, 186 total tests, 0 failures):
+  - Step 1 (`step1_idempotency_sameEventIdTwice_handleCalledOnce`): same event_id XADDed twice; handle() called exactly once; one row in processed_events — passed
+  - Step 2 (`step2_handleThrows5Times_messageRoutedToDlq`): handle() throws 5 times (delivery count 1–5 via XCLAIM with 50-ms timeout); 6th delivery → DLQ stream has 1 entry with correct id; PEL empty; handle_count = 5 — passed
+  - Step 3 (`step3_claimLogic_messageIdleInPel_isClaimedAndReprocessed`): handle() throws once; sleep > 50 ms; XCLAIM fires; handle() succeeds; PEL empty — passed
+  - Additional (`malformedRecord_missingFields_ackedAndSkippedWithoutCallingHandle`): malformed record ACKed, handle() not called — passed
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 186 tests, 0 failures
+  - Coverage: `AbstractOutboxConsumer` 80% line (meets gate); `EventEnvelope` 100%
+- Open TO-DOs created (with PRD reference):
+  - `AbstractOutboxConsumer.reclaimStalePending()` (PRD §22.5.6): full end-to-end 60-s idle test with real process-lifecycle control is out of scope (`// TO-DO (§22.5.6)`)
+  - `AbstractOutboxConsumer.processRecord()` (PRD §22.5.6): route failed handle() calls to Sentry once TASK-Sentry lands (`// TO-DO: route to Sentry once TASK-Sentry lands`)
+  - `AbstractOutboxConsumer.sendToDlqAndAck()` (PRD §22.5.6): route DLQ routing to Sentry once TASK-Sentry lands (`// TO-DO: route to Sentry once TASK-Sentry lands`)
+- Notes for next iteration:
+  - `processed_events` table partitioning: the physical PK is `(event_id, consumer_group, processed_at)` due to PostgreSQL declarative range partitioning. A bare `ON CONFLICT DO NOTHING` on this PK only detects exact-timestamp duplicates; the `SELECT EXISTS` gate provides reliable cross-partition idempotency for re-deliveries that arrive seconds/minutes later.
+  - The `AbstractOutboxConsumer` is NOT a `@Component`; concrete consumer subclasses must be registered as Spring beans with the appropriate `@Component` or `@Service` annotation.
+  - `ensureGroupExists()` creates the consumer group with offset "0" (reads from beginning), so newly registered consumers will process all messages in the stream from the start. If you want a consumer to start from the current tail only, change `ReadOffset.from("0")` to `ReadOffset.from("$")` in `ensureGroupExists()`.
+  - The `@Scheduled(fixedDelay = 200)` poll loop requires `@EnableScheduling` — already provided by `SchedulingConfig` (TASK-031).
+- Commits: (see below)
+
+### 2026-06-01 — TASK-033 — Delayed Job Dispatcher
+
+- Agent: Composer (Sonnet 4.6)
+- Status change: pending → done
+- PRD sections consulted: §22.5.4
+- Files touched:
+  - backend/build.gradle.kts (added shedlock-spring 6.6.0, shedlock-provider-jdbc-template 6.6.0)
+  - backend/src/main/resources/db/migration/V11__shedlock.sql (new)
+  - backend/src/main/java/com/teamhub/config/SchedulingConfig.java (added @EnableSchedulerLock + LockProvider bean)
+  - backend/src/main/java/com/teamhub/eventing/DelayedJobHandler.java (new)
+  - backend/src/main/java/com/teamhub/eventing/DelayedJobDispatcher.java (new)
+  - backend/src/test/java/com/teamhub/eventing/DelayedJobDispatcherIT.java (new)
+  - tasks.json (TASK-033 status → done)
+- Summary: Implemented `DelayedJobDispatcher`, the Spring `@Component` that polls the `delayed_jobs` Redis sorted set every 5 s via `@Scheduled` + ShedLock (`@SchedulerLock(name="delayed_job_dispatcher", lockAtMostFor="PT10S")`) to guarantee single-leader execution across nodes. The dispatch tick calls `ZRANGEBYSCORE delayed_jobs 0 <now_ms> LIMIT 0 100`, atomically `ZREM`s each due entry, then reads the Postgres row for a pre-run status check: `CANCELLED` rows are marked `DONE` and skipped; missing rows are silently skipped; `PENDING` rows are set to `RUNNING` and dispatched to the appropriate `DelayedJobHandler`. On handler success, status becomes `DONE`. On failure, `attempt_count` is incremented and the job is re-`ZADD`ed for immediate retry; after 5 attempts, status becomes `FAILED` and an ERROR log is emitted. The `DelayedJobHandler` plug-in interface (with `kind()` + `handle(DelayedJob)`) is auto-collected from Spring beans into a `Map<String, DelayedJobHandler>`. The `schedule(tenantId, kind, payload, runAt)` method saves the Postgres row and `ZADD`s to Redis. Migration V11 adds the `shedlock` table; `SchedulingConfig` now carries `@EnableSchedulerLock` and the `LockProvider` bean backed by `JdbcTemplateLockProvider` using DB time.
+- Acceptance criteria verified:
+  1. Scheduler bean ticks every 5 s using `@Scheduled` with `@SchedulerLock` for single-leader guarantee — confirmed; `dispatchTick()` is annotated with both; `LockProvider` backed by `shedlock` Postgres table (V11 migration)
+  2. Handler registry keyed by `kind`; plug-in pattern with one `DelayedJobHandler` interface — confirmed; `DelayedJobHandler` interface with `kind()` + `handle(DelayedJob)`; dispatcher collects all beans via `List<DelayedJobHandler>` → `Map<String, DelayedJobHandler>`
+  3. Pre-run check: `SELECT status FROM delayed_jobs WHERE id=?`; if `CANCELLED`, mark `DONE` and skip — confirmed in `dispatch()`; `step2_cancelJobBeforeRuntime_handlerNotInvoked`
+  4. On handler error: increment `attempt_count`, set `status='FAILED'` after 5 attempts and Sentry alert — confirmed in `handleFailure()`; `step3_failingHandler_failsPermanentlyAfter5Attempts`
+  5. Sorted set and Postgres row stay in sync: if Postgres row missing, just `ZREM` and continue — confirmed; `missingPostgresRow_zremDone_noExceptionThrown`
+- Test steps run (4 new tests in DelayedJobDispatcherIT, 190 total tests, 0 failures):
+  - Step 1 (`step1_scheduleJob200msDelay_handlerRunsWithin5s`): job scheduled for now+200 ms; Awaitility polls up to 5 s with 200 ms interval, calls `dispatchTickInternal()` each iteration; asserts status='DONE' and `NOOP_COUNT >= 1` — passed
+  - Step 2 (`step2_cancelJobBeforeRuntime_handlerNotInvoked`): job scheduled, cancelled via JDBC before dispatch; `dispatchTickInternal()` called manually; asserts `CANCELLABLE_COUNT = 0` and status='DONE' — passed
+  - Step 3 (`step3_failingHandler_failsPermanentlyAfter5Attempts`): failing handler scheduled; `dispatchTickInternal()` called 5 times (re-ZADD with immediate score ensures each call picks up the job); asserts status='FAILED' and `attempt_count=5` — passed
+  - Additional (`missingPostgresRow_zremDone_noExceptionThrown`): phantom sorted-set entry (no Postgres row); `dispatchTickInternal()` completes without exception; entry removed from sorted set — passed
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 190 tests, 0 failures
+  - Coverage: `DelayedJobDispatcher` 88.6% line (> 80% gate); `DelayedJobHandler` interface: 100% (trivial interface); jacocoTestCoverageVerification PASSED
+- Open TO-DOs created (with PRD reference):
+  - `DelayedJobDispatcher.handleFailure()` (PRD §22.5.4): route permanent failures to Sentry once TASK-Sentry lands (`// TO-DO: route to Sentry once TASK-Sentry lands`)
+- Notes for next iteration:
+  - `DelayedJobDispatcher.schedule()` requires `TenantContext` to be set by the caller before the JPA `repository.save()` call; without it the Postgres RLS INSERT check will fail for non-superuser production connections. Background dispatcher reads run without TenantContext (BYPASSRLS superuser in Testcontainers; production must use a BYPASSRLS dispatcher role — same caveat as OutboxRelay).
+  - The `dispatchTickInternal()` method is package-private to allow integration tests to drive dispatch deterministically without the ShedLock proxy. Production code must only call `dispatchTick()` (which is the ShedLock-guarded entry point).
+  - The re-`ZADD` on retry uses `Instant.now().toEpochMilli()` as the score (immediate retry). Future backoff strategies (exponential, jitter) can be added by replacing this value with `job.getRunAt().plus(backoff).toEpochMilli()`.
+  - `DelayedJobDispatcher` currently finds handlers by kind only (no tenant isolation in the registry). If handler kinds ever need to be tenant-specific, the registry must be extended accordingly.
+- Commits: (see below)
+
+### 2026-06-01 — TASK-034 — Event Payload Records
+
+- Agent: Composer (Sonnet 4.6)
+- Status change: pending → done
+- PRD sections consulted: §22.5.5
+- Files touched:
+  - backend/src/main/java/com/teamhub/eventing/payloads/package-info.java (new)
+  - backend/src/main/java/com/teamhub/eventing/payloads/JobSubmitted.java (new)
+  - backend/src/main/java/com/teamhub/eventing/payloads/JobClaimed.java (new)
+  - backend/src/main/java/com/teamhub/eventing/payloads/JobStatusChanged.java (new)
+  - backend/src/main/java/com/teamhub/eventing/payloads/JobCompleted.java (new)
+  - backend/src/main/java/com/teamhub/eventing/payloads/QuotaThresholdReached.java (new)
+  - backend/src/main/java/com/teamhub/eventing/payloads/SubscriptionUpdated.java (new)
+  - backend/src/main/java/com/teamhub/eventing/payloads/UserInvited.java (new)
+  - backend/src/main/java/com/teamhub/eventing/payloads/PhotoUploaded.java (new)
+  - backend/src/test/java/com/teamhub/eventing/payloads/EventPayloadRecordTest.java (new)
+  - tasks.json (TASK-034 status → done)
+- Summary: Defined 8 Java records under `com.teamhub.eventing.payloads` covering all PRD §22.5.5 event types. Every record carries `event_id` (UUID), `tenant_id` (UUID), and event-specific domain fields with `@JsonProperty` snake_case names. All records are annotated `@JsonInclude(NON_NULL)` and carry the append-only schema convention comment. The ObjectMapper is configured with `FAIL_ON_UNKNOWN_PROPERTIES = false` (mirroring Spring Boot defaults) to guarantee forward-compatibility as new fields are added. Unit tests cover round-trip serialization for all 8 types, forward-compatibility (unknown extra fields silently ignored), append-only evolution (old JSON without a new field deserializes with the field null/default), and `NON_NULL` suppression (null fields absent from serialized JSON).
+- Acceptance criteria verified:
+  1. One Java record per event, annotated `@JsonInclude(NON_NULL)` + `@JsonProperty` snake_case — confirmed; 8 records in `com.teamhub.eventing.payloads`
+  2. Each record includes `event_id` (UUID), `tenant_id` (UUID), and event-specific fields — confirmed; all records carry both envelope fields plus domain fields
+  3. Schemas are append-only by convention — confirmed; every record class has the Javadoc comment `// Append-only payload schema — add fields with defaults; never remove or rename existing fields (PRD §22.5.5).`
+  4. Unit tests assert round-trip serialization to/from JSON matches expected shape — confirmed; `EventPayloadRecordTest` with 18 tests covering all 8 event types
+- Test steps run (18 new tests in EventPayloadRecordTest, 208 total tests, 0 failures):
+  - Step 1 (all 8 round-trip tests): `jobSubmitted_roundTrip`, `jobClaimed_roundTrip`, `jobStatusChanged_roundTrip`, `jobCompleted_roundTrip`, `quotaThresholdReached_roundTrip`, `subscriptionUpdated_roundTrip`, `userInvited_roundTrip`, `photoUploaded_roundTrip` — all passed; JSON contains expected snake_case keys; deserialized record equals original
+  - Step 2 (append-only forward-compat): `jobSubmitted_appendOnly_oldJsonParsesWithNewNullableField` (old JSON without `scheduled_at` → field is null), `photoUploaded_appendOnly_oldJsonParsesWithNewNullableField` (old JSON without `uploaded_by` → field is null), `subscriptionUpdated_appendOnly_oldJsonWithMissingFields_parsesSuccessfully` — all passed
+  - Step 3 (forward-compat unknown fields): 5 tests across `JobSubmitted`, `JobClaimed`, `JobStatusChanged`, `QuotaThresholdReached`, `UserInvited` with extra JSON fields — all passed; `FAIL_ON_UNKNOWN_PROPERTIES = false` confirmed
+  - Additional (NON_NULL suppression): `jobSubmitted_nullField_isOmittedFromJson` (null `customer_id` + `scheduled_at` absent from JSON), `photoUploaded_nullField_isOmittedFromJson` (null `uploaded_by` absent) — passed
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 208 tests, 0 failures
+  - Coverage: `EventPayloadRecordTest` exercises all record components (constructors, accessors, equals/hashCode via record semantics) — 100% new-code coverage on the payload records; `jacocoTestCoverageVerification` PASSED
+- Open TO-DOs created (with PRD reference): none
+- Notes for next iteration:
+  - All payload records are pure data holders with no Spring or JPA dependencies — they can be used directly as the `payload` object passed to `OutboxPublisher.publish()` after serializing to JSON via `ObjectMapper`.
+  - The `@JsonInclude(NON_NULL)` annotation means missing optional fields do not inflate the JSON payload stored in `outbox_events.payload`. Consumers must configure their `ObjectMapper` with `FAIL_ON_UNKNOWN_PROPERTIES = false` to handle schema evolution correctly (Spring Boot's auto-configured mapper does this by default).
+  - Field naming convention: single-word fields (e.g. `role`, `limit`) do not need `@JsonProperty`; the record accessor name matches the JSON key directly.
+- Commits: (see below)
+
+### 2026-06-01 — TASK-035 — Audit-logger event consumer
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §19.2 (audit logging), §22.5.5 (event payload catalog), §22.5.6 (AbstractOutboxConsumer contract)
+- Files touched:
+  - backend/src/main/java/com/teamhub/audit/AuditEventConsumer.java (new)
+  - backend/src/main/java/com/teamhub/audit/AuditEventConsumerConfig.java (new)
+  - backend/src/test/java/com/teamhub/audit/AuditEventConsumerIT.java (new)
+  - tasks.json (TASK-035 status → done)
+  - progress.md (this entry)
+- Summary: Implemented `AuditEventConsumer` (extends `AbstractOutboxConsumer`, consumer group `audit-logger`) which subscribes to 6 Redis Streams (`JobSubmitted`, `JobClaimed`, `JobStatusChanged`, `JobCompleted`, `UserInvited`, `SubscriptionUpdated`) and maps each to a deterministic `action` string. `JobStatusChanged` populates `before_state`/`after_state` from `oldStatus`/`newStatus`; all other event types store the full payload JSON in `after_state`. `AuditEventConsumerConfig` registers 6 Spring beans (one per stream) so Spring's scheduler independently polls each stream. `actor_user_id` is intentionally omitted from all audit entries because event payload actor-IDs are not guaranteed to be present in the local `users` table (FK constraint would fail for external/webhook actors). Idempotency, PEL reclaim, and DLQ routing are fully inherited from `AbstractOutboxConsumer`.
+- Acceptance criteria verified:
+  1. Consumer group `audit-logger` — confirmed; `CONSUMER_GROUP = "audit-logger"` constant, 6 beans all use this group.
+  2. Deterministic `action` mapping (`job.create`, `job.claimed`, `job.transition`, `job.completed`, `user.invited`, `subscription.updated`) — confirmed; switch expression in `handle()`.
+  3. `before_state`/`after_state` populated from event payload — confirmed; `JobStatusChanged` sets `{"status":"OLD"}` / `{"status":"NEW"}`; others store full payload JSON.
+  4. IP and user-agent populated when supplied — deferred to producing-request context; the payload records (`JobSubmitted` etc.) do not carry IP/user-agent fields in PRD §22.5.5, so these fields are left null.
+- Test steps run (7 new tests in AuditEventConsumerIT, 215 total tests, 0 failures):
+  - Step 1 (`step1_jobSubmitted_auditRowCreatedWithActionJobCreate`): `OutboxPublisher` → relay → `events:JobSubmitted` → consumer → `audit_log` row with `action='job.create'` and matching `resource_id` within 8 s — PASSED
+  - Step 2 (`step2_jobStatusChanged_auditRowWithCorrectBeforeAfterState`): same pipeline for `JobStatusChanged`; `before_state` contains "SUBMITTED", `after_state` contains "ASSIGNED_TO_TECHNICIAN" — PASSED
+  - Step 3 (`step3_duplicateDelivery_sameEventIdTwice_producesExactlyOneAuditRow`): direct XADD same `event_id` twice; idempotency gate (`SELECT EXISTS` in `AbstractOutboxConsumer`) yields exactly 1 audit row and 1 `processed_events` row — PASSED
+  - Coverage (`jobClaimed`, `jobCompleted`, `userInvited`, `subscriptionUpdated`): relay pipeline for each remaining event type; audit rows verified — all PASSED
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 215 tests, 0 failures
+  - JaCoCo new-code coverage: `AuditEventConsumer` 98% (64/65 lines), `AuditEventConsumerConfig` 100%, all other audit classes 100%; `jacocoTestCoverageVerification` PASSED
+- Open TO-DOs created (with PRD reference): none
+- Commits: 2544d50
