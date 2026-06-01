@@ -1089,3 +1089,35 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Open TO-DOs created (with PRD reference): none
 - Decision documented: Used JPA Specifications (`JpaSpecificationExecutor`) instead of JPQL with nullable parameters because PostgreSQL cannot determine the data type of null `Instant`/`UUID` parameters in `?::type IS NULL` checks; this is the recommended approach for dynamic queries in Spring Data JPA.
 - Completed through TASK-044: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044 (see `tasks.json`).
+
+### 2026-06-01 — TASK-045 — Shared-Pool Claim Endpoint
+
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §10.1, §10.2, §10.3 (shared pool, claim, race condition handling), §22.5.5 (event payloads)
+- Files touched:
+  - backend/src/main/java/com/teamhub/job/JobAlreadyClaimedException.java (new)
+  - backend/src/main/java/com/teamhub/job/JobRepository.java (added claimJob native query with @Modifying(clearAutomatically=true))
+  - backend/src/main/java/com/teamhub/job/dto/JobResponse.java (added customerPhone field + phone masking factory)
+  - backend/src/main/java/com/teamhub/job/JobService.java (injected CustomerRepository, added claim() method, updated getById() to include phone)
+  - backend/src/main/java/com/teamhub/job/JobController.java (added POST /api/v1/jobs/{id}/claim endpoint)
+  - backend/src/test/java/com/teamhub/job/JobClaimIT.java (new)
+  - tasks.json (TASK-045 status → done)
+  - progress.md (this entry)
+- Summary: Implemented the shared-pool claim endpoint per PRD §10.2. `JobAlreadyClaimedException` extends `DomainException` (HTTP 409, code `JOB_ALREADY_CLAIMED`). The claim logic in `JobService.claim()` loads the job to validate SUBMITTED state and capture the current version, then fires a single atomic native UPDATE (`UPDATE jobs SET status='ASSIGNED_TO_TECHNICIAN', assigned_technician_id=:id, version=version+1 WHERE ... AND status='SUBMITTED' AND version=:v`). Zero rows returned → race lost → `JobAlreadyClaimedException`. On success, `JobClaimed` is published via `OutboxPublisher` (MANDATORY propagation) in the same transaction. `@Modifying(clearAutomatically=true)` evicts the JPA first-level cache so the subsequent reload reflects the native UPDATE. `JobResponse` gained a `customerPhone` field masked to null whenever `job.status == SUBMITTED` (PRD §10.1). `JobController` has `POST /api/v1/jobs/{id}/claim` guarded by `PERM_job.read.own` (Technicians only).
+- Acceptance criteria verified:
+  1. Single-row atomic UPDATE with version check — confirmed; `JobRepository.claimJob()` native query
+  2. 0 rows returned → 409 `JOB_ALREADY_CLAIMED` — confirmed; `JobService.claim()` checks `updated == 0`
+  3. Successful claim publishes `JobClaimed` via outbox in same tx — confirmed; `OutboxPublisher.publish()` called before return
+  4. Unclaimed job's GET response excludes customer phone — confirmed; `JobResponse.from(job, phone)` sets `maskedPhone = null` when `status == SUBMITTED`
+- Test steps run (5 new tests in JobClaimIT, all passed):
+  - Step 1 (`step1_concurrentClaim_exactlyOneSucceedsOneConflicts`): Two CompletableFuture/thread calls race with CountDownLatch synchronization; exactly one 200 and one 409 `JOB_ALREADY_CLAIMED`; exactly one `JobClaimed` outbox row — PASSED
+  - Step 2 (`step2_claimAlreadyAssignedJob_returns409`): Claim on ASSIGNED_TO_TECHNICIAN job → 409 `JOB_ALREADY_CLAIMED` — PASSED
+  - Step 3 (`step3_submittedJob_phoneNull_claimedJob_phonePresent`): GET SUBMITTED → customerPhone absent; POST /claim → 200 with phone; GET after claim → phone present — PASSED
+  - Additional (`claimWithoutToken_returns401`): anonymous claim → 401 — PASSED
+  - Additional (`claimUnknownJob_returns409`): unknown job → 409 `JOB_ALREADY_CLAIMED` — PASSED
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 245 tests, 0 failures
+  - Coverage: `jacocoTestCoverageVerification` PASSED
+- Open TO-DOs created (with PRD reference): none
+- Decision documented: Used `@Modifying(clearAutomatically = true)` on the native UPDATE query to force JPA to evict the first-level cache after the non-Hibernate write; without this, reloading the entity within the same transaction returns the stale cached version (still SUBMITTED), causing incorrect phone masking in the claim response.
+- Completed through TASK-045: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045 (see `tasks.json`).

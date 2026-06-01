@@ -1,6 +1,9 @@
 package com.teamhub.job;
 
+import com.teamhub.customer.Customer;
+import com.teamhub.customer.CustomerRepository;
 import com.teamhub.eventing.OutboxPublisher;
+import com.teamhub.eventing.payloads.JobClaimed;
 import com.teamhub.eventing.payloads.JobSubmitted;
 import com.teamhub.job.dto.CreateJobRequest;
 import com.teamhub.job.dto.JobResponse;
@@ -27,6 +30,9 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>Role-scoped list: TECHNICIAN sees only jobs assigned to them or in {@code SUBMITTED} (shared
  * pool); DISPATCHER and ADMIN see all tenant jobs (PRD §10.1). Status changes are handled
  * separately by {@link JobStateMachineService}; this service only modifies non-status fields.
+ *
+ * <p>The claim operation (PRD §10.2, TASK-045) uses a single atomic native UPDATE with optimistic
+ * locking to ensure "first technician wins" semantics without SELECT-FOR-UPDATE.
  */
 @Service
 @Transactional
@@ -40,15 +46,19 @@ public class JobService {
 
   private final JobRepository jobRepository;
 
+  private final CustomerRepository customerRepository;
+
   private final JobCustomFieldValidator customFieldValidator;
 
   private final OutboxPublisher outboxPublisher;
 
   public JobService(
       JobRepository jobRepository,
+      CustomerRepository customerRepository,
       JobCustomFieldValidator customFieldValidator,
       OutboxPublisher outboxPublisher) {
     this.jobRepository = jobRepository;
+    this.customerRepository = customerRepository;
     this.customFieldValidator = customFieldValidator;
     this.outboxPublisher = outboxPublisher;
   }
@@ -215,6 +225,9 @@ public class JobService {
   /**
    * Retrieves a single active job by ID, scoped to the given tenant.
    *
+   * <p>The {@code customerPhone} field in the response is masked (set to {@code null}) when the job
+   * is still in {@code SUBMITTED} state (PRD §10.1).
+   *
    * @throws JobNotFoundException when the job does not exist or belongs to another tenant
    */
   @Transactional(readOnly = true)
@@ -223,7 +236,65 @@ public class JobService {
         jobRepository
             .findByIdAndTenantIdAndArchivedAtIsNull(jobId, tenantId)
             .orElseThrow(() -> new JobNotFoundException(jobId));
-    return JobResponse.from(job);
+    String customerPhone = resolvePhone(job.getCustomerId());
+    return JobResponse.from(job, customerPhone);
+  }
+
+  /**
+   * Claims a {@code SUBMITTED} job for a technician using an optimistic-lock native UPDATE (PRD
+   * §10.2, TASK-045).
+   *
+   * <p>The method loads the job first to validate its current state, then fires the atomic UPDATE.
+   * If the UPDATE touches 0 rows — either because another transaction already changed the status,
+   * or because the version column was incremented by a concurrent claim — it throws {@link
+   * JobAlreadyClaimedException} (HTTP 409, code {@code JOB_ALREADY_CLAIMED}).
+   *
+   * <p>On success the {@link JobClaimed} event is published via the outbox in the same transaction
+   * (propagation MANDATORY).
+   *
+   * @param tenantId the owning tenant
+   * @param jobId UUID of the job to claim
+   * @param technicianId UUID of the claiming technician
+   * @return the updated job with {@code customerPhone} populated
+   * @throws JobAlreadyClaimedException if the job is not found, not SUBMITTED, or the race was lost
+   */
+  @Transactional
+  public JobResponse claim(UUID tenantId, UUID jobId, UUID technicianId) {
+    Job job =
+        jobRepository
+            .findByIdAndTenantIdAndArchivedAtIsNull(jobId, tenantId)
+            .orElseThrow(() -> new JobAlreadyClaimedException(jobId));
+
+    if (job.getStatus() != JobStatus.SUBMITTED) {
+      throw new JobAlreadyClaimedException(jobId);
+    }
+
+    int updated = jobRepository.claimJob(jobId, tenantId, technicianId, job.getVersion());
+    if (updated == 0) {
+      throw new JobAlreadyClaimedException(jobId);
+    }
+
+    // Reload after native UPDATE; @Modifying(clearAutomatically=true) evicted the stale cache entry
+    Job claimed =
+        jobRepository
+            .findByIdAndTenantIdAndArchivedAtIsNull(jobId, tenantId)
+            .orElseThrow(() -> new JobAlreadyClaimedException(jobId));
+
+    outboxPublisher.publish(
+        "JobClaimed",
+        "Job",
+        jobId,
+        new JobClaimed(UUID.randomUUID(), tenantId, jobId, technicianId, Instant.now()));
+
+    String customerPhone = resolvePhone(claimed.getCustomerId());
+    return JobResponse.from(claimed, customerPhone);
+  }
+
+  private String resolvePhone(UUID customerId) {
+    if (customerId == null) {
+      return null;
+    }
+    return customerRepository.findById(customerId).map(Customer::getPhone).orElse(null);
   }
 
   /**

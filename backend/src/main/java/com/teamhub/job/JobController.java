@@ -155,6 +155,28 @@ public class JobController {
     return ResponseEntity.noContent().build();
   }
 
+  /**
+   * Atomically claims a {@code SUBMITTED} job for the calling technician (PRD §10.2, TASK-045).
+   *
+   * <p>Uses optimistic locking: the service fires a single native UPDATE with a version check.
+   * Exactly one concurrent caller wins; the others receive 409 {@code JOB_ALREADY_CLAIMED}.
+   *
+   * <p>The response includes {@code customerPhone} because the job is no longer in shared-pool
+   * state after a successful claim (PRD §10.1).
+   */
+  @PostMapping("/{id}/claim")
+  @PreAuthorize("hasAuthority('PERM_job.read.own')")
+  @Operation(
+      summary = "Claim a job",
+      description =
+          "Technician claims a SUBMITTED job from the shared pool. Returns 409 if the job was"
+              + " already claimed (PRD §10.2).")
+  public JobResponse claim(@PathVariable UUID id, Authentication authentication) {
+    UUID tenantId = TenantContext.get();
+    UUID actorUserId = extractUserId(authentication);
+    return jobService.claim(tenantId, id, actorUserId);
+  }
+
   /** Extracts the {@code sub} claim as a UUID from the validated JWT. */
   private static UUID extractUserId(Authentication authentication) {
     if (authentication instanceof JwtAuthenticationToken jwtToken) {
