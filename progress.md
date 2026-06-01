@@ -793,13 +793,52 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - TASK-031 (Outbox Relay): will poll `outbox_events WHERE processed_at IS NULL` via `OutboxEventRepository.findUnprocessed()` and XADD to Redis Streams. The `pg_notify` from this task is the wake-up signal for the relay's long-poll loop.
 - Commits: (see below)
 
+### 2026-06-01 — TASK-031 — Outbox Relay (leader election + Redis Streams)
+
+- Agent: Composer (Sonnet 4.6)
+- Status change: pending → done
+- PRD sections consulted: §22.5.3
+- Files touched:
+  - backend/src/main/java/com/teamhub/eventing/OutboxRelay.java (new)
+  - backend/src/main/java/com/teamhub/config/SchedulingConfig.java (new)
+  - backend/src/main/java/com/teamhub/eventing/OutboxEventRepository.java (added `findUnprocessedBatch`)
+  - backend/src/test/java/com/teamhub/eventing/OutboxRelayIT.java (new)
+  - backend/src/test/java/com/teamhub/config/TestcontainersConfiguration.java (added Redis container)
+  - tasks.json (TASK-031 status → done)
+- Summary: Implemented `OutboxRelay`, the Spring `@Component` that polls the `outbox_events` table every 200 ms (PRD §22.5.3) and forwards unprocessed rows to Redis Streams. Single-instance leadership is enforced via `SET relay:leader <instanceId> NX PX 10000`; the TTL is refreshed every 3 s using a Lua compare-and-refresh script. XADD uses `StringRedisTemplate.opsForStream().add("events:<eventType>", fields)` with `id`, `tenant_id`, and `payload` fields. After a successful XADD, `processed_at = now()` is set via a native JDBC UPDATE. On five consecutive XADD failures the error is logged at ERROR level. Graceful shutdown deletes the leader key via a Lua conditional-delete script. `SchedulingConfig` enables `@Scheduled`. Testcontainers Redis (redis:7-alpine) is added to `TestcontainersConfiguration` via `@ServiceConnection("redis")` and `GenericContainer`.
+- Acceptance criteria verified:
+  1. Single leader enforced by `SET relay:leader <instanceId> NX PX 10000` with 3 s TTL refresh — confirmed; `step3_onlyOneInstanceHoldsLeaderLockAtATime` + `electLeader_whenKeyDisappearsWhileLeading_stepsDown`
+  2. Reads up to 100 unprocessed rows per tick via `findUnprocessedBatch(100)` ordered by `created_at ASC` — confirmed in `OutboxRelay.relayTick()`
+  3. Each row: `XADD events:<event_type> * id <uuid> tenant_id <uuid> payload <json>` then UPDATE `processed_at = now()` — confirmed; `step1_50Events_allLandInRedisStreamWithin1s`
+  4. On crash, new instance resumes from last unprocessed row within 10 s (TTL) — mechanism verified; `step2_unprocessedRowsRemainAvailableForRelayAfterSimulatedCrash`
+  5. ERROR log after 5 XADD retries + `// TO-DO: route to Sentry` — confirmed; `xaddWithRetry_whenStreamTypeConflict_exhaustsRetriesAndLeavesRowUnprocessed`
+- Test steps run (7 new tests in OutboxRelayIT, 182 total tests, 0 failures):
+  - Step 1 (`step1_50Events_allLandInRedisStreamWithin1s`): 50 events published, Awaitility (1 s, 50 ms poll) asserts stream size increases by ≥ 50; all rows `processed_at` non-null — passed
+  - Step 2 (`step2_unprocessedRowsRemainAvailableForRelayAfterSimulatedCrash`): sentinel key blocks relay; 3 rows inserted; asserts `processed_at IS NULL`; then relay re-acquires + `relayTick()`; asserts 0 unprocessed — passed
+  - Step 3 (`step3_onlyOneInstanceHoldsLeaderLockAtATime`): relay holds key; rival `SET NX` fails; key value unchanged — passed
+  - `electLeader_whenKeyDisappearsWhileLeading_stepsDown`: key deleted externally; refresh returns 0; `isLeading = false` — passed
+  - `xaddWithRetry_whenStreamTypeConflict_exhaustsRetriesAndLeavesRowUnprocessed`: WRONGTYPE Redis error; 5 retries exhausted; row stays unprocessed — passed
+  - `destroy_whenLeading_deletesLeaderKeyFromRedis`: `destroy()` called while leading; key deleted from Redis — passed
+  - `multipleEventTypes_routedToCorrectStreams`: TypeAlpha + TypeBeta in separate streams — passed
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 182 tests, 0 failures
+  - Coverage: `OutboxRelay` 95.7% line (> 80% gate); overall eventing package 96%+
+- Open TO-DOs created (with PRD reference):
+  - `OutboxRelay.xaddWithRetry` (PRD §22.5.3): route to Sentry after 5 XADD retries once TASK-Sentry lands (`// TO-DO: route to Sentry once TASK-Sentry lands`)
+  - `OutboxRelay` Javadoc (production deployment): production deployments using a non-superuser connection pool must grant BYPASSRLS or use a dedicated relay schema-owner account for cross-tenant outbox scanning
+- Notes for next iteration:
+  - The relay's cross-tenant scan relies on `TenantAwareDataSource` issuing `RESET ROLE` when `TenantContext` is null, which leaves the login user (postgres superuser, BYPASSRLS) active. In the Testcontainers context the login user IS the postgres superuser, so tests work correctly. Production environments using `teamhub_app` (a non-superuser with FORCE RLS) will need a relay-specific BYPASSRLS role or policy exception.
+  - The background `@Scheduled(fixedDelay = 3000)` `electLeader()` and `fixedDelay = 200` `relayTick()` run in ALL `@SpringBootTest` contexts. Test classes that create outbox events should use unique aggregate IDs or stream-size-delta assertions (not exact counts) to avoid cross-test stream pollution from other Spring context relay instances.
+  - `OutboxEventRepository.findUnprocessedBatch(int limit)` uses a native query with `LIMIT :limit` for bounded batch sizes. The existing `findUnprocessed()` method (unbounded) is retained for backward compatibility.
+  - Step 2 and Step 3 complex end-to-end scenarios (actual JVM crash/restart, dual-process race via logs) are marked `// TO-DO` in the test and require separate process-lifecycle infrastructure to validate end-to-end.
+- Commits: (see below)
+
 ---
 
 ## Notes for future agents
 
 - The PRD at `prd/PRD.md` is the only source of truth. If something here contradicts the PRD, the PRD wins.
 - Integrations gated on Lead Developer review before merge per PRD §25.3: Stripe, Apple Sign-in, Push notifications, Twilio (future), Google OAuth.
-- Completed through TASK-029: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 036, 037, 039, 040, 041 (see `tasks.json`).
+- Completed through TASK-031: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 036, 037, 039, 040, 041 (see `tasks.json`).
 - TASK-025 note: all domain exceptions must extend `DomainException` (in `com.teamhub.exception`). Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")`. The full §23.4 envelope `{"error":{"code":"…","message":"…","details":{…}}}` is returned by `GlobalExceptionHandler` for validation (422), domain (custom status), and unexpected (500) errors. Auth exceptions (`InvalidCredentialsException`, `InvalidRefreshTokenException`) now return the full envelope (was legacy flat shape).
 - TASK-024 note: the security filter chain now returns 401 with the §23.4 `ErrorEnvelope` (`{"error":{"code":"UNAUTHORIZED",...}}`) for both anonymous and invalid-token requests via `RestAuthenticationEntryPoint`. CORS allows only the `CORS_ALLOWED_ORIGIN` env-var origin (dev: `http://localhost:5173`, prod: `https://app.teamhub.online`). All other 401/403 logic is unchanged from TASK-019/023. The `AuthExceptionHandler` legacy flat 401 body (for `InvalidCredentialsException`/`InvalidRefreshTokenException`) was reconciled to the full envelope in TASK-025.
 - TASK-023 note: authorization is permission-based. Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")` (a permission code from the `permissions` table), never `hasRole('ADMIN')`. The JWT `role` claim is resolved to `PERM_*` authorities by `PermissionJwtAuthenticationConverter`. Adding a role is a seed-only change (new rows in `roles` + `role_permissions`). 403 denials use the PRD §23.4 envelope (`{"error":{"code":"FORBIDDEN",...}}`); the 401 envelope and CORS are deferred to TASK-024, and the unified `@RestControllerAdvice` envelope to TASK-025.

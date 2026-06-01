@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /**
  * Spring Data repository for {@link OutboxEvent} (PRD §22.5.3).
@@ -20,6 +21,17 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEvent, UUID> 
    */
   @Query("SELECT e FROM OutboxEvent e WHERE e.processedAt IS NULL ORDER BY e.createdAt ASC")
   List<OutboxEvent> findUnprocessed();
+
+  /**
+   * Returns up to {@code limit} unprocessed events ordered by {@code created_at ASC} — used by the
+   * Outbox Relay to bound each polling tick to a fixed batch size (PRD §22.5.3).
+   */
+  @Query(
+      value =
+          "SELECT * FROM outbox_events WHERE processed_at IS NULL ORDER BY created_at ASC LIMIT"
+              + " :limit",
+      nativeQuery = true)
+  List<OutboxEvent> findUnprocessedBatch(@Param("limit") int limit);
 
   List<OutboxEvent> findByTenantId(UUID tenantId);
 }
