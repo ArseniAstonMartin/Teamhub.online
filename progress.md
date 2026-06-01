@@ -838,7 +838,7 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 - The PRD at `prd/PRD.md` is the only source of truth. If something here contradicts the PRD, the PRD wins.
 - Integrations gated on Lead Developer review before merge per PRD §25.3: Stripe, Apple Sign-in, Push notifications, Twilio (future), Google OAuth.
-- Completed through TASK-035: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041 (see `tasks.json`).
+- Completed through TASK-042: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042 (see `tasks.json`).
 - TASK-025 note: all domain exceptions must extend `DomainException` (in `com.teamhub.exception`). Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")`. The full §23.4 envelope `{"error":{"code":"…","message":"…","details":{…}}}` is returned by `GlobalExceptionHandler` for validation (422), domain (custom status), and unexpected (500) errors. Auth exceptions (`InvalidCredentialsException`, `InvalidRefreshTokenException`) now return the full envelope (was legacy flat shape).
 - TASK-024 note: the security filter chain now returns 401 with the §23.4 `ErrorEnvelope` (`{"error":{"code":"UNAUTHORIZED",...}}`) for both anonymous and invalid-token requests via `RestAuthenticationEntryPoint`. CORS allows only the `CORS_ALLOWED_ORIGIN` env-var origin (dev: `http://localhost:5173`, prod: `https://app.teamhub.online`). All other 401/403 logic is unchanged from TASK-019/023. The `AuthExceptionHandler` legacy flat 401 body (for `InvalidCredentialsException`/`InvalidRefreshTokenException`) was reconciled to the full envelope in TASK-025.
 - TASK-023 note: authorization is permission-based. Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")` (a permission code from the `permissions` table), never `hasRole('ADMIN')`. The JWT `role` claim is resolved to `PERM_*` authorities by `PermissionJwtAuthenticationConverter`. Adding a role is a seed-only change (new rows in `roles` + `role_permissions`). 403 denials use the PRD §23.4 envelope (`{"error":{"code":"FORBIDDEN",...}}`); the 401 envelope and CORS are deferred to TASK-024, and the unified `@RestControllerAdvice` envelope to TASK-025.
@@ -977,3 +977,147 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - JaCoCo new-code coverage: `AuditEventConsumer` 98% (64/65 lines), `AuditEventConsumerConfig` 100%, all other audit classes 100%; `jacocoTestCoverageVerification` PASSED
 - Open TO-DOs created (with PRD reference): none
 - Commits: 2544d50
+
+### 2026-06-01 — TASK-042 — Jobs domain: table, entity, enums, custom-field validator
+
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §9 (job status/sub-status/reason enums), §10.2 (optimistic locking), §22 (data model), §8.2 (custom-field validation against appointment schema)
+- Files touched:
+  - backend/src/main/resources/db/migration/V12__jobs.sql (new)
+  - backend/src/main/java/com/teamhub/job/JobStatus.java (new)
+  - backend/src/main/java/com/teamhub/job/InProgressSubstatus.java (new)
+  - backend/src/main/java/com/teamhub/job/PendingReason.java (new)
+  - backend/src/main/java/com/teamhub/job/CancellationReason.java (new)
+  - backend/src/main/java/com/teamhub/job/Job.java (new)
+  - backend/src/main/java/com/teamhub/job/JobRepository.java (new)
+  - backend/src/main/java/com/teamhub/job/CustomFieldValidationException.java (new)
+  - backend/src/main/java/com/teamhub/job/JobCustomFieldValidator.java (new)
+  - backend/src/test/java/com/teamhub/job/JobIT.java (new)
+  - tasks.json (TASK-042 status → done)
+  - progress.md (this entry)
+- Summary: Created the `jobs` table (V12 Flyway migration) with all PRD §22 columns — UUID PK, tenant/customer/technician/schema FKs, status + three nullable sub-status/reason text columns mapped to enums, JSONB `custom_fields`, PostGIS `geography(Point,4326)` location, full timestamp columns, and an INT `version` column for optimistic locking (PRD §10.2). RLS enabled with FORCE and a `tenant_isolation` policy identical to V2/V5/V7. Four Java enums mirror the PRD §9 state machine values. The `Job` JPA entity maps every column including `@Version int version` and `@Enumerated(EnumType.STRING)` for all status/reason fields. `JobCustomFieldValidator` validates `custom_fields` against the referenced schema's required fields, throwing `CustomFieldValidationException` (HTTP 422, code `CUSTOM_FIELD_VALIDATION_ERROR`) on any missing required key. Integration tests cover all three TASK-042 test steps; new-code coverage is 96.3%.
+- Acceptance criteria verified:
+  1. Flyway migration creates `jobs` with all columns from PRD §22 and indexes on `(tenant_id, status, scheduled_start)`, `(tenant_id, assigned_technician_id)` — confirmed; V12__jobs.sql
+  2. Job entity uses enums for `status`, `in_progress_substatus`, `pending_reason`, `cancellation_reason` — confirmed; all four fields use `@Enumerated(EnumType.STRING)`
+  3. `@Version int version` for optimistic locking — confirmed; `Job.version` field with Jakarta `@Version`
+  4. RLS enabled with tenant policy — confirmed; ENABLE/FORCE + `tenant_isolation` policy using `NULLIF(current_setting(...), '')::uuid`
+  5. Custom-fields JSONB validated against the referenced appointment_schema on insert/update — confirmed; `JobCustomFieldValidator.validate()`
+- Test steps run (5 new tests in JobIT, all passed):
+  - Step 1 (`step1_insertJobWithValidCustomFields_persistsSuccessfully`): job with `vehicle_make=Ford` persists; `id` not null, `version=0`, `status=SUBMITTED` — PASSED
+  - Step 2 (`step2_missingRequiredCustomField_throwsCustomFieldValidationException`): `validate()` with empty map → `CustomFieldValidationException` HTTP 422, message contains `vehicle_make` — PASSED
+  - Step 2b (`step2_nullCustomFields_throwsCustomFieldValidationException`): null map treated as empty — PASSED
+  - Step 2c (`step2_exceptionCarriesCorrectErrorCode`): `getCode() == CUSTOM_FIELD_VALIDATION_ERROR` — PASSED
+  - Step 3 (`step3_concurrentUpdate_secondCommitRaisesOptimisticLockException`): two `TransactionTemplate` sessions load same job; first commit succeeds (version 0→1); second commit with stale version=0 throws `ObjectOptimisticLockingFailureException` — PASSED
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, all existing tests still pass
+  - Coverage: `com/teamhub/job` package 96.3% instruction coverage (720/748); `jacocoTestCoverageVerification` PASSED
+- Open TO-DOs created (with PRD reference): none
+- Completed through TASK-042: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042 (see `tasks.json`).
+### 2026-06-01 — TASK-043 — Job State Machine Service
+
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §9 (job lifecycle), §9.2 (transition table), §22.5.5 (event payloads)
+- Files touched:
+  - backend/src/main/resources/db/migration/V13__job_status_history.sql (new)
+  - backend/src/main/java/com/teamhub/job/JobStatusHistory.java (new)
+  - backend/src/main/java/com/teamhub/job/JobStatusHistoryRepository.java (new)
+  - backend/src/main/java/com/teamhub/job/IllegalStateTransitionException.java (new)
+  - backend/src/main/java/com/teamhub/job/JobNotFoundException.java (new)
+  - backend/src/main/java/com/teamhub/job/JobStateMachineService.java (new)
+  - backend/src/test/java/com/teamhub/job/JobStateMachineIT.java (new)
+  - tasks.json (TASK-043 status → done)
+  - progress.md (this entry)
+- Summary: Implemented the full PRD §9.2 job state machine. The Flyway migration V13 creates the `job_status_history` table with RLS and tenant isolation policy. `JobStatusHistory` is an immutable JPA entity (Builder/all-args constructor, no setters). `JobStateMachineService.transition()` is data-driven via a static `Map<Map.Entry<JobStatus,JobStatus>, Set<String>>` keyed by (fromStatus, toStatus) pair; unknown pairs or actor roles not in the allowed set throw `IllegalStateTransitionException` (HTTP 409, `INVALID_TRANSITION`). Successful transitions atomically update the job status, insert a history row, and publish a `JobStatusChanged` outbox event via `OutboxPublisher` (MANDATORY propagation). The `COMPLETED → (any)` row is Admin-only as per PRD §9.2. The `IN_PROGRESS → COMPLETED` for `TECHNICIAN` includes the TO-DO (TASK-053) marker for the tenant-level `close_jobs_enabled` toggle. Integration tests cover all 5 test steps plus a "job not found" path.
+- Acceptance criteria verified:
+  1. Service exposes `transition(jobId, toStatus, actor, payload)` and validates source → target per PRD §9.2 — confirmed; data-driven map in `JobStateMachineService`
+  2. Disallowed transitions throw `IllegalStateTransitionException` mapped to HTTP 409 with code `INVALID_TRANSITION` — confirmed; `IllegalStateTransitionException extends DomainException`
+  3. Successful transitions write to `job_status_history` and publish `JobStatusChanged` via the outbox — confirmed; both writes happen in same `@Transactional` method
+  4. `IN_PROGRESS → COMPLETED` for Technicians has TO-DO (TASK-053) marker; transition allowed for now — confirmed; comment in `TRANSITIONS` static initializer
+  5. Transition table is data-driven (`Map<Pair<Status,Status>, RolePermission>`) — confirmed; `static final Map<Map.Entry<JobStatus,JobStatus>, Set<String>> TRANSITIONS`
+- Test steps run (6 new tests in JobStateMachineIT, all passed):
+  - Step 1 (`step1_submittedToAssigned_byTechnician_succeedsAndWritesHistory`): `SUBMITTED → ASSIGNED_TO_TECHNICIAN` by `TECHNICIAN` — job status updated, history row written with correct from/to/role, outbox event published — PASSED
+  - Step 2 (`step2_submittedToCompleted_throwsIllegalTransition`): `SUBMITTED → COMPLETED` by `DISPATCHER` — `IllegalStateTransitionException` HTTP 409 `INVALID_TRANSITION` — PASSED
+  - Step 3 (`step3_completedToAny_byDispatcher_throwsIllegalTransition`): `COMPLETED → SUBMITTED` by `DISPATCHER` — `IllegalStateTransitionException` HTTP 409 — PASSED
+  - Step 4 (`step4_completedToSubmitted_byAdmin_succeeds`): `COMPLETED → SUBMITTED` by `ADMIN` — succeeds (PRD §9.2: Admin only) — PASSED
+  - Step 5 (`step5_historyRowExistsForEverySuccessfulTransition`): 5-step chain including re-open; exactly 5 history rows ordered by creation time — PASSED
+  - Additional (`jobNotFound_throwsJobNotFoundException`): `JobNotFoundException` HTTP 404 `JOB_NOT_FOUND` — PASSED
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 226 tests, 0 failures
+  - Coverage: `com/teamhub/job` all new classes ≥ 94% line coverage; `jacocoTestCoverageVerification` PASSED
+- Open TO-DOs created (with PRD reference):
+  - `TO-DO (TASK-053)`: check `tenant.close_jobs_enabled` toggle before allowing `IN_PROGRESS → COMPLETED` for Technicians
+- Decision documented: PRD §9.2 states "Completed → (any) | Admin only" — DISPATCHER is explicitly excluded from re-opening completed jobs; only ADMIN may override. Test step 4 confirms Admin succeeds; test step 3 confirms DISPATCHER gets 409.
+- Completed through TASK-043: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043 (see `tasks.json`).
+
+### 2026-06-01 — TASK-044 — Job CRUD Endpoints
+
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §5.2, §5.3 (permissions), §9 (job lifecycle), §10 (job listing/filtering), §22 (job columns)
+- Files touched:
+  - backend/src/main/resources/db/migration/V14__job_permissions_and_archived_at.sql (new)
+  - backend/src/main/java/com/teamhub/job/Job.java (added archivedAt field)
+  - backend/src/main/java/com/teamhub/job/JobRepository.java (added JpaSpecificationExecutor, findByIdAndTenantIdAndArchivedAtIsNull)
+  - backend/src/main/java/com/teamhub/job/dto/CreateJobRequest.java (new)
+  - backend/src/main/java/com/teamhub/job/dto/UpdateJobRequest.java (new)
+  - backend/src/main/java/com/teamhub/job/dto/JobResponse.java (new)
+  - backend/src/main/java/com/teamhub/job/JobService.java (new)
+  - backend/src/main/java/com/teamhub/job/JobController.java (new)
+  - backend/src/test/java/com/teamhub/job/JobControllerIT.java (new)
+  - tasks.json (TASK-044 status → done)
+  - progress.md (this entry)
+- Summary: Implemented the full job CRUD API. V14 migration adds `job.delete` (DISPATCHER+ADMIN) and `job.hard_delete` (ADMIN-only) permissions plus `archived_at` column and `GRANT DELETE ON jobs`. DTOs are Java records with bean validation. `JobService` uses `JpaSpecificationExecutor` for dynamic role-scoped filtering (avoids PostgreSQL null-parameter type inference errors that JPQL `IS NULL` checks cause for non-string types). `JobController` uses `@PreAuthorize` with permission-based guards. TECHNICIAN callers see only own jobs + shared pool (SUBMITTED). Soft-archive sets `archivedAt`; hard-delete requires `PERM_job.hard_delete` (Admin only) and `GRANT DELETE` on the table.
+- Acceptance criteria verified:
+  1. GET /jobs returns paginated list with filters: status, assignee, date range, sort — confirmed; controller accepts all query params, service delegates to JPA Specification
+  2. Technician's GET /jobs returns only jobs assigned to self OR in `Submitted` (shared pool) — confirmed; `buildSpec()` applies OR predicate for technician scope
+  3. POST /jobs creates a job with status `Submitted` and publishes `JobSubmitted` event in same tx — confirmed; `JobService.create()` uses `@Transactional` + `OutboxPublisher.publish()` (MANDATORY propagation)
+  4. PATCH /jobs/{id} edits non-status fields; status changes go through `/transition` — confirmed; `update()` skips status field
+  5. DELETE /jobs/{id} soft-archives; only Admin can hard-delete (`/jobs/{id}/hard-delete`) — confirmed; separate endpoints, `job.delete` vs `job.hard_delete` permissions
+- Test steps run (10 tests in JobControllerIT, all passed):
+  - Step 1 (`step1_dispatcher_createJob_submittedEventInOutbox`): Dispatcher POST → 201, `status=SUBMITTED`, `JobSubmitted` outbox row exists — PASSED
+  - Step 2 (`step2_technician_listJobs_seesOnlyOwnAndSubmitted`): Technician list → only own + SUBMITTED; IN_PROGRESS (no technician) excluded; other-tenant jobs not returned — PASSED
+  - Step 3 (`step3_dispatcher_hardDelete_returns403`): Dispatcher hard-delete → 403 `FORBIDDEN` — PASSED
+  - Step 4 (`step4_admin_hardDelete_returns204_andRowGone`): Admin hard-delete → 204; row gone from DB — PASSED
+  - Additional (`listJobs_withoutToken_returns401`): anonymous → 401 — PASSED
+  - Additional (`technician_createJob_returns403`): technician create → 403 — PASSED
+  - Additional (`getById_dispatcher_returnsJob`): GET /{id} → 200, correct body — PASSED
+  - Additional (`getById_unknownId_returns404`): GET /{id} unknown → 404 `JOB_NOT_FOUND` — PASSED
+  - Additional (`patch_dispatcher_updatesScheduledStart`): PATCH non-status field → 200 — PASSED
+  - Additional (`dispatcher_softArchive_excludedFromList`): DELETE soft-archive → 204; excluded from list; row in DB with archived_at set — PASSED
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 236 tests, 0 failures
+  - Coverage: `JobService` 87%, `JobController` 93%, `JobResponse` 100%; `jacocoTestCoverageVerification` PASSED
+- Open TO-DOs created (with PRD reference): none
+- Decision documented: Used JPA Specifications (`JpaSpecificationExecutor`) instead of JPQL with nullable parameters because PostgreSQL cannot determine the data type of null `Instant`/`UUID` parameters in `?::type IS NULL` checks; this is the recommended approach for dynamic queries in Spring Data JPA.
+- Completed through TASK-044: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044 (see `tasks.json`).
+
+### 2026-06-01 — TASK-045 — Shared-Pool Claim Endpoint
+
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §10.1, §10.2, §10.3 (shared pool, claim, race condition handling), §22.5.5 (event payloads)
+- Files touched:
+  - backend/src/main/java/com/teamhub/job/JobAlreadyClaimedException.java (new)
+  - backend/src/main/java/com/teamhub/job/JobRepository.java (added claimJob native query with @Modifying(clearAutomatically=true))
+  - backend/src/main/java/com/teamhub/job/dto/JobResponse.java (added customerPhone field + phone masking factory)
+  - backend/src/main/java/com/teamhub/job/JobService.java (injected CustomerRepository, added claim() method, updated getById() to include phone)
+  - backend/src/main/java/com/teamhub/job/JobController.java (added POST /api/v1/jobs/{id}/claim endpoint)
+  - backend/src/test/java/com/teamhub/job/JobClaimIT.java (new)
+  - tasks.json (TASK-045 status → done)
+  - progress.md (this entry)
+- Summary: Implemented the shared-pool claim endpoint per PRD §10.2. `JobAlreadyClaimedException` extends `DomainException` (HTTP 409, code `JOB_ALREADY_CLAIMED`). The claim logic in `JobService.claim()` loads the job to validate SUBMITTED state and capture the current version, then fires a single atomic native UPDATE (`UPDATE jobs SET status='ASSIGNED_TO_TECHNICIAN', assigned_technician_id=:id, version=version+1 WHERE ... AND status='SUBMITTED' AND version=:v`). Zero rows returned → race lost → `JobAlreadyClaimedException`. On success, `JobClaimed` is published via `OutboxPublisher` (MANDATORY propagation) in the same transaction. `@Modifying(clearAutomatically=true)` evicts the JPA first-level cache so the subsequent reload reflects the native UPDATE. `JobResponse` gained a `customerPhone` field masked to null whenever `job.status == SUBMITTED` (PRD §10.1). `JobController` has `POST /api/v1/jobs/{id}/claim` guarded by `PERM_job.read.own` (Technicians only).
+- Acceptance criteria verified:
+  1. Single-row atomic UPDATE with version check — confirmed; `JobRepository.claimJob()` native query
+  2. 0 rows returned → 409 `JOB_ALREADY_CLAIMED` — confirmed; `JobService.claim()` checks `updated == 0`
+  3. Successful claim publishes `JobClaimed` via outbox in same tx — confirmed; `OutboxPublisher.publish()` called before return
+  4. Unclaimed job's GET response excludes customer phone — confirmed; `JobResponse.from(job, phone)` sets `maskedPhone = null` when `status == SUBMITTED`
+- Test steps run (5 new tests in JobClaimIT, all passed):
+  - Step 1 (`step1_concurrentClaim_exactlyOneSucceedsOneConflicts`): Two CompletableFuture/thread calls race with CountDownLatch synchronization; exactly one 200 and one 409 `JOB_ALREADY_CLAIMED`; exactly one `JobClaimed` outbox row — PASSED
+  - Step 2 (`step2_claimAlreadyAssignedJob_returns409`): Claim on ASSIGNED_TO_TECHNICIAN job → 409 `JOB_ALREADY_CLAIMED` — PASSED
+  - Step 3 (`step3_submittedJob_phoneNull_claimedJob_phonePresent`): GET SUBMITTED → customerPhone absent; POST /claim → 200 with phone; GET after claim → phone present — PASSED
+  - Additional (`claimWithoutToken_returns401`): anonymous claim → 401 — PASSED
+  - Additional (`claimUnknownJob_returns409`): unknown job → 409 `JOB_ALREADY_CLAIMED` — PASSED
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 245 tests, 0 failures
+  - Coverage: `jacocoTestCoverageVerification` PASSED
+- Open TO-DOs created (with PRD reference): none
+- Decision documented: Used `@Modifying(clearAutomatically = true)` on the native UPDATE query to force JPA to evict the first-level cache after the non-Hibernate write; without this, reloading the entity within the same transaction returns the stale cached version (still SUBMITTED), causing incorrect phone masking in the claim response.
+- Completed through TASK-045: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045 (see `tasks.json`).
