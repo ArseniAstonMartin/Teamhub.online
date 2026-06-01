@@ -838,7 +838,7 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 - The PRD at `prd/PRD.md` is the only source of truth. If something here contradicts the PRD, the PRD wins.
 - Integrations gated on Lead Developer review before merge per PRD §25.3: Stripe, Apple Sign-in, Push notifications, Twilio (future), Google OAuth.
-- Completed through TASK-035: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041 (see `tasks.json`).
+- Completed through TASK-042: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042 (see `tasks.json`).
 - TASK-025 note: all domain exceptions must extend `DomainException` (in `com.teamhub.exception`). Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")`. The full §23.4 envelope `{"error":{"code":"…","message":"…","details":{…}}}` is returned by `GlobalExceptionHandler` for validation (422), domain (custom status), and unexpected (500) errors. Auth exceptions (`InvalidCredentialsException`, `InvalidRefreshTokenException`) now return the full envelope (was legacy flat shape).
 - TASK-024 note: the security filter chain now returns 401 with the §23.4 `ErrorEnvelope` (`{"error":{"code":"UNAUTHORIZED",...}}`) for both anonymous and invalid-token requests via `RestAuthenticationEntryPoint`. CORS allows only the `CORS_ALLOWED_ORIGIN` env-var origin (dev: `http://localhost:5173`, prod: `https://app.teamhub.online`). All other 401/403 logic is unchanged from TASK-019/023. The `AuthExceptionHandler` legacy flat 401 body (for `InvalidCredentialsException`/`InvalidRefreshTokenException`) was reconciled to the full envelope in TASK-025.
 - TASK-023 note: authorization is permission-based. Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")` (a permission code from the `permissions` table), never `hasRole('ADMIN')`. The JWT `role` claim is resolved to `PERM_*` authorities by `PermissionJwtAuthenticationConverter`. Adding a role is a seed-only change (new rows in `roles` + `role_permissions`). 403 denials use the PRD §23.4 envelope (`{"error":{"code":"FORBIDDEN",...}}`); the 401 envelope and CORS are deferred to TASK-024, and the unified `@RestControllerAdvice` envelope to TASK-025.
@@ -977,3 +977,39 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - JaCoCo new-code coverage: `AuditEventConsumer` 98% (64/65 lines), `AuditEventConsumerConfig` 100%, all other audit classes 100%; `jacocoTestCoverageVerification` PASSED
 - Open TO-DOs created (with PRD reference): none
 - Commits: 2544d50
+
+### 2026-06-01 — TASK-042 — Jobs domain: table, entity, enums, custom-field validator
+
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §9 (job status/sub-status/reason enums), §10.2 (optimistic locking), §22 (data model), §8.2 (custom-field validation against appointment schema)
+- Files touched:
+  - backend/src/main/resources/db/migration/V12__jobs.sql (new)
+  - backend/src/main/java/com/teamhub/job/JobStatus.java (new)
+  - backend/src/main/java/com/teamhub/job/InProgressSubstatus.java (new)
+  - backend/src/main/java/com/teamhub/job/PendingReason.java (new)
+  - backend/src/main/java/com/teamhub/job/CancellationReason.java (new)
+  - backend/src/main/java/com/teamhub/job/Job.java (new)
+  - backend/src/main/java/com/teamhub/job/JobRepository.java (new)
+  - backend/src/main/java/com/teamhub/job/CustomFieldValidationException.java (new)
+  - backend/src/main/java/com/teamhub/job/JobCustomFieldValidator.java (new)
+  - backend/src/test/java/com/teamhub/job/JobIT.java (new)
+  - tasks.json (TASK-042 status → done)
+  - progress.md (this entry)
+- Summary: Created the `jobs` table (V12 Flyway migration) with all PRD §22 columns — UUID PK, tenant/customer/technician/schema FKs, status + three nullable sub-status/reason text columns mapped to enums, JSONB `custom_fields`, PostGIS `geography(Point,4326)` location, full timestamp columns, and an INT `version` column for optimistic locking (PRD §10.2). RLS enabled with FORCE and a `tenant_isolation` policy identical to V2/V5/V7. Four Java enums mirror the PRD §9 state machine values. The `Job` JPA entity maps every column including `@Version int version` and `@Enumerated(EnumType.STRING)` for all status/reason fields. `JobCustomFieldValidator` validates `custom_fields` against the referenced schema's required fields, throwing `CustomFieldValidationException` (HTTP 422, code `CUSTOM_FIELD_VALIDATION_ERROR`) on any missing required key. Integration tests cover all three TASK-042 test steps; new-code coverage is 96.3%.
+- Acceptance criteria verified:
+  1. Flyway migration creates `jobs` with all columns from PRD §22 and indexes on `(tenant_id, status, scheduled_start)`, `(tenant_id, assigned_technician_id)` — confirmed; V12__jobs.sql
+  2. Job entity uses enums for `status`, `in_progress_substatus`, `pending_reason`, `cancellation_reason` — confirmed; all four fields use `@Enumerated(EnumType.STRING)`
+  3. `@Version int version` for optimistic locking — confirmed; `Job.version` field with Jakarta `@Version`
+  4. RLS enabled with tenant policy — confirmed; ENABLE/FORCE + `tenant_isolation` policy using `NULLIF(current_setting(...), '')::uuid`
+  5. Custom-fields JSONB validated against the referenced appointment_schema on insert/update — confirmed; `JobCustomFieldValidator.validate()`
+- Test steps run (5 new tests in JobIT, all passed):
+  - Step 1 (`step1_insertJobWithValidCustomFields_persistsSuccessfully`): job with `vehicle_make=Ford` persists; `id` not null, `version=0`, `status=SUBMITTED` — PASSED
+  - Step 2 (`step2_missingRequiredCustomField_throwsCustomFieldValidationException`): `validate()` with empty map → `CustomFieldValidationException` HTTP 422, message contains `vehicle_make` — PASSED
+  - Step 2b (`step2_nullCustomFields_throwsCustomFieldValidationException`): null map treated as empty — PASSED
+  - Step 2c (`step2_exceptionCarriesCorrectErrorCode`): `getCode() == CUSTOM_FIELD_VALIDATION_ERROR` — PASSED
+  - Step 3 (`step3_concurrentUpdate_secondCommitRaisesOptimisticLockException`): two `TransactionTemplate` sessions load same job; first commit succeeds (version 0→1); second commit with stale version=0 throws `ObjectOptimisticLockingFailureException` — PASSED
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, all existing tests still pass
+  - Coverage: `com/teamhub/job` package 96.3% instruction coverage (720/748); `jacocoTestCoverageVerification` PASSED
+- Open TO-DOs created (with PRD reference): none
+- Completed through TASK-042: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042 (see `tasks.json`).
