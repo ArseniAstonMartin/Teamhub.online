@@ -1013,3 +1013,38 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - Coverage: `com/teamhub/job` package 96.3% instruction coverage (720/748); `jacocoTestCoverageVerification` PASSED
 - Open TO-DOs created (with PRD reference): none
 - Completed through TASK-042: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042 (see `tasks.json`).
+### 2026-06-01 — TASK-043 — Job State Machine Service
+
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §9 (job lifecycle), §9.2 (transition table), §22.5.5 (event payloads)
+- Files touched:
+  - backend/src/main/resources/db/migration/V13__job_status_history.sql (new)
+  - backend/src/main/java/com/teamhub/job/JobStatusHistory.java (new)
+  - backend/src/main/java/com/teamhub/job/JobStatusHistoryRepository.java (new)
+  - backend/src/main/java/com/teamhub/job/IllegalStateTransitionException.java (new)
+  - backend/src/main/java/com/teamhub/job/JobNotFoundException.java (new)
+  - backend/src/main/java/com/teamhub/job/JobStateMachineService.java (new)
+  - backend/src/test/java/com/teamhub/job/JobStateMachineIT.java (new)
+  - tasks.json (TASK-043 status → done)
+  - progress.md (this entry)
+- Summary: Implemented the full PRD §9.2 job state machine. The Flyway migration V13 creates the `job_status_history` table with RLS and tenant isolation policy. `JobStatusHistory` is an immutable JPA entity (Builder/all-args constructor, no setters). `JobStateMachineService.transition()` is data-driven via a static `Map<Map.Entry<JobStatus,JobStatus>, Set<String>>` keyed by (fromStatus, toStatus) pair; unknown pairs or actor roles not in the allowed set throw `IllegalStateTransitionException` (HTTP 409, `INVALID_TRANSITION`). Successful transitions atomically update the job status, insert a history row, and publish a `JobStatusChanged` outbox event via `OutboxPublisher` (MANDATORY propagation). The `COMPLETED → (any)` row is Admin-only as per PRD §9.2. The `IN_PROGRESS → COMPLETED` for `TECHNICIAN` includes the TO-DO (TASK-053) marker for the tenant-level `close_jobs_enabled` toggle. Integration tests cover all 5 test steps plus a "job not found" path.
+- Acceptance criteria verified:
+  1. Service exposes `transition(jobId, toStatus, actor, payload)` and validates source → target per PRD §9.2 — confirmed; data-driven map in `JobStateMachineService`
+  2. Disallowed transitions throw `IllegalStateTransitionException` mapped to HTTP 409 with code `INVALID_TRANSITION` — confirmed; `IllegalStateTransitionException extends DomainException`
+  3. Successful transitions write to `job_status_history` and publish `JobStatusChanged` via the outbox — confirmed; both writes happen in same `@Transactional` method
+  4. `IN_PROGRESS → COMPLETED` for Technicians has TO-DO (TASK-053) marker; transition allowed for now — confirmed; comment in `TRANSITIONS` static initializer
+  5. Transition table is data-driven (`Map<Pair<Status,Status>, RolePermission>`) — confirmed; `static final Map<Map.Entry<JobStatus,JobStatus>, Set<String>> TRANSITIONS`
+- Test steps run (6 new tests in JobStateMachineIT, all passed):
+  - Step 1 (`step1_submittedToAssigned_byTechnician_succeedsAndWritesHistory`): `SUBMITTED → ASSIGNED_TO_TECHNICIAN` by `TECHNICIAN` — job status updated, history row written with correct from/to/role, outbox event published — PASSED
+  - Step 2 (`step2_submittedToCompleted_throwsIllegalTransition`): `SUBMITTED → COMPLETED` by `DISPATCHER` — `IllegalStateTransitionException` HTTP 409 `INVALID_TRANSITION` — PASSED
+  - Step 3 (`step3_completedToAny_byDispatcher_throwsIllegalTransition`): `COMPLETED → SUBMITTED` by `DISPATCHER` — `IllegalStateTransitionException` HTTP 409 — PASSED
+  - Step 4 (`step4_completedToSubmitted_byAdmin_succeeds`): `COMPLETED → SUBMITTED` by `ADMIN` — succeeds (PRD §9.2: Admin only) — PASSED
+  - Step 5 (`step5_historyRowExistsForEverySuccessfulTransition`): 5-step chain including re-open; exactly 5 history rows ordered by creation time — PASSED
+  - Additional (`jobNotFound_throwsJobNotFoundException`): `JobNotFoundException` HTTP 404 `JOB_NOT_FOUND` — PASSED
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 226 tests, 0 failures
+  - Coverage: `com/teamhub/job` all new classes ≥ 94% line coverage; `jacocoTestCoverageVerification` PASSED
+- Open TO-DOs created (with PRD reference):
+  - `TO-DO (TASK-053)`: check `tenant.close_jobs_enabled` toggle before allowing `IN_PROGRESS → COMPLETED` for Technicians
+- Decision documented: PRD §9.2 states "Completed → (any) | Admin only" — DISPATCHER is explicitly excluded from re-opening completed jobs; only ADMIN may override. Test step 4 confirms Admin succeeds; test step 3 confirms DISPATCHER gets 409.
+- Completed through TASK-043: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043 (see `tasks.json`).
