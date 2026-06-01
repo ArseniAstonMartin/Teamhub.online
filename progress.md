@@ -838,8 +838,43 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 - The PRD at `prd/PRD.md` is the only source of truth. If something here contradicts the PRD, the PRD wins.
 - Integrations gated on Lead Developer review before merge per PRD §25.3: Stripe, Apple Sign-in, Push notifications, Twilio (future), Google OAuth.
-- Completed through TASK-031: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 036, 037, 039, 040, 041 (see `tasks.json`).
+- Completed through TASK-032: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 036, 037, 039, 040, 041 (see `tasks.json`).
 - TASK-025 note: all domain exceptions must extend `DomainException` (in `com.teamhub.exception`). Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")`. The full §23.4 envelope `{"error":{"code":"…","message":"…","details":{…}}}` is returned by `GlobalExceptionHandler` for validation (422), domain (custom status), and unexpected (500) errors. Auth exceptions (`InvalidCredentialsException`, `InvalidRefreshTokenException`) now return the full envelope (was legacy flat shape).
 - TASK-024 note: the security filter chain now returns 401 with the §23.4 `ErrorEnvelope` (`{"error":{"code":"UNAUTHORIZED",...}}`) for both anonymous and invalid-token requests via `RestAuthenticationEntryPoint`. CORS allows only the `CORS_ALLOWED_ORIGIN` env-var origin (dev: `http://localhost:5173`, prod: `https://app.teamhub.online`). All other 401/403 logic is unchanged from TASK-019/023. The `AuthExceptionHandler` legacy flat 401 body (for `InvalidCredentialsException`/`InvalidRefreshTokenException`) was reconciled to the full envelope in TASK-025.
 - TASK-023 note: authorization is permission-based. Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")` (a permission code from the `permissions` table), never `hasRole('ADMIN')`. The JWT `role` claim is resolved to `PERM_*` authorities by `PermissionJwtAuthenticationConverter`. Adding a role is a seed-only change (new rows in `roles` + `role_permissions`). 403 denials use the PRD §23.4 envelope (`{"error":{"code":"FORBIDDEN",...}}`); the 401 envelope and CORS are deferred to TASK-024, and the unified `@RestControllerAdvice` envelope to TASK-025.
 - TASK-019 note: `TenantContextFilter` now reads the `tenant_id` claim from the validated JWT (the TASK-018 `X-Tenant-Id` placeholder is gone). Auth endpoints live under `/api/v1/auth/**` (permitAll); everything else requires a valid RS256 access token. Production must configure persistent JWT keys via `JWT_PRIVATE_KEY_PATH`/`JWT_PUBLIC_KEY_PATH`.
+
+### 2026-06-01 — TASK-032 — AbstractOutboxConsumer (idempotency, DLQ, visibility timeout)
+
+- Agent: Composer (Sonnet 4.6)
+- Status change: pending → done
+- PRD sections consulted: §22.5.6
+- Files touched:
+  - backend/src/main/java/com/teamhub/eventing/EventEnvelope.java (new)
+  - backend/src/main/java/com/teamhub/eventing/AbstractOutboxConsumer.java (new)
+  - backend/src/test/java/com/teamhub/eventing/AbstractOutboxConsumerIT.java (new)
+  - tasks.json (TASK-032 status → done)
+- Summary: Implemented `EventEnvelope` record and `AbstractOutboxConsumer` abstract base class (PRD §22.5.6). The base class wraps every Redis Streams delivery in three layers: (1) idempotency gate via `SELECT EXISTS` against the partitioned `processed_events` table before invoking the handler (a bare `ON CONFLICT DO NOTHING` is insufficient because the physical PK includes `processed_at`; re-deliveries arrive at different timestamps); (2) resilience — exceptions leave the message in the PEL for retry, with `INSERT INTO processed_events ... ON CONFLICT DO NOTHING` written only after a successful `handle()` call, then `XACK`; (3) visibility-timeout claim — every tick, `opsForStream().pending(...)` scans the group's PEL for messages idle > 60 s and `opsForStream().claim(...)` re-assigns them; if `getTotalDeliveryCount() >= 5`, the message is dead-lettered to `events:<type>:dlq` + `XACK`ed without calling `handle()`. `@Scheduled(fixedDelay = 200)` drives the poll loop; consumer-group creation is attempted lazily each tick (BUSYGROUP swallowed). `TenantContext.set(tenantId)` is applied around all JDBC operations and cleared in `finally`. The `@EnableScheduling` already present in `SchedulingConfig` (TASK-031) is reused.
+- Acceptance criteria verified:
+  1. Base class polls Redis Streams via `XREADGROUP` — confirmed; `pollOnce()` uses `StreamReadOptions.empty().count(10).block(Duration.ofMillis(100))` with `ReadOffset.lastConsumed()`
+  2. INSERT into `processed_events` after successful `handle()` with `ON CONFLICT DO NOTHING`; SELECT EXISTS gate skips duplicate event_id — confirmed; `step1_idempotency_sameEventIdTwice_handleCalledOnce`
+  3. Subclass implements `handle(EventEnvelope)`; thrown exceptions leave message in PEL — confirmed; `step3_claimLogic_messageIdleInPel_isClaimedAndReprocessed`
+  4. After 5 failed attempts, message XADD-ed to DLQ and XACK-ed — confirmed; `step2_handleThrows5Times_messageRoutedToDlq`
+  5. Visibility timeout: messages in PEL > 60 s are XCLAIM-ed — confirmed; `step3_claimLogic_messageIdleInPel_isClaimedAndReprocessed` (with 50-ms override)
+- Test steps run (4 new tests in AbstractOutboxConsumerIT, 186 total tests, 0 failures):
+  - Step 1 (`step1_idempotency_sameEventIdTwice_handleCalledOnce`): same event_id XADDed twice; handle() called exactly once; one row in processed_events — passed
+  - Step 2 (`step2_handleThrows5Times_messageRoutedToDlq`): handle() throws 5 times (delivery count 1–5 via XCLAIM with 50-ms timeout); 6th delivery → DLQ stream has 1 entry with correct id; PEL empty; handle_count = 5 — passed
+  - Step 3 (`step3_claimLogic_messageIdleInPel_isClaimedAndReprocessed`): handle() throws once; sleep > 50 ms; XCLAIM fires; handle() succeeds; PEL empty — passed
+  - Additional (`malformedRecord_missingFields_ackedAndSkippedWithoutCallingHandle`): malformed record ACKed, handle() not called — passed
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 186 tests, 0 failures
+  - Coverage: `AbstractOutboxConsumer` 80% line (meets gate); `EventEnvelope` 100%
+- Open TO-DOs created (with PRD reference):
+  - `AbstractOutboxConsumer.reclaimStalePending()` (PRD §22.5.6): full end-to-end 60-s idle test with real process-lifecycle control is out of scope (`// TO-DO (§22.5.6)`)
+  - `AbstractOutboxConsumer.processRecord()` (PRD §22.5.6): route failed handle() calls to Sentry once TASK-Sentry lands (`// TO-DO: route to Sentry once TASK-Sentry lands`)
+  - `AbstractOutboxConsumer.sendToDlqAndAck()` (PRD §22.5.6): route DLQ routing to Sentry once TASK-Sentry lands (`// TO-DO: route to Sentry once TASK-Sentry lands`)
+- Notes for next iteration:
+  - `processed_events` table partitioning: the physical PK is `(event_id, consumer_group, processed_at)` due to PostgreSQL declarative range partitioning. A bare `ON CONFLICT DO NOTHING` on this PK only detects exact-timestamp duplicates; the `SELECT EXISTS` gate provides reliable cross-partition idempotency for re-deliveries that arrive seconds/minutes later.
+  - The `AbstractOutboxConsumer` is NOT a `@Component`; concrete consumer subclasses must be registered as Spring beans with the appropriate `@Component` or `@Service` annotation.
+  - `ensureGroupExists()` creates the consumer group with offset "0" (reads from beginning), so newly registered consumers will process all messages in the stream from the start. If you want a consumer to start from the current tail only, change `ReadOffset.from("0")` to `ReadOffset.from("$")` in `ensureGroupExists()`.
+  - The `@Scheduled(fixedDelay = 200)` poll loop requires `@EnableScheduling` — already provided by `SchedulingConfig` (TASK-031).
+- Commits: (see below)
