@@ -61,10 +61,14 @@ class InternalTenantServiceIT {
 
   @Test
   void provision_twoCallsWithDifferentEmailsSucceed() {
+    // Capture the pre-test count so the assertion is not brittle against sentinel/seed rows
+    // inserted by Flyway migrations (e.g. V9 adds the all-zeros sentinel tenant).
+    long countBefore = tenantRepository.count();
+
     UUID id1 = service.provision("Org One", "one@example.com").getId();
     UUID id2 = service.provision("Org Two", "two@example.com").getId();
 
     assertThat(id1).isNotEqualTo(id2);
-    assertThat(tenantRepository.count()).isEqualTo(2);
+    assertThat(tenantRepository.count()).isEqualTo(countBefore + 2);
   }
 }
