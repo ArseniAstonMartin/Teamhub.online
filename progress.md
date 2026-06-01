@@ -976,4 +976,4 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 215 tests, 0 failures
   - JaCoCo new-code coverage: `AuditEventConsumer` 98% (64/65 lines), `AuditEventConsumerConfig` 100%, all other audit classes 100%; `jacocoTestCoverageVerification` PASSED
 - Open TO-DOs created (with PRD reference): none
-- Commits: (see below)
+- Commits: 2544d50
