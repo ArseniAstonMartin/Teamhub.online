@@ -22,6 +22,10 @@ repositories {
   mavenCentral()
 }
 
+dependencyLocking {
+  lockAllConfigurations()
+}
+
 val mapstructVersion = "1.6.3"
 val springdocVersion = "2.8.17"
 val shedlockVersion = "6.6.0"
