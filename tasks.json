@@ -211,7 +211,7 @@
       "priority": "critical",
       "description": "Create a `.env.example` for each app (backend, web, mobile) listing every required environment variable with safe placeholder values, and document loading in each app's README",
       "acceptance_criteria": [
-        "`backend/.env.example` lists: DB_URL, DB_USER, DB_PASSWORD, REDIS_URL, JWT_PRIVATE_KEY_PATH, JWT_PUBLIC_KEY_PATH, GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY_PATH, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, AWS_REGION, AWS_S3_BUCKET, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, SENTRY_DSN, GOOGLE_MAPS_API_KEY",
+        "`backend/.env.example` lists: DB_URL, DB_USER, DB_PASSWORD, REDIS_URL, JWT_PRIVATE_KEY_PATH, JWT_PUBLIC_KEY_PATH, GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY_PATH, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, OBJECT_STORAGE_ENDPOINT, OBJECT_STORAGE_BUCKET, OBJECT_STORAGE_REGION, OBJECT_STORAGE_ACCESS_KEY_ID, OBJECT_STORAGE_SECRET_ACCESS_KEY, SENTRY_DSN, GOOGLE_MAPS_API_KEY",
         "`web/.env.example` lists: VITE_API_BASE_URL, VITE_SENTRY_DSN, VITE_GOOGLE_MAPS_API_KEY",
         "`mobile/.env.example` lists: EXPO_PUBLIC_API_BASE_URL, EXPO_PUBLIC_SENTRY_DSN, EXPO_PUBLIC_GOOGLE_MAPS_API_KEY",
         "Each app's README has a 'Local setup' section that says copy .env.example to .env and fill values; .env is gitignored"
@@ -242,7 +242,7 @@
       ],
       "test_steps": [
         "Step 1: Open a PR with a deliberately failing test — CI red, merge blocked",
-        "Step 2: Open a PR with a fake AWS key string — gitleaks step fails the build",
+        "Step 2: Open a PR with a fake object-storage access key string — gitleaks step fails the build",
         "Step 3: Push a clean PR — all steps green, coverage report appears in Actions artifacts"
       ],
       "dependencies": [
@@ -1112,16 +1112,16 @@
       "id": "TASK-049",
       "category": "integration",
       "priority": "critical",
-      "description": "Integrate S3 photo upload via pre-signed URLs per PRD §14.2: `POST /jobs/{id}/photo-upload-url` returns a PUT URL; `POST /jobs/{id}/photos` confirms metadata after upload",
+      "description": "Integrate object storage photo upload via pre-signed URLs per PRD §14.2: local / dev / MVP-prod use MinIO on Coolify, sales-production uses Cloudflare R2; `POST /jobs/{id}/photo-upload-url` returns a PUT URL; `POST /jobs/{id}/photos` confirms metadata after upload",
       "acceptance_criteria": [
-        "Backend uses AWS SDK v2 to generate pre-signed PUT URLs with TTL 5 min and a bucket key of `<tenant_id>/jobs/<job_id>/<uuid>.<ext>`",
+        "Backend uses an object-storage client configured for MinIO or Cloudflare R2 to generate pre-signed PUT URLs with TTL 5 min and a bucket key of `<tenant_id>/jobs/<job_id>/<uuid>.<ext>`",
         "Pre-signed URL allowed content types: image/jpeg, png, heic, webp (PRD §14.3)",
         "Max size 20 MB enforced both via the bucket policy and via the metadata-confirm endpoint",
         "Confirm endpoint stores width/height/content-type/size_bytes/uploaded_by/taken_at; emits `PhotoUploaded` event",
         "EXIF stripping happens on first read by serving processed copies (TO-DO marker if deferred to v1.1 via a background job — but stripping at serve time is acceptable in MVP)"
       ],
       "test_steps": [
-        "Step 1: Request a pre-signed URL; PUT a 5 MB JPEG to S3 — 200 from S3",
+        "Step 1: Request a pre-signed URL; PUT a 5 MB JPEG to the configured object store — 200 from object storage",
         "Step 2: Confirm metadata — `job_photos` row created and event emitted",
         "Step 3: Try to confirm a 25 MB photo — 422 with `PHOTO_TOO_LARGE`",
         "Step 4: Request a pre-signed URL for `application/pdf` — 422 with `UNSUPPORTED_MIME`"
@@ -1136,7 +1136,7 @@
       "id": "TASK-050",
       "category": "integration",
       "priority": "high",
-      "description": "Add S3 multipart upload support for files > 5 MB per PRD §14.4 so flaky-connection retries can resume",
+      "description": "Add object-storage multipart upload support for files > 5 MB per PRD §14.4 so flaky-connection retries can resume; local / dev / MVP-prod target MinIO on Coolify and sales-production targets Cloudflare R2",
       "acceptance_criteria": [
         "Backend endpoints: `POST /jobs/{id}/photo-multipart/start`, `POST /jobs/{id}/photo-multipart/{uploadId}/part/{n}` (returns pre-signed PUT URL for that part), `POST /jobs/{id}/photo-multipart/{uploadId}/complete`",
         "Mobile chooses multipart when local file size > 5 MB",
@@ -1145,7 +1145,7 @@
       "test_steps": [
         "Step 1: Upload a 12 MB photo in 3 parts; complete; metadata row created",
         "Step 2: Cancel after part 2; restart later — same upload id resumes from part 3",
-        "Step 3: After 24 h, an incomplete upload is aborted via S3 lifecycle policy"
+        "Step 3: After 24 h, an incomplete upload is aborted via the object-storage lifecycle policy"
       ],
       "dependencies": [
         "TASK-049"
@@ -2255,10 +2255,10 @@
       "id": "TASK-100",
       "category": "functional",
       "priority": "critical",
-      "description": "Implement the mobile Attach Result Image flow per PRD §13.2 and §14: camera capture, S3 pre-signed PUT, metadata confirm; offline retry queue per PRD §13.4 and §14.4",
+      "description": "Implement the mobile Attach Result Image flow per PRD §13.2 and §14: camera capture, object-storage pre-signed PUT, metadata confirm; offline retry queue per PRD §13.4 and §14.4",
       "acceptance_criteria": [
         "Tap opens camera (expo-camera or expo-image-picker with camera launch)",
-        "Multiple photos per session; each follows: request pre-signed URL → PUT to S3 → confirm metadata",
+        "Multiple photos per session; each follows: request pre-signed URL → PUT to the configured object store → confirm metadata",
         "Files > 5 MB use multipart (TASK-050)",
         "Offline: queued locally; retried in background; user can leave the job card without canceling the upload",
         "EXIF stripped before upload (or before serve — pick one and document)"
@@ -2389,13 +2389,13 @@
       "priority": "medium",
       "description": "Add gitleaks to CI and a pre-commit hook so committed secrets fail the build and the local commit per PRD §24.4 and §28",
       "acceptance_criteria": [
-        "`.gitleaks.toml` configured with rules for AWS, Stripe, Google, Apple, Expo, generic high-entropy tokens",
+        "`.gitleaks.toml` configured with rules for Cloudflare R2 / object-storage keys, Stripe, Google, Apple, Expo, generic high-entropy tokens",
         "GitHub Action `security-secrets-scan.yml` runs gitleaks on every PR; failure blocks merge",
         "Lefthook or husky pre-commit hook runs gitleaks against staged files",
         "Documentation in `infra/runbooks/secrets.md` for the human to rotate credentials when a leak is detected"
       ],
       "test_steps": [
-        "Step 1: Commit a fake `AKIA1234567890ABCDEF` AWS key locally — pre-commit blocks",
+        "Step 1: Commit a fake Cloudflare R2 / object-storage access key locally — pre-commit blocks",
         "Step 2: Push the same to CI — Action fails",
         "Step 3: Add the key to `.gitleaks.toml` allow-list (a legitimate sample) — both pass"
       ],
@@ -2725,7 +2725,7 @@
       "id": "TASK-122",
       "category": "infrastructure",
       "priority": "high",
-      "description": "Cut the v1.0.0 MVP release tag per PRD §4.2: schema customization, automations, shared-pool claim + escalation, Stripe billing, audit log, push notifications, S3 photos, internal admin console",
+      "description": "Cut the v1.0.0 MVP release tag per PRD §4.2: schema customization, automations, shared-pool claim + escalation, Stripe billing, audit log, push notifications, MinIO-backed photos, internal admin console",
       "acceptance_criteria": [
         "All MVP-scope tasks have status `done` (i.e., every TASK-XXX above except the explicitly-out-of-MVP placeholders TASK-115/116/119/120)",
         "All six PRD §5.6 authorization tests pass in CI (TASK-070)",
