@@ -1121,3 +1121,22 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Open TO-DOs created (with PRD reference): none
 - Decision documented: Used `@Modifying(clearAutomatically = true)` on the native UPDATE query to force JPA to evict the first-level cache after the non-Hibernate write; without this, reloading the entity within the same transaction returns the stale cached version (still SUBMITTED), causing incorrect phone masking in the claim response.
 - Completed through TASK-045: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045 (see `tasks.json`).
+
+---
+
+## 2026-06-01 — TASK-008 + TASK-012: env examples and Sentry SDK
+
+### TASK-008: `.env.example` and Local Setup Docs
+- Created `backend/.env.example` with all 20 required variables (DB, Redis, JWT, Google OAuth, Apple, Stripe, Object Storage, Sentry, Maps)
+- Created `web/.env.example` with `VITE_API_BASE_URL`, `VITE_SENTRY_DSN`, `VITE_GOOGLE_MAPS_API_KEY`
+- Created `mobile/.env.example` with `EXPO_PUBLIC_*` equivalents
+- Created `backend/README.md` and `web/README.md` with "Local Setup" sections (copy `.env.example` → `.env`)
+- Updated `mobile/README.md` to fix `.env.example` → `.env` copy command and add env var table
+- Confirmed `.env` is gitignored at root and per-app; `.env.example` files track correctly via `!.env.example` negation rule
+
+### TASK-012: Sentry SDK Integration
+- **Backend**: Added `io.sentry:sentry-spring-boot-starter-jakarta:7.22.0` and `io.sentry.jvm.gradle:6.9.0` Gradle plugin; configured `sentry.*` properties in `application.yml` (DSN from env, release tag `teamhub-backend@<version>+<gitSha>`, `sendDefaultPii: false`); created `SentryConfig.java` event processor that attaches `tenant_id`, `user_id`, `request_id` tags from MDC; regenerated `gradle.lockfile`
+- **Web**: Installed `@sentry/react` + `@sentry/vite-plugin`; created `src/app/sentry.ts` (no-op when `VITE_SENTRY_DSN` is absent); updated `main.tsx` to call `initSentry()` before React mounts; updated `vite.config.ts` to inject `__APP_VERSION__`/`__GIT_SHA__` constants and run `sentryVitePlugin` only on production builds with `SENTRY_AUTH_TOKEN` set; declared Vite env types in `vite-env.d.ts`
+- **Mobile**: Ran Sentry wizard (`@sentry/wizard@6.12.0`) which installed `@sentry/react-native`, added `@sentry/react-native/expo` plugin to `app.json`, and created `metro.config.js`; fixed `App.tsx` to read DSN from `process.env.EXPO_PUBLIC_SENTRY_DSN` (not hardcoded), set `sendDefaultPii: false`, and added release tag `teamhub-mobile@<version>+<gitSha>` using `expo-constants` + `EAS_BUILD_GIT_COMMIT_HASH`
+- Open TO-DOs: all three apps carry `TO-DO: human must provision Sentry projects per PRD §26.2`; SENTRY_AUTH_TOKEN must be set as GitHub Secret for source map upload to activate in CI
+- Note: two Sentry auth tokens were exposed in session logs during wizard setup — both should be rotated

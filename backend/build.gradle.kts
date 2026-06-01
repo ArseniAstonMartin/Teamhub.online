@@ -6,6 +6,9 @@ plugins {
   id("org.sonarqube") version "7.3.0.8198"
   id("org.springframework.boot") version "3.5.14"
   id("io.spring.dependency-management") version "1.1.7"
+  // Uploads source context to Sentry so stack traces show your source lines.
+  // Only active when SENTRY_AUTH_TOKEN env var is set (skipped in local dev if absent).
+  id("io.sentry.jvm.gradle") version "6.9.0"
 }
 
 group = "com.teamhub"
@@ -29,6 +32,7 @@ dependencyLocking {
 val mapstructVersion = "1.6.3"
 val springdocVersion = "2.8.17"
 val shedlockVersion = "6.6.0"
+val sentryVersion = "7.22.0"
 
 dependencies {
   implementation("org.springframework.boot:spring-boot-starter-actuator")
@@ -44,6 +48,7 @@ dependencies {
   implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:$springdocVersion")
   implementation("net.javacrumbs.shedlock:shedlock-spring:$shedlockVersion")
   implementation("net.javacrumbs.shedlock:shedlock-provider-jdbc-template:$shedlockVersion")
+  implementation("io.sentry:sentry-spring-boot-starter-jakarta:$sentryVersion")
 
   compileOnly("org.projectlombok:lombok")
   annotationProcessor("org.projectlombok:lombok")
@@ -139,4 +144,13 @@ sonar {
     // Fail CI if the SonarCloud Quality Gate is not green.
     property("sonar.qualitygate.wait", "true")
   }
+}
+
+sentry {
+  // Uploads Java source files to Sentry for inline source context in stack traces.
+  // Only runs when SENTRY_AUTH_TOKEN is present; skipped silently in local dev.
+  includeSourceContext = true
+  org = "teamhub-gs"
+  projectName = "java-spring-boot"
+  authToken = System.getenv("SENTRY_AUTH_TOKEN")
 }

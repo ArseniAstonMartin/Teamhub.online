@@ -28,6 +28,14 @@ management:
     redis:
       enabled: false
 
+# TO-DO: human must provision Sentry projects per PRD §26.2 before enabling in production.
+sentry:
+  dsn: ${SENTRY_DSN:}
+  traces-sample-rate: 0.2
+  environment: ${SPRING_PROFILES_ACTIVE:local}
+  release: teamhub-backend@${APP_VERSION:0.0.1}+${GIT_SHA:local}
+  send-default-pii: false
+
 teamhub:
   cors:
     # In production override with https://app.teamhub.online; dev default is the Vite dev server.
