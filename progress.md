@@ -838,7 +838,7 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 - The PRD at `prd/PRD.md` is the only source of truth. If something here contradicts the PRD, the PRD wins.
 - Integrations gated on Lead Developer review before merge per PRD §25.3: Stripe, Apple Sign-in, Push notifications, Twilio (future), Google OAuth.
-- Completed through TASK-034: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 033, 034, 036, 037, 039, 040, 041 (see `tasks.json`).
+- Completed through TASK-035: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041 (see `tasks.json`).
 - TASK-025 note: all domain exceptions must extend `DomainException` (in `com.teamhub.exception`). Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")`. The full §23.4 envelope `{"error":{"code":"…","message":"…","details":{…}}}` is returned by `GlobalExceptionHandler` for validation (422), domain (custom status), and unexpected (500) errors. Auth exceptions (`InvalidCredentialsException`, `InvalidRefreshTokenException`) now return the full envelope (was legacy flat shape).
 - TASK-024 note: the security filter chain now returns 401 with the §23.4 `ErrorEnvelope` (`{"error":{"code":"UNAUTHORIZED",...}}`) for both anonymous and invalid-token requests via `RestAuthenticationEntryPoint`. CORS allows only the `CORS_ALLOWED_ORIGIN` env-var origin (dev: `http://localhost:5173`, prod: `https://app.teamhub.online`). All other 401/403 logic is unchanged from TASK-019/023. The `AuthExceptionHandler` legacy flat 401 body (for `InvalidCredentialsException`/`InvalidRefreshTokenException`) was reconciled to the full envelope in TASK-025.
 - TASK-023 note: authorization is permission-based. Guard controllers with `@PreAuthorize("hasAuthority('PERM_<code>')")` (a permission code from the `permissions` table), never `hasRole('ADMIN')`. The JWT `role` claim is resolved to `PERM_*` authorities by `PermissionJwtAuthenticationConverter`. Adding a role is a seed-only change (new rows in `roles` + `role_permissions`). 403 denials use the PRD §23.4 envelope (`{"error":{"code":"FORBIDDEN",...}}`); the 401 envelope and CORS are deferred to TASK-024, and the unified `@RestControllerAdvice` envelope to TASK-025.
@@ -950,4 +950,30 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - All payload records are pure data holders with no Spring or JPA dependencies — they can be used directly as the `payload` object passed to `OutboxPublisher.publish()` after serializing to JSON via `ObjectMapper`.
   - The `@JsonInclude(NON_NULL)` annotation means missing optional fields do not inflate the JSON payload stored in `outbox_events.payload`. Consumers must configure their `ObjectMapper` with `FAIL_ON_UNKNOWN_PROPERTIES = false` to handle schema evolution correctly (Spring Boot's auto-configured mapper does this by default).
   - Field naming convention: single-word fields (e.g. `role`, `limit`) do not need `@JsonProperty`; the record accessor name matches the JSON key directly.
+- Commits: (see below)
+
+### 2026-06-01 — TASK-035 — Audit-logger event consumer
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §19.2 (audit logging), §22.5.5 (event payload catalog), §22.5.6 (AbstractOutboxConsumer contract)
+- Files touched:
+  - backend/src/main/java/com/teamhub/audit/AuditEventConsumer.java (new)
+  - backend/src/main/java/com/teamhub/audit/AuditEventConsumerConfig.java (new)
+  - backend/src/test/java/com/teamhub/audit/AuditEventConsumerIT.java (new)
+  - tasks.json (TASK-035 status → done)
+  - progress.md (this entry)
+- Summary: Implemented `AuditEventConsumer` (extends `AbstractOutboxConsumer`, consumer group `audit-logger`) which subscribes to 6 Redis Streams (`JobSubmitted`, `JobClaimed`, `JobStatusChanged`, `JobCompleted`, `UserInvited`, `SubscriptionUpdated`) and maps each to a deterministic `action` string. `JobStatusChanged` populates `before_state`/`after_state` from `oldStatus`/`newStatus`; all other event types store the full payload JSON in `after_state`. `AuditEventConsumerConfig` registers 6 Spring beans (one per stream) so Spring's scheduler independently polls each stream. `actor_user_id` is intentionally omitted from all audit entries because event payload actor-IDs are not guaranteed to be present in the local `users` table (FK constraint would fail for external/webhook actors). Idempotency, PEL reclaim, and DLQ routing are fully inherited from `AbstractOutboxConsumer`.
+- Acceptance criteria verified:
+  1. Consumer group `audit-logger` — confirmed; `CONSUMER_GROUP = "audit-logger"` constant, 6 beans all use this group.
+  2. Deterministic `action` mapping (`job.create`, `job.claimed`, `job.transition`, `job.completed`, `user.invited`, `subscription.updated`) — confirmed; switch expression in `handle()`.
+  3. `before_state`/`after_state` populated from event payload — confirmed; `JobStatusChanged` sets `{"status":"OLD"}` / `{"status":"NEW"}`; others store full payload JSON.
+  4. IP and user-agent populated when supplied — deferred to producing-request context; the payload records (`JobSubmitted` etc.) do not carry IP/user-agent fields in PRD §22.5.5, so these fields are left null.
+- Test steps run (7 new tests in AuditEventConsumerIT, 215 total tests, 0 failures):
+  - Step 1 (`step1_jobSubmitted_auditRowCreatedWithActionJobCreate`): `OutboxPublisher` → relay → `events:JobSubmitted` → consumer → `audit_log` row with `action='job.create'` and matching `resource_id` within 8 s — PASSED
+  - Step 2 (`step2_jobStatusChanged_auditRowWithCorrectBeforeAfterState`): same pipeline for `JobStatusChanged`; `before_state` contains "SUBMITTED", `after_state` contains "ASSIGNED_TO_TECHNICIAN" — PASSED
+  - Step 3 (`step3_duplicateDelivery_sameEventIdTwice_producesExactlyOneAuditRow`): direct XADD same `event_id` twice; idempotency gate (`SELECT EXISTS` in `AbstractOutboxConsumer`) yields exactly 1 audit row and 1 `processed_events` row — PASSED
+  - Coverage (`jobClaimed`, `jobCompleted`, `userInvited`, `subscriptionUpdated`): relay pipeline for each remaining event type; audit rows verified — all PASSED
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 215 tests, 0 failures
+  - JaCoCo new-code coverage: `AuditEventConsumer` 98% (64/65 lines), `AuditEventConsumerConfig` 100%, all other audit classes 100%; `jacocoTestCoverageVerification` PASSED
+- Open TO-DOs created (with PRD reference): none
 - Commits: (see below)
