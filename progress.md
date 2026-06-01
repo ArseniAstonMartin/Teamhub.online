@@ -1048,3 +1048,44 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - `TO-DO (TASK-053)`: check `tenant.close_jobs_enabled` toggle before allowing `IN_PROGRESS → COMPLETED` for Technicians
 - Decision documented: PRD §9.2 states "Completed → (any) | Admin only" — DISPATCHER is explicitly excluded from re-opening completed jobs; only ADMIN may override. Test step 4 confirms Admin succeeds; test step 3 confirms DISPATCHER gets 409.
 - Completed through TASK-043: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043 (see `tasks.json`).
+
+### 2026-06-01 — TASK-044 — Job CRUD Endpoints
+
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §5.2, §5.3 (permissions), §9 (job lifecycle), §10 (job listing/filtering), §22 (job columns)
+- Files touched:
+  - backend/src/main/resources/db/migration/V14__job_permissions_and_archived_at.sql (new)
+  - backend/src/main/java/com/teamhub/job/Job.java (added archivedAt field)
+  - backend/src/main/java/com/teamhub/job/JobRepository.java (added JpaSpecificationExecutor, findByIdAndTenantIdAndArchivedAtIsNull)
+  - backend/src/main/java/com/teamhub/job/dto/CreateJobRequest.java (new)
+  - backend/src/main/java/com/teamhub/job/dto/UpdateJobRequest.java (new)
+  - backend/src/main/java/com/teamhub/job/dto/JobResponse.java (new)
+  - backend/src/main/java/com/teamhub/job/JobService.java (new)
+  - backend/src/main/java/com/teamhub/job/JobController.java (new)
+  - backend/src/test/java/com/teamhub/job/JobControllerIT.java (new)
+  - tasks.json (TASK-044 status → done)
+  - progress.md (this entry)
+- Summary: Implemented the full job CRUD API. V14 migration adds `job.delete` (DISPATCHER+ADMIN) and `job.hard_delete` (ADMIN-only) permissions plus `archived_at` column and `GRANT DELETE ON jobs`. DTOs are Java records with bean validation. `JobService` uses `JpaSpecificationExecutor` for dynamic role-scoped filtering (avoids PostgreSQL null-parameter type inference errors that JPQL `IS NULL` checks cause for non-string types). `JobController` uses `@PreAuthorize` with permission-based guards. TECHNICIAN callers see only own jobs + shared pool (SUBMITTED). Soft-archive sets `archivedAt`; hard-delete requires `PERM_job.hard_delete` (Admin only) and `GRANT DELETE` on the table.
+- Acceptance criteria verified:
+  1. GET /jobs returns paginated list with filters: status, assignee, date range, sort — confirmed; controller accepts all query params, service delegates to JPA Specification
+  2. Technician's GET /jobs returns only jobs assigned to self OR in `Submitted` (shared pool) — confirmed; `buildSpec()` applies OR predicate for technician scope
+  3. POST /jobs creates a job with status `Submitted` and publishes `JobSubmitted` event in same tx — confirmed; `JobService.create()` uses `@Transactional` + `OutboxPublisher.publish()` (MANDATORY propagation)
+  4. PATCH /jobs/{id} edits non-status fields; status changes go through `/transition` — confirmed; `update()` skips status field
+  5. DELETE /jobs/{id} soft-archives; only Admin can hard-delete (`/jobs/{id}/hard-delete`) — confirmed; separate endpoints, `job.delete` vs `job.hard_delete` permissions
+- Test steps run (10 tests in JobControllerIT, all passed):
+  - Step 1 (`step1_dispatcher_createJob_submittedEventInOutbox`): Dispatcher POST → 201, `status=SUBMITTED`, `JobSubmitted` outbox row exists — PASSED
+  - Step 2 (`step2_technician_listJobs_seesOnlyOwnAndSubmitted`): Technician list → only own + SUBMITTED; IN_PROGRESS (no technician) excluded; other-tenant jobs not returned — PASSED
+  - Step 3 (`step3_dispatcher_hardDelete_returns403`): Dispatcher hard-delete → 403 `FORBIDDEN` — PASSED
+  - Step 4 (`step4_admin_hardDelete_returns204_andRowGone`): Admin hard-delete → 204; row gone from DB — PASSED
+  - Additional (`listJobs_withoutToken_returns401`): anonymous → 401 — PASSED
+  - Additional (`technician_createJob_returns403`): technician create → 403 — PASSED
+  - Additional (`getById_dispatcher_returnsJob`): GET /{id} → 200, correct body — PASSED
+  - Additional (`getById_unknownId_returns404`): GET /{id} unknown → 404 `JOB_NOT_FOUND` — PASSED
+  - Additional (`patch_dispatcher_updatesScheduledStart`): PATCH non-status field → 200 — PASSED
+  - Additional (`dispatcher_softArchive_excludedFromList`): DELETE soft-archive → 204; excluded from list; row in DB with archived_at set — PASSED
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 236 tests, 0 failures
+  - Coverage: `JobService` 87%, `JobController` 93%, `JobResponse` 100%; `jacocoTestCoverageVerification` PASSED
+- Open TO-DOs created (with PRD reference): none
+- Decision documented: Used JPA Specifications (`JpaSpecificationExecutor`) instead of JPQL with nullable parameters because PostgreSQL cannot determine the data type of null `Instant`/`UUID` parameters in `?::type IS NULL` checks; this is the recommended approach for dynamic queries in Spring Data JPA.
+- Completed through TASK-044: 001, 002, 003, 004, 005, 007, 009, 010, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044 (see `tasks.json`).

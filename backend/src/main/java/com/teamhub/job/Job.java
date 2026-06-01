@@ -122,6 +122,10 @@ public class Job {
   @Column(name = "updated_at", nullable = false)
   private Instant updatedAt;
 
+  /** Soft-delete timestamp; null means the job is active (PRD §9, TASK-044). */
+  @Column(name = "archived_at")
+  private Instant archivedAt;
+
   @PrePersist
   void onCreate() {
     Instant now = Instant.now();
