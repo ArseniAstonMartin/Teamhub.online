@@ -57,6 +57,9 @@ public class SecurityConfig {
    * probes work without credentials. All other {@code /actuator/**} paths require the {@code
    * ROLE_ACTUATOR_INTERNAL} authority.
    */
+  // CSRF is safe to disable: this chain is stateless (no session cookies) and authenticates
+  // via the Authorization header (HTTP Basic). CSRF attacks require cookie-based state.
+  @SuppressWarnings("java:S4502")
   @Bean
   @Order(1)
   public SecurityFilterChain actuatorFilterChain(
@@ -95,7 +98,14 @@ public class SecurityConfig {
     return http.build();
   }
 
-  /** JWT resource-server chain for all API traffic (evaluated after the actuator chain). */
+  /**
+   * JWT resource-server chain for all API traffic (evaluated after the actuator chain).
+   *
+   * <p>CSRF is disabled intentionally: the chain is fully stateless (no session cookies) and
+   * authenticates exclusively via the {@code Authorization: Bearer <token>} header. CSRF attacks
+   * require browser-managed cookies — there are none here.
+   */
+  @SuppressWarnings("java:S4502")
   @Bean
   @Order(2)
   public SecurityFilterChain securityFilterChain(
