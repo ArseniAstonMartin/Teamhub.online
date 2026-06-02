@@ -12,5 +12,14 @@ public interface InviteRepository extends JpaRepository<Invite, UUID> {
 
   List<Invite> findByTenantIdAndEmailAndAcceptedAtIsNull(UUID tenantId, String email);
 
+  /**
+   * Finds all pending (not-yet-accepted) invites for a given email across all tenants.
+   *
+   * <p>Used by the Google OAuth2 success handler to resolve the tenant when there is no tenant
+   * context during the OAuth2 callback. If exactly one active invite is found, its tenant is used;
+   * zero or multiple active invites are treated as "no invite" (TASK-021).
+   */
+  List<Invite> findByEmailAndAcceptedAtIsNull(String email);
+
   Optional<Invite> findByIdAndTenantId(UUID id, UUID tenantId);
 }

@@ -130,6 +130,21 @@ public class AuthService {
   }
 
   /**
+   * Issues a new access + refresh token pair for an already-authenticated user.
+   *
+   * <p>Used by the Google OAuth2 success handler (PRD §6.1, TASK-021) to issue Teamhub JWTs after
+   * the OAuth2 identity has been resolved and verified. The caller is responsible for emitting the
+   * appropriate audit event.
+   *
+   * @param user the verified, active user to issue tokens for
+   * @return a fresh access + refresh token pair
+   */
+  @Transactional
+  public IssuedTokens issueTokensFor(User user) {
+    return issueTokens(user);
+  }
+
+  /**
    * Rotates a refresh token: validates the presented token, revokes it, and issues a brand-new
    * access + refresh pair.
    *

@@ -19,6 +19,20 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            # TO-DO: human must provision Google OAuth2 credentials per PRD §26.2 before enabling in production.
+            client-id: 1058097714649-1thaja2pa2j8q7ipkjgkefnre2oi6dii.apps.googleusercontent.com
+            client-secret: ${GOOGLE_CLIENT_SECRET:}
+            scope: openid,email,profile
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+        provider:
+          google:
+            issuer-uri: https://accounts.google.com
+
   mail:
     # Development default points to MailHog (infra/docker-compose.dev.yml).
     # Override with real SMTP credentials via env vars in staging/production.
@@ -81,3 +95,6 @@ teamhub:
     refresh-token-ttl: P30D
   # Base URL of the SPA — used to construct the password-reset link sent by email (PRD §6.3).
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  oauth2:
+    success-redirect-url: ${FRONTEND_URL:http://localhost:5173}/auth/callback
+    failure-redirect-url: ${FRONTEND_URL:http://localhost:5173}/auth/error

@@ -1,5 +1,7 @@
 package com.teamhub.security;
 
+import com.teamhub.auth.GoogleOAuth2FailureHandler;
+import com.teamhub.auth.GoogleOAuth2SuccessHandler;
 import com.teamhub.logging.MdcLoggingFilter;
 import com.teamhub.security.rbac.PermissionJwtAuthenticationConverter;
 import com.teamhub.shared.TenantContextFilter;
@@ -49,6 +51,38 @@ import org.springframework.web.cors.CorsConfigurationSource;
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
+
+  /**
+   * OAuth2 login filter chain — handles {@code /oauth2/**} and {@code /login/oauth2/**}.
+   *
+   * <p>A short-lived server-side session is required to validate the {@code state} anti-forgery
+   * parameter that Spring Security generates when redirecting to Google. This chain is isolated
+   * ({@code @Order(0)}, dedicated {@code securityMatcher}) so the rest of the application remains
+   * fully stateless. CSRF is disabled because the OAuth2 {@code state} parameter already fulfils
+   * that role.
+   *
+   * <p>On success the {@link GoogleOAuth2SuccessHandler} resolves the Teamhub identity and issues
+   * JWTs; on failure the {@link GoogleOAuth2FailureHandler} redirects to the SPA error page.
+   */
+  @SuppressWarnings("java:S4502")
+  @Bean
+  @Order(0)
+  public SecurityFilterChain oauth2LoginFilterChain(
+      HttpSecurity http,
+      GoogleOAuth2SuccessHandler successHandler,
+      GoogleOAuth2FailureHandler failureHandler)
+      throws Exception {
+
+    http.securityMatcher("/oauth2/**", "/login/oauth2/**")
+        .csrf(AbstractHttpConfigurer::disable)
+        .sessionManagement(
+            session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
+        .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+        .oauth2Login(
+            oauth2 -> oauth2.successHandler(successHandler).failureHandler(failureHandler));
+
+    return http.build();
+  }
 
   /**
    * Actuator-only filter chain (HTTP Basic, no sessions). Evaluated before the JWT chain.

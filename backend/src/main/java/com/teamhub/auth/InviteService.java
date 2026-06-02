@@ -146,6 +146,36 @@ public class InviteService {
   }
 
   /**
+   * Accepts an invite via Google OAuth2: creates a password-less user account and marks the invite
+   * consumed (PRD §6.1, TASK-021).
+   *
+   * <p>Unlike {@link #acceptInvite(String, String)}, no password is set — the user authenticates
+   * exclusively through Google. The caller is responsible for issuing JWTs after this returns.
+   *
+   * @param invite the active, non-accepted invite to consume
+   * @return the newly created {@link User}
+   * @throws InviteUsedOrExpiredException if the invite role is invalid
+   */
+  @Transactional
+  public User acceptInviteViaOAuth2(Invite invite) {
+    UserRole role;
+    try {
+      role = UserRole.valueOf(invite.getRole());
+    } catch (IllegalArgumentException e) {
+      throw new InviteUsedOrExpiredException();
+    }
+
+    User user =
+        userService.createOAuth2User(
+            invite.getTenantId(), invite.getEmail(), role, invite.getEmail());
+
+    invite.setAcceptedAt(Instant.now());
+    inviteRepository.save(invite);
+
+    return user;
+  }
+
+  /**
    * Resends an invite email with a freshly generated token.
    *
    * <p>Rate-limited to one resend per 5 minutes per invite.
