@@ -1,11 +1,13 @@
 package com.teamhub.exception;
 
+import com.teamhub.auth.RateLimitExceededException;
 import com.teamhub.security.ErrorEnvelope;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -64,10 +66,18 @@ public class GlobalExceptionHandler {
   /**
    * Maps any {@link DomainException} to the HTTP status and machine-readable code declared by the
    * exception subclass.
+   *
+   * <p>For {@link RateLimitExceededException} a {@code Retry-After} response header is added with
+   * the number of seconds the client should wait (PRD §6.3).
    */
   @ExceptionHandler(DomainException.class)
   public ResponseEntity<ErrorEnvelope> handleDomain(DomainException ex) {
     ErrorEnvelope body = ErrorEnvelope.of(ex.getCode(), ex.getMessage());
+    if (ex instanceof RateLimitExceededException rle) {
+      HttpHeaders headers = new HttpHeaders();
+      headers.set(HttpHeaders.RETRY_AFTER, String.valueOf(rle.getRetryAfterSeconds()));
+      return ResponseEntity.status(ex.getHttpStatus()).headers(headers).body(body);
+    }
     return ResponseEntity.status(ex.getHttpStatus()).body(body);
   }
 

@@ -1391,3 +1391,39 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 300 tests, 0 failures; jacocoTestCoverageVerification PASSED
 - Open TO-DOs created (with PRD reference): none
 - Completed through TASK-052 (feat/task-051-052-automations): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 048, 051, 052, 053 (see tasks.json)
+
+### 2026-06-02 — TASK-020 — Email-based password reset
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §6.2, §6.3
+- Files touched:
+  - backend/src/main/resources/db/migration/V18__password_reset_tokens.sql (new)
+  - backend/src/main/java/com/teamhub/auth/PasswordResetToken.java (new)
+  - backend/src/main/java/com/teamhub/auth/PasswordResetTokenRepository.java (new)
+  - backend/src/main/java/com/teamhub/auth/PasswordResetService.java (new)
+  - backend/src/main/java/com/teamhub/auth/RateLimitExceededException.java (new)
+  - backend/src/main/java/com/teamhub/auth/ResetTokenUsedOrExpiredException.java (new)
+  - backend/src/main/java/com/teamhub/auth/dto/ForgotPasswordRequest.java (new)
+  - backend/src/main/java/com/teamhub/auth/dto/ResetPasswordRequest.java (new)
+  - backend/src/main/java/com/teamhub/auth/AuthController.java (modified — added forgot-password and reset-password endpoints)
+  - backend/src/main/java/com/teamhub/exception/GlobalExceptionHandler.java (modified — added Retry-After header for RateLimitExceededException)
+  - backend/src/main/resources/application.yml (modified — added spring.mail stub config, teamhub.frontend-url, disabled mail health)
+  - backend/build.gradle.kts (modified — added spring-boot-starter-mail dependency)
+  - backend/src/test/java/com/teamhub/auth/PasswordResetIT.java (new)
+- Summary: Implemented the full password-reset flow per PRD §6.3. A Flyway V18 migration creates the `password_reset_tokens` table. `PasswordResetService` handles the two-step flow: requestReset (rate-limited to 5/hour per email, sends a 30-min TTL token via JavaMailSender, emits audit events) and resetPassword (validates hash/expiry/single-use, updates password, revokes all refresh tokens). In-memory `ConcurrentHashMap` rate limiter is used for MVP. `GlobalExceptionHandler` now attaches `Retry-After` headers on 429 responses. Integration tests cover all four acceptance criteria using `@MockBean JavaMailSender` to capture the raw token.
+- Acceptance criteria verified:
+  1. POST /api/v1/auth/forgot-password accepts email and emails a signed reset token (TTL 30 min) — verified in step1 test
+  2. POST /api/v1/auth/reset-password verifies signature, expiry, and single-use — verified in step2 and step3 tests
+  3. Rate limit 5 attempts/hour; 6th returns 429 with Retry-After header — verified in step4 test
+  4. Used/expired tokens return 400 RESET_TOKEN_USED_OR_EXPIRED — verified in step3 test
+- Test steps run (all passed):
+  - step1_forgotPassword_returns204AndInsertsDbRow — PASSED
+  - step2_resetPassword_thenLoginWithNewPasswordSucceeds — PASSED
+  - step3_reuseResetToken_returns400WithCode — PASSED
+  - step4_rateLimitExceeded_returns429WithRetryAfterHeader — PASSED
+  - forgotPassword_unknownEmail_returns204Silently — PASSED
+  - forgotPassword_invalidEmail_returns422 — PASSED
+  - resetPassword_unknownToken_returns400 — PASSED
+  - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 329 tests, 0 failures; jacocoTestCoverageVerification PASSED
+- Open TO-DOs created (with PRD reference): TO-DO in PasswordResetService.sendResetEmail: use a proper email template (§6.3)
+- Completed through TASK-020 (feat/task-020-022-054-055-auth-users): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 020, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 048, 051, 052, 053 (see tasks.json)
