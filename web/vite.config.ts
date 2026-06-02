@@ -25,7 +25,7 @@ export default defineConfig(({ mode }) => ({
       ? [
           sentryVitePlugin({
             org: 'teamhub-gs',
-            project: 'javascript-react',
+            project: 'teamhub-react',
             authToken: process.env.SENTRY_AUTH_TOKEN,
             release: { name: release },
             sourcemaps: { filesToDeleteAfterUpload: ['./dist/**/*.map'] },
