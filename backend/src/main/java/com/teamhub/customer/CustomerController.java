@@ -40,7 +40,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/v1/customers")
-@Tag(name = "Customers", description = "Customer CRM endpoints — PRD §11.2, §11.3")
+@Tag(name = "customers", description = "Customer CRM endpoints — PRD §11.2, §11.3")
 public class CustomerController {
 
   private static final String ROLE_TECHNICIAN = "TECHNICIAN";

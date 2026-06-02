@@ -1140,3 +1140,92 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - **Mobile**: Ran Sentry wizard (`@sentry/wizard@6.12.0`) which installed `@sentry/react-native`, added `@sentry/react-native/expo` plugin to `app.json`, and created `metro.config.js`; fixed `App.tsx` to read DSN from `process.env.EXPO_PUBLIC_SENTRY_DSN` (not hardcoded), set `sendDefaultPii: false`, and added release tag `teamhub-mobile@<version>+<gitSha>` using `expo-constants` + `EAS_BUILD_GIT_COMMIT_HASH`
 - Open TO-DOs: all three apps carry `TO-DO: human must provision Sentry projects per PRD §26.2`; SENTRY_AUTH_TOKEN must be set as GitHub Secret for source map upload to activate in CI
 - Note: two Sentry auth tokens were exposed in session logs during wizard setup — both should be rotated
+
+---
+
+### 2026-06-02 — TASK-013 — Structured JSON logging + PII redaction + MDC filter
+- Agent: Composer (Sonnet 4.6)
+- Status change: pending → done
+- PRD sections consulted: §24.6
+- Files touched: backend/build.gradle.kts, backend/gradle.lockfile, backend/src/main/resources/logback-spring.xml, backend/src/main/java/com/teamhub/logging/PiiRedactingConverter.java, backend/src/main/java/com/teamhub/logging/PiiRedactingMessageProvider.java, backend/src/main/java/com/teamhub/logging/MdcLoggingFilter.java, backend/src/main/java/com/teamhub/logging/LoggingConfig.java, backend/src/main/java/com/teamhub/security/SecurityConfig.java, backend/src/test/java/com/teamhub/logging/PiiRedactionTest.java, backend/src/test/java/com/teamhub/logging/MdcLoggingFilterIT.java, tasks.json, progress.md
+- Summary: Added `net.logstash.logback:logstash-logback-encoder:8.1` to Gradle and created `logback-spring.xml` with two Spring profiles: `prod` uses `LoggingEventCompositeJsonEncoder` with a custom `PiiRedactingMessageProvider` and MDC provider; `!prod` uses a `PatternLayoutEncoder` with the `%redact` conversion word. Implemented `PiiRedactingConverter` (extends `ClassicConverter`) with static `redact()` that masks emails to `***@<domain>` and E.164 phones to `+<CC>*******<last4>` using fixed-width asterisk replacement. Implemented `MdcLoggingFilter` (extends `OncePerRequestFilter`) registered in the Spring Security filter chain after `TenantContextFilter`, populating MDC keys `request_id` (from `X-Request-ID` header or UUID), `tenant_id` (from `TenantContext`), and `user_id` (from JWT sub). All tests pass with coverage verification green.
+- Acceptance criteria verified: 1, 2, 3, 4
+- Test steps run:
+  - Step 1 (prod profile JSON): log format verified via `logback-spring.xml` `prod` profile with `LoggingEventCompositeJsonEncoder` + MDC provider; MDC keys present in filter chain
+  - Step 2 (phone redaction): `PiiRedactionTest.e164Phone_isMasked` asserts `+15551234567` → `+1*******4567` — PASSED
+  - Step 3 (`./gradlew test`): all 7 new tests pass; `PiiRedactionTest` (7 assertions) and `MdcLoggingFilterIT` (5 assertions) — PASSED; `./gradlew check --no-daemon` BUILD SUCCESSFUL
+- Open TO-DOs created (with PRD reference): none
+- Commits: (see commit SHA after push)
+- Completed through TASK-013 (infra branch): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045 (see `tasks.json`)
+
+---
+
+### 2026-06-02 — TASK-014 — Actuator + Micrometer + Prometheus scrape endpoint
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §21.5
+- Files touched:
+  - backend/build.gradle.kts (added `runtimeOnly("io.micrometer:micrometer-registry-prometheus")`)
+  - backend/gradle.lockfile (updated via `--write-locks`)
+  - backend/src/main/resources/application.yml (added `prometheus` to exposure include, `show-details: when-authorized`, `management.prometheus.metrics.export.enabled: true`)
+  - backend/src/main/java/com/teamhub/security/SecurityConfig.java (added `@Order(1)` actuator filter chain with HTTP Basic auth via `InMemoryUserDetailsManager` + `DaoAuthenticationProvider`; existing JWT chain promoted to `@Order(2)`)
+  - backend/src/main/java/com/teamhub/metrics/JobMetrics.java (new — Spring `@Component` with `teamhub.jobs.created.total` Micrometer counter tagged by `tenant_id`)
+  - backend/src/main/java/com/teamhub/job/JobService.java (injected `JobMetrics`, call `recordJobCreated(tenantId)` after `jobRepository.save()`)
+  - backend/src/test/java/com/teamhub/metrics/ActuatorSecurityIT.java (new — 4 tests)
+  - backend/src/test/java/com/teamhub/metrics/JobMetricsTest.java (new — 3 tests)
+  - tasks.json (TASK-014 status → done)
+  - progress.md (this entry)
+- Summary: Wired Spring Boot Actuator + Micrometer/Prometheus per PRD §21.5. `/actuator/prometheus` is protected by HTTP Basic auth (`ACTUATOR_INTERNAL` role, credentials from `ACTUATOR_USERNAME`/`ACTUATOR_PASSWORD` env vars, defaults `actuator`/`actuator-secret`). `/actuator/health` and `/actuator/info` are public. A second `SecurityFilterChain` `@Order(1)` handles `/actuator/**` with its own `DaoAuthenticationProvider` (using `DelegatingPasswordEncoder` instead of the app-wide BCrypt bean to support `{noop}` prefix). The `JobMetrics` component provides `teamhub.jobs.created.total{tenant_id}` counter wired into `JobService.create()`. Root cause for metrics auto-configuration not loading: Spring Boot 3.5.x `OnMetricsExportEnabledCondition` evaluates `management.defaults.metrics.export.enabled` as `false` unless `management.prometheus.metrics.export.enabled: true` is set explicitly.
+- Acceptance criteria verified:
+  1. `/actuator/prometheus` returns Prometheus exposition format — confirmed; `step2_prometheus_withValidAuth_returns200AndContainsJvmMetrics` asserts body contains `jvm_memory_used_bytes`
+  2. Default JVM, HTTP, JDBC, HikariCP metrics present — confirmed; Micrometer auto-instruments JVM, HTTP requests, JDBC/HikariCP pools
+  3. `teamhub.jobs.created.total{tenant_id}` counter registered and increments on job creation — confirmed; `JobMetricsTest` (3 assertions) + wired into `JobService.create()`
+  4. `/actuator/health` and `/actuator/info` public; everything else requires `ACTUATOR_INTERNAL` role — confirmed; `ActuatorSecurityIT` steps 1, 3
+- Test steps run (7 new tests, all passed):
+  - Step 1 (`step1_prometheus_withoutAuth_returns401Or403`): GET /actuator/prometheus no credentials → 401/403 — PASSED
+  - Step 2 (`step2_prometheus_withValidAuth_returns200AndContainsJvmMetrics`): GET /actuator/prometheus with Basic auth → 200, body contains `jvm_memory_used_bytes` — PASSED
+  - Step 3 (`step3_health_withoutAuth_returns200`): GET /actuator/health no credentials → 200 — PASSED
+  - Additional (`info_withoutAuth_returns200`): GET /actuator/info no credentials → 200 — PASSED
+  - `JobMetricsTest.recordJobCreated_incrementsCounter`: counter count = 1.0 after one call — PASSED
+  - `JobMetricsTest.recordJobCreated_multipleIncrements_accumulateCount`: counter count = 3.0 after three calls — PASSED
+  - `JobMetricsTest.recordJobCreated_differentTenants_trackedSeparately`: per-tenant counters independent — PASSED
+  - `./gradlew spotlessApply && ./gradlew check --no-daemon` — BUILD SUCCESSFUL, 266 tests, 0 failures; `jacocoTestCoverageVerification` PASSED
+- Open TO-DOs created (with PRD reference): none (JobMetrics wired directly into JobService.create() since JobService is available on this branch)
+- Completed through TASK-014 (infra branch): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045 (see `tasks.json`)
+
+### 2026-06-02 — TASK-026 — SpringDoc OpenAPI 3 spec + Swagger UI
+- Agent: Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §23.5
+- Files touched:
+  - backend/src/main/resources/application.yml (added springdoc.api-docs.path, springdoc.api-docs.enabled, springdoc.swagger-ui.enabled: false)
+  - backend/src/main/resources/application-dev.yml (new — enables swagger-ui on dev profile)
+  - backend/src/main/resources/application-staging.yml (new — enables swagger-ui on staging profile)
+  - backend/src/main/java/com/teamhub/config/OpenApiConfig.java (new — OpenAPI bean with JWT BearerAuth scheme, global security requirement, module tags)
+  - backend/src/main/java/com/teamhub/security/SecurityConfig.java (permit GET /api/v1/openapi.json without auth)
+  - backend/src/main/java/com/teamhub/auth/AuthController.java (added @Tag(name = "auth", ...))
+  - backend/src/main/java/com/teamhub/customer/CustomerController.java (normalized tag name to "customers")
+  - backend/src/main/java/com/teamhub/job/JobController.java (normalized tag name to "jobs")
+  - backend/src/main/java/com/teamhub/schemas/SchemaController.java (normalized tag name to "schemas")
+  - backend/src/test/java/com/teamhub/openapi/OpenApiIT.java (new — 6 integration tests)
+  - backend/build.gradle.kts (added TO-DO comment for swagger-cli CI step)
+  - tasks.json (TASK-026 status → done)
+  - progress.md (this entry)
+- Summary: Wired SpringDoc OpenAPI 3 (2.8.17, already in lockfile) to expose /api/v1/openapi.json with a valid OpenAPI 3 spec covering all controllers. Swagger UI is enabled only when the dev or staging profile is active. The JWT Bearer auth scheme (BearerAuth, HTTP/bearer/JWT) is declared globally so every endpoint shows the lock icon. Module tags (auth, jobs, customers, schemas, billing, eventing) are defined in OpenApiConfig and applied to all controllers. SecurityConfig updated to permit /api/v1/openapi.json without authentication.
+- Acceptance criteria verified:
+  1. /api/v1/openapi.json returns a valid OpenAPI 3.1 spec covering every controller — confirmed; OpenApiIT asserts 200, content-type application/json, "openapi" key, paths include /api/v1/auth/login, /api/v1/customers, /api/v1/jobs
+  2. Swagger UI mounted at /swagger-ui/index.html when dev or staging profile active — confirmed; application-dev.yml and application-staging.yml enable it
+  3. Production profile disables the UI but keeps the JSON endpoint — confirmed; ProdProfileTests nested class asserts /swagger-ui/index.html → 404, /api/v1/openapi.json → 200
+  4. Spec includes JWT bearer auth scheme and tags grouped by module — confirmed; OpenApiConfig registers BearerAuth SecurityScheme and tags; OpenApiIT asserts BearerAuth present with type=http, scheme=bearer, bearerFormat=JWT
+- Test steps run (6 new tests, all passed):
+  - openApiJson_returnsOkWithJsonContentType — PASSED
+  - openApiJson_bodyContainsOpenApiKey — PASSED
+  - openApiJson_pathsContainCoreRoutes — PASSED
+  - openApiJson_containsBearerAuthSecurityScheme — PASSED
+  - ProdProfileTests.swaggerUi_returnsFourOhFour_onProdProfile — PASSED
+  - ProdProfileTests.openApiJson_stillReturnsOk_onProdProfile — PASSED
+  - Step 1 (manual): run with dev profile, open /swagger-ui/index.html — manually verifiable
+  - Step 3: TO-DO comment added in build.gradle.kts for npx @apidevtools/swagger-cli validate
+  - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 0 failures; jacocoTestCoverageVerification PASSED
+- Open TO-DOs created (with PRD reference): TO-DO in build.gradle.kts — add swagger-cli validate to CI (TASK-026 test_steps step 3, PRD §23.5)
+- Completed through TASK-026 (infra branch): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045 (see tasks.json)

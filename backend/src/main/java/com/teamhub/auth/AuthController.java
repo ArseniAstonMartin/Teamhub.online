@@ -4,6 +4,7 @@ import com.teamhub.auth.dto.LoginRequest;
 import com.teamhub.auth.dto.LogoutRequest;
 import com.teamhub.auth.dto.RefreshRequest;
 import com.teamhub.auth.dto.TokenResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 /** Public authentication endpoints (PRD §6.2). */
 @RestController
 @RequestMapping("/api/v1/auth")
+@Tag(name = "auth", description = "Authentication — login, refresh, logout")
 public class AuthController {
 
   private final AuthService authService;

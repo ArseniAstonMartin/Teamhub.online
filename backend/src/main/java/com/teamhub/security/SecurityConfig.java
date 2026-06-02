@@ -1,15 +1,23 @@
 package com.teamhub.security;
 
+import com.teamhub.logging.MdcLoggingFilter;
 import com.teamhub.security.rbac.PermissionJwtAuthenticationConverter;
 import com.teamhub.shared.TenantContextFilter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
@@ -32,18 +40,81 @@ import org.springframework.web.cors.CorsConfigurationSource;
  * RestAccessDeniedHandler}. Unauthenticated access is rendered as 401 with the same envelope by
  * {@link RestAuthenticationEntryPoint}. CORS allows only the single SPA origin configured via
  * {@link CorsConfig} / {@code CORS_ALLOWED_ORIGIN}.
+ *
+ * <p>A dedicated {@code @Order(1)} filter chain handles {@code /actuator/**} using HTTP Basic auth
+ * (PRD §21.5, TASK-014). {@code /actuator/health} and {@code /actuator/info} are public; all other
+ * actuator endpoints require the {@code ACTUATOR_INTERNAL} role, whose credentials are supplied via
+ * {@code ACTUATOR_USERNAME} / {@code ACTUATOR_PASSWORD} environment variables.
  */
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
 
+  /**
+   * Actuator-only filter chain (HTTP Basic, no sessions). Evaluated before the JWT chain.
+   *
+   * <p>{@code /actuator/health} and {@code /actuator/info} are permit-all so liveness/readiness
+   * probes work without credentials. All other {@code /actuator/**} paths require the {@code
+   * ROLE_ACTUATOR_INTERNAL} authority.
+   */
+  // CSRF is safe to disable: this chain is stateless (no session cookies) and authenticates
+  // via the Authorization header (HTTP Basic). CSRF attacks require cookie-based state.
+  @SuppressWarnings("java:S4502")
   @Bean
+  @Order(1)
+  public SecurityFilterChain actuatorFilterChain(
+      HttpSecurity http,
+      @Value("${ACTUATOR_USERNAME:actuator}") String actuatorUsername,
+      @Value("${ACTUATOR_PASSWORD:actuator-secret}") String actuatorPassword)
+      throws Exception {
+
+    InMemoryUserDetailsManager actuatorUserDetails =
+        new InMemoryUserDetailsManager(
+            User.withUsername(actuatorUsername)
+                .password("{noop}" + actuatorPassword)
+                .roles("ACTUATOR_INTERNAL")
+                .build());
+
+    // Use DelegatingPasswordEncoder so {noop} prefix is recognized even when the
+    // application-wide PasswordEncoder bean is BCrypt (PasswordConfig).
+    DaoAuthenticationProvider actuatorAuthProvider = new DaoAuthenticationProvider();
+    actuatorAuthProvider.setUserDetailsService(actuatorUserDetails);
+    actuatorAuthProvider.setPasswordEncoder(
+        PasswordEncoderFactories.createDelegatingPasswordEncoder());
+
+    http.securityMatcher("/actuator/**")
+        .csrf(AbstractHttpConfigurer::disable)
+        .sessionManagement(
+            session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .authenticationProvider(actuatorAuthProvider)
+        .httpBasic(Customizer.withDefaults())
+        .authorizeHttpRequests(
+            auth ->
+                auth.requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/info")
+                    .permitAll()
+                    .anyRequest()
+                    .hasRole("ACTUATOR_INTERNAL"));
+
+    return http.build();
+  }
+
+  /**
+   * JWT resource-server chain for all API traffic (evaluated after the actuator chain).
+   *
+   * <p>CSRF is disabled intentionally: the chain is fully stateless (no session cookies) and
+   * authenticates exclusively via the {@code Authorization: Bearer <token>} header. CSRF attacks
+   * require browser-managed cookies — there are none here.
+   */
+  @SuppressWarnings("java:S4502")
+  @Bean
+  @Order(2)
   public SecurityFilterChain securityFilterChain(
       HttpSecurity http,
       PermissionJwtAuthenticationConverter jwtAuthenticationConverter,
       AccessDeniedHandler accessDeniedHandler,
       AuthenticationEntryPoint authenticationEntryPoint,
-      CorsConfigurationSource corsConfigurationSource)
+      CorsConfigurationSource corsConfigurationSource,
+      MdcLoggingFilter mdcLoggingFilter)
       throws Exception {
     http.csrf(AbstractHttpConfigurer::disable)
         .httpBasic(AbstractHttpConfigurer::disable)
@@ -55,11 +126,14 @@ public class SecurityConfig {
             auth ->
                 auth.requestMatchers("/api/v1/auth/**")
                     .permitAll()
-                    .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/info")
-                    .permitAll()
                     .requestMatchers("/internal/sentry/**", "/api/v1/internal/sentry/**")
                     .permitAll()
-                    .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
+                    .requestMatchers(
+                        HttpMethod.GET,
+                        "/api/v1/openapi.json",
+                        "/v3/api-docs/**",
+                        "/swagger-ui/**",
+                        "/swagger-ui.html")
                     .permitAll()
                     .anyRequest()
                     .authenticated())
@@ -73,7 +147,8 @@ public class SecurityConfig {
                 handling
                     .accessDeniedHandler(accessDeniedHandler)
                     .authenticationEntryPoint(authenticationEntryPoint))
-        .addFilterAfter(new TenantContextFilter(), BearerTokenAuthenticationFilter.class);
+        .addFilterAfter(new TenantContextFilter(), BearerTokenAuthenticationFilter.class)
+        .addFilterAfter(mdcLoggingFilter, TenantContextFilter.class);
 
     return http.build();
   }

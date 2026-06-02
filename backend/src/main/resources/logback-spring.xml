@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+  <!--
+    Custom converter for PII redaction (PRD §24.6).
+    Registered globally so %redact is available in any PatternLayoutEncoder.
+  -->
+  <conversionRule
+    conversionWord="redact"
+    converterClass="com.teamhub.logging.PiiRedactingConverter"/>
+
+  <!--
+    PROD profile: structured JSON via LogstashEncoder.
+    MDC fields (tenant_id, user_id, request_id) are written automatically by the <mdc/> provider.
+    Message PII is redacted by PiiRedactingMessageProvider before serialisation.
+  -->
+  <springProfile name="prod">
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+      <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+        <providers>
+          <timestamp/>
+          <logLevel/>
+          <loggerName/>
+          <threadName/>
+          <provider class="com.teamhub.logging.PiiRedactingMessageProvider"/>
+          <mdc/>
+          <arguments/>
+          <stackTrace/>
+        </providers>
+      </encoder>
+    </appender>
+    <root level="INFO">
+      <appender-ref ref="STDOUT"/>
+    </root>
+  </springProfile>
+
+  <!--
+    Non-prod (local / default / test) profile: human-readable console output.
+    %redact applies PII masking to message text; MDC context printed inline.
+  -->
+  <springProfile name="!prod">
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+      <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+        <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} [req=%X{request_id} tenant=%X{tenant_id} user=%X{user_id}] - %redact%n</pattern>
+      </encoder>
+    </appender>
+    <root level="INFO">
+      <appender-ref ref="STDOUT"/>
+    </root>
+  </springProfile>
+
+</configuration>

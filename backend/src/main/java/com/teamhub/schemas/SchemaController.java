@@ -40,7 +40,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/schemas")
 @PreAuthorize("hasAuthority('PERM_schema.edit')")
-@Tag(name = "Schemas", description = "Appointment-schema versioning endpoints — PRD §5.3, §8.2")
+@Tag(name = "schemas", description = "Appointment-schema versioning endpoints — PRD §5.3, §8.2")
 public class SchemaController {
 
   private final SchemaService schemaService;
