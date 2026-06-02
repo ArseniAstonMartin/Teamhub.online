@@ -3,6 +3,7 @@ package com.teamhub.security;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -170,6 +171,14 @@ class SecurityConfigIT {
               assert status != 401 && status != 403
                   : "Expected auth endpoint to be open, got " + status;
             });
+  }
+
+  @Test
+  void sentryTestEndpoint_isAccessibleWithoutToken() throws Exception {
+    mockMvc
+        .perform(post("/api/v1/internal/sentry/test"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("captured"));
   }
 
   // ---- Helpers ---------------------------------------------------------------------------------
