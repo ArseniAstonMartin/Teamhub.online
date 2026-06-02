@@ -3,6 +3,7 @@ package com.teamhub.job;
 import com.teamhub.eventing.OutboxPublisher;
 import com.teamhub.eventing.payloads.JobStatusChanged;
 import com.teamhub.exception.DomainException;
+import com.teamhub.tenancy.TenantSettingsService;
 import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.HashMap;
@@ -66,8 +67,8 @@ public class JobStateMachineService {
     // In Progress → Done Pending Approval (PRD §9.2)
     m.put(pair(JobStatus.IN_PROGRESS, JobStatus.DONE_PENDING_APPROVAL), Set.of("TECHNICIAN"));
 
-    // In Progress → Completed (PRD §9.2: Technician only if Close Jobs is enabled)
-    // TO-DO (TASK-053): check tenant.close_jobs_enabled toggle before allowing this transition
+    // In Progress → Completed (PRD §9.2 / §9.3: Technician only if Close Jobs is enabled;
+    // runtime check via TenantSettingsService in transition())
     m.put(pair(JobStatus.IN_PROGRESS, JobStatus.COMPLETED), Set.of("TECHNICIAN"));
 
     // Pending → In Progress (PRD §9.2)
@@ -114,13 +115,17 @@ public class JobStateMachineService {
 
   private final OutboxPublisher outboxPublisher;
 
+  private final TenantSettingsService tenantSettingsService;
+
   public JobStateMachineService(
       JobRepository jobRepository,
       JobStatusHistoryRepository historyRepository,
-      OutboxPublisher outboxPublisher) {
+      OutboxPublisher outboxPublisher,
+      TenantSettingsService tenantSettingsService) {
     this.jobRepository = jobRepository;
     this.historyRepository = historyRepository;
     this.outboxPublisher = outboxPublisher;
+    this.tenantSettingsService = tenantSettingsService;
   }
 
   /**
@@ -149,6 +154,16 @@ public class JobStateMachineService {
     Set<String> allowedRoles = TRANSITIONS.get(pair(fromStatus, toStatus));
     if (allowedRoles == null || !allowedRoles.contains(actorRole)) {
       throw new IllegalStateTransitionException(fromStatus, toStatus);
+    }
+
+    // PRD §9.3, §13: Technician may complete a job only when the tenant's Close Jobs toggle is on.
+    if (fromStatus == JobStatus.IN_PROGRESS
+        && toStatus == JobStatus.COMPLETED
+        && "TECHNICIAN".equals(actorRole)) {
+      boolean enabled = tenantSettingsService.getSettings(job.getTenantId()).closeJobsEnabled();
+      if (!enabled) {
+        throw new CloseJobsDisabledException();
+      }
     }
 
     job.setStatus(toStatus);
