@@ -1,8 +1,10 @@
 package com.teamhub.job;
 
 import com.teamhub.job.dto.CompleteJobRequest;
+import com.teamhub.job.dto.CreateJobNoteRequest;
 import com.teamhub.job.dto.CreateJobRequest;
 import com.teamhub.job.dto.DonePendingApprovalRequest;
+import com.teamhub.job.dto.JobNoteResponse;
 import com.teamhub.job.dto.JobResponse;
 import com.teamhub.job.dto.PendingJobRequest;
 import com.teamhub.job.dto.StartJobRequest;
@@ -13,6 +15,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -60,8 +63,11 @@ public class JobController {
 
   private final JobService jobService;
 
-  public JobController(JobService jobService) {
+  private final JobNoteService jobNoteService;
+
+  public JobController(JobService jobService, JobNoteService jobNoteService) {
     this.jobService = jobService;
+    this.jobNoteService = jobNoteService;
   }
 
   /**
@@ -274,6 +280,47 @@ public class JobController {
     String actorRole = extractRole(authentication);
     String note = request != null ? request.note() : null;
     return jobService.completeJob(tenantId, id, note, actorUserId, actorRole);
+  }
+
+  // =========================================================================
+  // Job notes endpoints (PRD §13.2, §13.4; TASK-048)
+  // =========================================================================
+
+  /**
+   * Appends an immutable note to the specified job (PRD §13.2, §13.4; TASK-048).
+   *
+   * <p>Any user with {@code PERM_job.read.own} (Technician, Dispatcher) may append a note. The note
+   * cannot be edited or deleted — no PUT/PATCH/DELETE routes are registered.
+   */
+  @PostMapping("/{id}/notes")
+  @PreAuthorize("hasAuthority('PERM_job.read.own') or hasAuthority('PERM_job.read.tenant')")
+  @Operation(
+      summary = "Add a note to a job",
+      description =
+          "Appends an immutable note to the job. Notes cannot be edited or deleted (PRD §13.2).")
+  public ResponseEntity<JobNoteResponse> addNote(
+      @PathVariable UUID id,
+      @Valid @RequestBody CreateJobNoteRequest request,
+      Authentication authentication) {
+    UUID tenantId = TenantContext.get();
+    UUID actorUserId = extractUserId(authentication);
+    JobNoteResponse response = jobNoteService.addNote(tenantId, id, actorUserId, request.body());
+    return ResponseEntity.status(HttpStatus.CREATED).body(response);
+  }
+
+  /**
+   * Lists all notes for the specified job in newest-first order (PRD §13.2; TASK-048).
+   *
+   * <p>Accessible to any caller with {@code PERM_job.read.own} or {@code PERM_job.read.tenant}.
+   */
+  @GetMapping("/{id}/notes")
+  @PreAuthorize("hasAuthority('PERM_job.read.own') or hasAuthority('PERM_job.read.tenant')")
+  @Operation(
+      summary = "List notes for a job",
+      description = "Returns all notes ordered by created_at DESC (PRD §13.2).")
+  public List<JobNoteResponse> listNotes(@PathVariable UUID id) {
+    UUID tenantId = TenantContext.get();
+    return jobNoteService.listNotes(tenantId, id);
   }
 
   /** Extracts the {@code sub} claim as a UUID from the validated JWT. */

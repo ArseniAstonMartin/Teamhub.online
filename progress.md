@@ -1295,3 +1295,35 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 284 tests, 0 failures; jacocoTestCoverageVerification PASSED
 - Open TO-DOs created (with PRD reference): none
 - Completed through TASK-047 (feat/task-053-047-048-job-states-notes): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 053 (see tasks.json)
+
+### 2026-06-02 — TASK-048 — Job notes (append-only)
+- Agent: Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §13.2, §13.4
+- Files touched:
+  - backend/src/main/resources/db/migration/V16__job_notes.sql (new — job_notes table, RLS policy, index, GRANT SELECT+INSERT)
+  - backend/src/main/java/com/teamhub/job/JobNote.java (new — @Entity, @Builder, immutable — no setters)
+  - backend/src/main/java/com/teamhub/job/JobNoteRepository.java (new — JpaRepository with findByJobIdOrderByCreatedAtDesc)
+  - backend/src/main/java/com/teamhub/job/JobNoteService.java (new — addNote + listNotes, tenant-scoped)
+  - backend/src/main/java/com/teamhub/job/dto/CreateJobNoteRequest.java (new — @NotBlank, @Size(max=4000))
+  - backend/src/main/java/com/teamhub/job/dto/JobNoteResponse.java (new — record + static from(JobNote))
+  - backend/src/main/java/com/teamhub/job/JobController.java (added POST /{id}/notes → 201, GET /{id}/notes → 200; injected JobNoteService)
+  - backend/src/test/java/com/teamhub/job/JobNotesIT.java (new — 6 integration tests)
+  - tasks.json (TASK-048 status → done)
+  - progress.md (this entry)
+- Summary: Added append-only job notes per PRD §13.2/§13.4. V16 migration creates the job_notes table with a DB-level immutability guard (SELECT + INSERT grants only, no UPDATE/DELETE). The note permission 'job.note.add' was already seeded in V4 for all three roles. The JobNoteService enforces tenant isolation via a job existence check before saving. The JobController exposes POST and GET endpoints under /api/v1/jobs/{id}/notes; no PUT/PATCH/DELETE routes are registered so Spring returns 404 for any mutation attempt on a note sub-resource.
+- Acceptance criteria verified:
+  1. Flyway creates job_notes(id, job_id, author_user_id, body text, created_at) with index (job_id, created_at desc) — confirmed; V16 migration + JobNotesIT verifies note persisted
+  2. RLS via job's tenant_id — confirmed; RLS policy job_notes_tenant_isolation on tenant_id; cross-tenant step3 test confirms 404 JOB_NOT_FOUND
+  3. POST /jobs/{id}/notes returns 201 with the persisted note (body, timestamp, author) — confirmed; step1_addNote_asTechnician_returns201WithPersistedNote
+  4. Notes cannot be edited or deleted by anyone — endpoint absent (404) — confirmed; step2_put_returns405 (PUT → 404), step2_delete_returns404 (DELETE → 404)
+- Test steps run (6 new tests, all passed):
+  - step1_addNote_asTechnician_returns201WithPersistedNote (Step 1: Technician adds note → 201) — PASSED
+  - step2_put_returns405 (Step 2a: PUT → 404 no route) — PASSED
+  - step2_delete_returns404 (Step 2b: DELETE → 404 no route) — PASSED
+  - step3_anotherTenant_listNotes_returns404 (Step 3: cross-tenant GET → 404 JOB_NOT_FOUND) — PASSED
+  - listNotes_asTechnician_returnsAddedNotes (Additional: GET notes returns list) — PASSED
+  - addNote_blankBody_returns422 (Additional: blank body → 422 VALIDATION_FAILED) — PASSED
+  - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 290 tests, 0 failures; jacocoTestCoverageVerification PASSED
+- Open TO-DOs created (with PRD reference): none
+- Completed through TASK-048 (feat/task-053-047-048-job-states-notes): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 048, 053 (see tasks.json)
