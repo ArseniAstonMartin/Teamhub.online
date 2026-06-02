@@ -126,6 +126,8 @@ public class SecurityConfig {
             auth ->
                 auth.requestMatchers("/api/v1/auth/**")
                     .permitAll()
+                    .requestMatchers("/api/v1/invites/accept")
+                    .permitAll()
                     .requestMatchers("/internal/sentry/**", "/api/v1/internal/sentry/**")
                     .permitAll()
                     .requestMatchers(
