@@ -43,6 +43,13 @@ sentry:
   release: teamhub-backend@${APP_VERSION:0.0.1}+${GIT_SHA:local}
   send-default-pii: false
 
+springdoc:
+  api-docs:
+    path: /api/v1/openapi.json
+    enabled: true
+  swagger-ui:
+    enabled: false
+
 teamhub:
   cors:
     # In production override with https://app.teamhub.online; dev default is the Vite dev server.

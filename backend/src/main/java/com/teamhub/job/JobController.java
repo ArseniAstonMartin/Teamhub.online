@@ -51,7 +51,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/v1/jobs")
-@Tag(name = "Jobs", description = "Job CRUD endpoints — PRD §9, §10, §22")
+@Tag(name = "jobs", description = "Job CRUD endpoints — PRD §9, §10, §22")
 public class JobController {
 
   private final JobService jobService;

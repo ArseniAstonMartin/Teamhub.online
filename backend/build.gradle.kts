@@ -130,6 +130,9 @@ tasks.check {
   dependsOn(tasks.jacocoTestCoverageVerification)
 }
 
+// TO-DO: add swagger-cli validate to CI (TASK-026 test_steps step 3):
+//   npx @apidevtools/swagger-cli validate http://localhost:8080/api/v1/openapi.json
+
 // Sonar task must run after the JaCoCo XML report is generated.
 tasks.named("sonar") {
   dependsOn(tasks.jacocoTestReport)

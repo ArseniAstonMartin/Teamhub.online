@@ -118,7 +118,12 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers("/internal/sentry/**", "/api/v1/internal/sentry/**")
                     .permitAll()
-                    .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
+                    .requestMatchers(
+                        HttpMethod.GET,
+                        "/api/v1/openapi.json",
+                        "/v3/api-docs/**",
+                        "/swagger-ui/**",
+                        "/swagger-ui.html")
                     .permitAll()
                     .anyRequest()
                     .authenticated())
