@@ -120,8 +120,8 @@ public class GoogleOAuth2SuccessHandler implements AuthenticationSuccessHandler 
     if (principal instanceof OAuth2User oauth2User) {
       return oauth2User.getAttribute("email");
     }
-    throw new IllegalStateException(
-        "Cannot extract email from OAuth2 principal type: " + principal.getClass().getName());
+    String typeName = principal != null ? principal.getClass().getName() : "null";
+    throw new IllegalStateException("Cannot extract email from OAuth2 principal type: " + typeName);
   }
 
   private String buildSuccessUrl(AuthService.IssuedTokens tokens) {
