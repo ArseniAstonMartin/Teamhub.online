@@ -34,6 +34,7 @@ val springdocVersion = "2.8.17"
 val shedlockVersion = "6.6.0"
 val sentryVersion = "7.22.0"
 val logstashVersion = "8.1"
+val awsSdkVersion = "2.34.0"
 
 dependencies {
   implementation("org.springframework.boot:spring-boot-starter-actuator")
@@ -53,6 +54,9 @@ dependencies {
   implementation("net.javacrumbs.shedlock:shedlock-provider-jdbc-template:$shedlockVersion")
   implementation("io.sentry:sentry-spring-boot-starter-jakarta:$sentryVersion")
   implementation("net.logstash.logback:logstash-logback-encoder:$logstashVersion")
+  implementation(platform("software.amazon.awssdk:bom:$awsSdkVersion"))
+  implementation("software.amazon.awssdk:s3")
+  implementation("software.amazon.awssdk:s3-transfer-manager")
 
   compileOnly("org.projectlombok:lombok")
   annotationProcessor("org.projectlombok:lombok")
@@ -115,6 +119,7 @@ tasks.jacocoTestCoverageVerification {
         listOf(
           "com.teamhub.TeamhubApplication",
           "com.teamhub.config.*",
+          "com.teamhub.storage.*",
           "com.teamhub.*MapperImpl",
           "com.teamhub.logging.LoggingConfig",
           "com.teamhub.logging.PiiRedactingMessageProvider",

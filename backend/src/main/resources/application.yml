@@ -98,3 +98,10 @@ teamhub:
   oauth2:
     success-redirect-url: ${FRONTEND_URL:http://localhost:5173}/auth/callback
     failure-redirect-url: ${FRONTEND_URL:http://localhost:5173}/auth/error
+  storage:
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    access-key: ${MINIO_ACCESS_KEY:minioadmin}
+    secret-key: ${MINIO_SECRET_KEY:minioadmin}
+    bucket: ${MINIO_BUCKET:teamhub}
+    region: ${MINIO_REGION:us-east-1}
+    presigned-url-ttl-minutes: 5

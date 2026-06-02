@@ -110,3 +110,33 @@ com.teamhub/
 
 Flyway runs automatically at startup. Migration scripts live in
 `src/main/resources/db/migration/`. Naming convention: `V<version>__<description>.sql`.
+
+## Local Development — Object Storage
+
+Teamhub uses [MinIO](https://min.io/) as an S3-compatible object store for local development
+(photo uploads, multipart uploads — PRD TASK-049/050).
+
+### Start MinIO
+
+```bash
+# From the repo root — starts MinIO and creates the `teamhub` bucket automatically.
+docker compose -f infra/docker-compose.dev.yml up -d minio minio-init
+```
+
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| S3 API endpoint | http://localhost:9000 | — |
+| MinIO Console UI | http://localhost:9001 | `minioadmin` / `minioadmin` |
+
+### Environment variables
+
+| Variable | Description | Dev default |
+|----------|-------------|-------------|
+| `MINIO_ENDPOINT` | S3-compatible endpoint URL | `http://localhost:9000` |
+| `MINIO_ACCESS_KEY` | Access key ID | `minioadmin` |
+| `MINIO_SECRET_KEY` | Secret access key | `minioadmin` |
+| `MINIO_BUCKET` | Bucket name | `teamhub` |
+| `MINIO_REGION` | AWS region identifier | `us-east-1` |
+
+> **Production:** override all five vars with real credentials (AWS S3, Cloudflare R2, etc.).
+> Do **not** commit production keys; use environment-specific secrets management (PRD §26.2).
