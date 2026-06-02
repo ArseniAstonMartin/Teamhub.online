@@ -297,6 +297,381 @@ class AutomationEngineIT {
   }
 
   // =========================================================================
+  // Engine edge cases — inactive rule; trigger not in draft; match-rule misses
+  // =========================================================================
+
+  @Test
+  void evaluate_inactiveRule_returnsEmptyPatch() throws Exception {
+    List<String> fields = List.of("service_type", "difficulty");
+    publishSchema(adminToken, fields);
+
+    Map<String, Object> ruleReq =
+        Map.of(
+            "name",
+            "Inactive Rule",
+            "trigger_fields",
+            List.of("service_type"),
+            "match_rules",
+            Map.of("service_type", "Rekey"),
+            "actions",
+            Map.of("difficulty", "hard"),
+            "active",
+            false,
+            "priority",
+            10);
+
+    mockMvc
+        .perform(
+            post(AUTOMATIONS_URL)
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(ruleReq)))
+        .andExpect(status().isCreated());
+
+    Map<String, Object> request =
+        Map.of("draft_fields", Map.of("service_type", "Rekey"), "manually_set_fields", List.of());
+
+    MvcResult result =
+        mockMvc
+            .perform(
+                post(EVALUATE_URL)
+                    .header("Authorization", "Bearer " + dispatcherToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isOk())
+            .andReturn();
+
+    JsonNode patch =
+        objectMapper.readTree(result.getResponse().getContentAsString()).get("suggested_patch");
+    assertThat(patch.isEmpty()).isTrue();
+  }
+
+  @Test
+  void evaluate_triggerFieldNotInDraft_returnsEmptyPatch() throws Exception {
+    List<String> fields = List.of("service_type", "make", "difficulty");
+    publishSchema(adminToken, fields);
+
+    createRule(
+        adminToken,
+        "Trigger-on-make rule",
+        List.of("make"),
+        Map.of("make", "BMW"),
+        Map.of("difficulty", "hard"),
+        10);
+
+    // Draft does not contain "make" → triggerMatches returns false
+    Map<String, Object> request =
+        Map.of("draft_fields", Map.of("service_type", "Rekey"), "manually_set_fields", List.of());
+
+    MvcResult result =
+        mockMvc
+            .perform(
+                post(EVALUATE_URL)
+                    .header("Authorization", "Bearer " + dispatcherToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isOk())
+            .andReturn();
+
+    JsonNode patch =
+        objectMapper.readTree(result.getResponse().getContentAsString()).get("suggested_patch");
+    assertThat(patch.isEmpty()).isTrue();
+  }
+
+  @Test
+  void evaluate_matchRuleFieldMissingFromDraft_returnsEmptyPatch() throws Exception {
+    List<String> fields = List.of("service_type", "make", "difficulty");
+    publishSchema(adminToken, fields);
+
+    // Trigger fires on service_type; match_rules requires "make" which is absent from draft
+    createRule(
+        adminToken,
+        "Match on make",
+        List.of("service_type"),
+        Map.of("make", "BMW"),
+        Map.of("difficulty", "hard"),
+        10);
+
+    Map<String, Object> request =
+        Map.of(
+            "draft_fields", Map.of("service_type", "Rekey"),
+            "manually_set_fields", List.of());
+
+    MvcResult result =
+        mockMvc
+            .perform(
+                post(EVALUATE_URL)
+                    .header("Authorization", "Bearer " + dispatcherToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isOk())
+            .andReturn();
+
+    JsonNode patch =
+        objectMapper.readTree(result.getResponse().getContentAsString()).get("suggested_patch");
+    assertThat(patch.isEmpty()).isTrue();
+  }
+
+  @Test
+  void evaluate_matchRuleValueMismatch_returnsEmptyPatch() throws Exception {
+    List<String> fields = List.of("service_type", "difficulty");
+    publishSchema(adminToken, fields);
+
+    createRule(
+        adminToken,
+        "Exact service type rule",
+        List.of("service_type"),
+        Map.of("service_type", "Rekey"),
+        Map.of("difficulty", "hard"),
+        10);
+
+    // Draft has service_type but with a different value → string equality fails
+    Map<String, Object> request =
+        Map.of(
+            "draft_fields", Map.of("service_type", "Inspection"),
+            "manually_set_fields", List.of());
+
+    MvcResult result =
+        mockMvc
+            .perform(
+                post(EVALUATE_URL)
+                    .header("Authorization", "Bearer " + dispatcherToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isOk())
+            .andReturn();
+
+    JsonNode patch =
+        objectMapper.readTree(result.getResponse().getContentAsString()).get("suggested_patch");
+    assertThat(patch.isEmpty()).isTrue();
+  }
+
+  @Test
+  void evaluate_yearOutsideRange_returnsEmptyPatch() throws Exception {
+    publishSchema(adminToken, LOCKSMITH_FIELD_KEYS);
+    createLocksmithRule(adminToken, 100);
+
+    // Year 2020 is outside the 2008-2014 range → range check fails
+    Map<String, Object> request =
+        Map.of(
+            "draft_fields",
+            Map.of(
+                "service_type", "All Keys Lost",
+                "make", "Mercedes-Benz",
+                "model", "C-Class",
+                "year", "2020"),
+            "manually_set_fields",
+            List.of());
+
+    MvcResult result =
+        mockMvc
+            .perform(
+                post(EVALUATE_URL)
+                    .header("Authorization", "Bearer " + dispatcherToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isOk())
+            .andReturn();
+
+    JsonNode patch =
+        objectMapper.readTree(result.getResponse().getContentAsString()).get("suggested_patch");
+    assertThat(patch.isEmpty()).isTrue();
+  }
+
+  @Test
+  void evaluate_yearNotParseable_returnsEmptyPatch() throws Exception {
+    publishSchema(adminToken, LOCKSMITH_FIELD_KEYS);
+    createLocksmithRule(adminToken, 100);
+
+    // Non-numeric year triggers NumberFormatException in range check → rule excluded
+    Map<String, Object> request =
+        Map.of(
+            "draft_fields",
+            Map.of(
+                "service_type", "All Keys Lost",
+                "make", "Mercedes-Benz",
+                "model", "C-Class",
+                "year", "notanumber"),
+            "manually_set_fields",
+            List.of());
+
+    MvcResult result =
+        mockMvc
+            .perform(
+                post(EVALUATE_URL)
+                    .header("Authorization", "Bearer " + dispatcherToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isOk())
+            .andReturn();
+
+    JsonNode patch =
+        objectMapper.readTree(result.getResponse().getContentAsString()).get("suggested_patch");
+    assertThat(patch.isEmpty()).isTrue();
+  }
+
+  @Test
+  void evaluate_nonStringMatchRule_equalityCheck() throws Exception {
+    // Integer match_rule value exercises the non-String equality branch in the engine
+    List<String> fields = List.of("service_type", "duration_min", "difficulty");
+    publishSchema(adminToken, fields);
+
+    createRule(
+        adminToken,
+        "Integer match rule",
+        List.of("service_type"),
+        Map.of("duration_min", 30),
+        Map.of("difficulty", "medium"),
+        10);
+
+    Map<String, Object> request =
+        Map.of(
+            "draft_fields",
+            Map.of("service_type", "Rekey", "duration_min", 30),
+            "manually_set_fields",
+            List.of());
+
+    MvcResult result =
+        mockMvc
+            .perform(
+                post(EVALUATE_URL)
+                    .header("Authorization", "Bearer " + dispatcherToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isOk())
+            .andReturn();
+
+    JsonNode patch =
+        objectMapper.readTree(result.getResponse().getContentAsString()).get("suggested_patch");
+    assertThat(patch.has("difficulty")).isTrue();
+  }
+
+  @Test
+  void evaluate_nullManuallySetFields_treatedAsEmpty() throws Exception {
+    List<String> fields = List.of("service_type", "difficulty");
+    publishSchema(adminToken, fields);
+
+    createRule(
+        adminToken,
+        "Match all rule",
+        List.of("service_type"),
+        Map.of("service_type", "Rekey"),
+        Map.of("difficulty", "easy"),
+        10);
+
+    // Sending manually_set_fields: null triggers the compact constructor default path
+    java.util.Map<String, Object> body = new java.util.HashMap<>();
+    body.put("draft_fields", Map.of("service_type", "Rekey"));
+    body.put("manually_set_fields", null);
+
+    MvcResult result =
+        mockMvc
+            .perform(
+                post(EVALUATE_URL)
+                    .header("Authorization", "Bearer " + dispatcherToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(body)))
+            .andExpect(status().isOk())
+            .andReturn();
+
+    JsonNode patch =
+        objectMapper.readTree(result.getResponse().getContentAsString()).get("suggested_patch");
+    assertThat(patch.has("difficulty")).isTrue();
+  }
+
+  @Test
+  void evaluate_ruleWithNullTriggerAndMatchRules_alwaysMatches() throws Exception {
+    // No trigger_fields and no match_rules: both engine checks default to true
+    List<String> fields = List.of("difficulty");
+    publishSchema(adminToken, fields);
+
+    Map<String, Object> ruleReq =
+        Map.of(
+            "name",
+            "Catch-All Rule",
+            "actions",
+            Map.of("difficulty", "easy"),
+            "active",
+            true,
+            "priority",
+            10);
+
+    mockMvc
+        .perform(
+            post(AUTOMATIONS_URL)
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(ruleReq)))
+        .andExpect(status().isCreated());
+
+    Map<String, Object> request =
+        Map.of(
+            "draft_fields", Map.of("anything", "whatever"),
+            "manually_set_fields", List.of());
+
+    MvcResult result =
+        mockMvc
+            .perform(
+                post(EVALUATE_URL)
+                    .header("Authorization", "Bearer " + dispatcherToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isOk())
+            .andReturn();
+
+    JsonNode patch =
+        objectMapper.readTree(result.getResponse().getContentAsString()).get("suggested_patch");
+    assertThat(patch.has("difficulty")).isTrue();
+  }
+
+  @Test
+  void evaluate_ruleWithNullActions_skipped() throws Exception {
+    List<String> fields = List.of("service_type");
+    publishSchema(adminToken, fields);
+
+    // Rule without actions (null) → engine skips it even when trigger + match succeed
+    Map<String, Object> ruleReq =
+        Map.of(
+            "name",
+            "No Actions Rule",
+            "trigger_fields",
+            List.of("service_type"),
+            "match_rules",
+            Map.of("service_type", "Rekey"),
+            "active",
+            true,
+            "priority",
+            10);
+
+    mockMvc
+        .perform(
+            post(AUTOMATIONS_URL)
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(ruleReq)))
+        .andExpect(status().isCreated());
+
+    Map<String, Object> request =
+        Map.of(
+            "draft_fields", Map.of("service_type", "Rekey"),
+            "manually_set_fields", List.of());
+
+    MvcResult result =
+        mockMvc
+            .perform(
+                post(EVALUATE_URL)
+                    .header("Authorization", "Bearer " + dispatcherToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isOk())
+            .andReturn();
+
+    JsonNode patch =
+        objectMapper.readTree(result.getResponse().getContentAsString()).get("suggested_patch");
+    assertThat(patch.isEmpty()).isTrue();
+  }
+
+  // =========================================================================
   // Additional — technician cannot call evaluate (no PERM_job.create)
   // =========================================================================
 

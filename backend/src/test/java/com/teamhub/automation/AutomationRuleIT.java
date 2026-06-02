@@ -366,6 +366,143 @@ class AutomationRuleIT {
   }
 
   // =========================================================================
+  // GET by id — happy path and 404
+  // =========================================================================
+
+  @Test
+  void get_byId_asAdmin_returns200() throws Exception {
+    publishSchema(adminToken, List.of("service_type"));
+
+    Map<String, Object> createRequest =
+        Map.of(
+            "name", "Rule To Get", "match_rules", Map.of("service_type", "Rekey"), "active", true);
+
+    MvcResult created =
+        mockMvc
+            .perform(
+                post(BASE_URL)
+                    .header("Authorization", "Bearer " + adminToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(createRequest)))
+            .andExpect(status().isCreated())
+            .andReturn();
+
+    String ruleId =
+        objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asText();
+
+    mockMvc
+        .perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+                    BASE_URL + "/" + ruleId)
+                .header("Authorization", "Bearer " + adminToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(ruleId))
+        .andExpect(jsonPath("$.name").value("Rule To Get"));
+  }
+
+  @Test
+  void get_unknownId_returns404() throws Exception {
+    mockMvc
+        .perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+                    BASE_URL + "/" + UUID.randomUUID())
+                .header("Authorization", "Bearer " + adminToken))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error.code").value(AutomationRuleNotFoundException.CODE));
+  }
+
+  // =========================================================================
+  // PATCH update — happy path
+  // =========================================================================
+
+  @Test
+  void update_existingRule_asAdmin_returns200() throws Exception {
+    publishSchema(adminToken, List.of("service_type", "model"));
+
+    Map<String, Object> createRequest =
+        Map.of(
+            "name",
+            "Original Name",
+            "match_rules",
+            Map.of("service_type", "Rekey"),
+            "active",
+            true,
+            "priority",
+            100);
+
+    MvcResult created =
+        mockMvc
+            .perform(
+                post(BASE_URL)
+                    .header("Authorization", "Bearer " + adminToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(createRequest)))
+            .andExpect(status().isCreated())
+            .andReturn();
+
+    String ruleId =
+        objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asText();
+
+    Map<String, Object> updateRequest =
+        Map.of("name", "Updated Name", "active", false, "priority", 50);
+
+    mockMvc
+        .perform(
+            patch(BASE_URL + "/" + ruleId)
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(updateRequest)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.name").value("Updated Name"))
+        .andExpect(jsonPath("$.active").value(false))
+        .andExpect(jsonPath("$.priority").value(50));
+  }
+
+  // =========================================================================
+  // Validator edge cases — unknown trigger_fields key; no active schema
+  // =========================================================================
+
+  @Test
+  void create_withUnknownTriggerFieldsKey_returns422() throws Exception {
+    publishSchema(adminToken, List.of("service_type"));
+
+    Map<String, Object> request =
+        Map.of(
+            "name", "Bad Trigger Rule", "trigger_fields", List.of("unknown_field"), "active", true);
+
+    mockMvc
+        .perform(
+            post(BASE_URL)
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isUnprocessableEntity())
+        .andExpect(jsonPath("$.error.code").value(AutomationRuleValidationException.CODE));
+  }
+
+  @Test
+  void create_withNoActiveSchema_returns201() throws Exception {
+    // No schema published: validator skips, rule is allowed through
+    Map<String, Object> request =
+        Map.of(
+            "name",
+            "No-Schema Rule",
+            "match_rules",
+            Map.of("any_field", "any_value"),
+            "active",
+            true);
+
+    mockMvc
+        .perform(
+            post(BASE_URL)
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.id").isNotEmpty());
+  }
+
+  // =========================================================================
   // Helpers
   // =========================================================================
 
