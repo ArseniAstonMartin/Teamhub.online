@@ -42,7 +42,7 @@ mobile/
 
 ```bash
 # 1. Copy environment variables
-cp .env.example .env.local   # fill in API_BASE_URL, etc.
+cp .env.example .env   # fill in the values described in each comment
 
 # 2. Install dependencies
 cd mobile && npm install
@@ -83,6 +83,17 @@ eas build --profile production --platform all
 | `development` | Internal    | Dev client with hot reload; iOS Simulator supported |
 | `preview`     | Internal    | QA / stakeholder testing builds  |
 | `production`  | Store       | App Store & Google Play releases |
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `EXPO_PUBLIC_API_BASE_URL` | Backend base URL (e.g. `https://api.teamhub.online`) |
+| `EXPO_PUBLIC_SENTRY_DSN` | Sentry DSN for error monitoring |
+| `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` | Google Maps SDK key (Android & iOS) |
+
+See `.env.example` for inline documentation.
+> **TO-DO:** Provision Sentry and Google Maps API key per PRD §26.2 before deploying.
 
 ## Known Limitations
 

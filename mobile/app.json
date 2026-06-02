@@ -50,6 +50,14 @@
         {
           "cameraPermission": "$(PRODUCT_NAME) needs access to your camera to capture job site photos."
         }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "project": "teamhub-mobile",
+          "organization": "teamhub-gs"
+        }
       ]
     ],
     "scheme": "teamhub",
