@@ -1261,3 +1261,37 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 282 tests, 0 failures; jacocoTestCoverageVerification PASSED
 - Open TO-DOs created (with PRD reference): none
 - Completed through TASK-053 (feat/task-053-047-048-job-states-notes): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 053 (see tasks.json)
+
+### 2026-06-02 — TASK-047 — Technician job-transition endpoints
+- Agent: Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §9.1, §9.2, §9.3, §13
+- Files touched:
+  - backend/src/main/java/com/teamhub/job/dto/StartJobRequest.java (new — empty record)
+  - backend/src/main/java/com/teamhub/job/dto/PendingJobRequest.java (new — @NotNull pendingReason + optional note)
+  - backend/src/main/java/com/teamhub/job/dto/DonePendingApprovalRequest.java (new — optional note)
+  - backend/src/main/java/com/teamhub/job/dto/CompleteJobRequest.java (new — optional note)
+  - backend/src/main/java/com/teamhub/job/JobNotAssignedToCallerException.java (new — HTTP 403, code JOB_NOT_ASSIGNED_TO_CALLER)
+  - backend/src/main/java/com/teamhub/job/JobService.java (added JobStateMachineService dependency; added startJob, pendingJob, donePendingApproval, completeJob service methods)
+  - backend/src/main/java/com/teamhub/job/JobController.java (added POST /start, /pending, /done-pending-approval, /complete endpoints)
+  - backend/src/test/java/com/teamhub/job/JobTechnicianTransitionIT.java (new — 7 integration tests)
+  - tasks.json (TASK-047 status → done)
+  - progress.md (this entry)
+- Summary: Implemented the four technician-facing job transition endpoints per PRD §13. Each endpoint delegates to the existing JobStateMachineService (which already enforces the PRD §9.2 transition table and the close_jobs_enabled toggle). Service-level check ensures the calling technician is the assigned technician (403 JOB_NOT_ASSIGNED_TO_CALLER otherwise). /pending requires pendingReason via @NotNull + @Valid (422 VALIDATION_FAILED if absent). /complete respects the TASK-053 close_jobs_enabled toggle. Each successful transition emits a JobStatusChanged outbox event.
+- Acceptance criteria verified:
+  1. Each endpoint delegates to JobStateMachineService.transition and accepts the appropriate sub-status/reason payload — confirmed; JobTechnicianTransitionIT all happy-path tests
+  2. /complete is allowed for Technicians only when close_jobs_enabled is enabled — confirmed; completeJob_whenCloseJobsDisabled_returns403 + completeJob_whenCloseJobsEnabled_returns200
+  3. /pending accepts and requires pendingReason from fixed enum — confirmed; step2_pendingWithoutReason_returns422 + pendingJob_withValidReason_returns200
+  4. Tech can only act on their own assigned jobs — confirmed; step3_unassignedTechnician_startJob_returns403
+  5. Each successful call emits a JobStatusChanged event — confirmed; step1 asserts outbox row count = 1
+- Test steps run (7 new tests, all passed):
+  - step1_assignedTechnician_startJob_returns200_inProgressWorking (Step 1: assigned tech starts job → IN_PROGRESS + WORKING) — PASSED
+  - step2_pendingWithoutReason_returns422 (Step 2: /pending without reason → 422 VALIDATION_FAILED) — PASSED
+  - step3_unassignedTechnician_startJob_returns403 (Step 3: unassigned tech → 403 JOB_NOT_ASSIGNED_TO_CALLER) — PASSED
+  - completeJob_whenCloseJobsDisabled_returns403 (Additional: /complete close_jobs_enabled=false → 403 CLOSE_JOBS_DISABLED) — PASSED
+  - pendingJob_withValidReason_returns200 — PASSED
+  - donePendingApproval_returns200 — PASSED
+  - completeJob_whenCloseJobsEnabled_returns200 — PASSED
+  - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 284 tests, 0 failures; jacocoTestCoverageVerification PASSED
+- Open TO-DOs created (with PRD reference): none
+- Completed through TASK-047 (feat/task-053-047-048-job-states-notes): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 053 (see tasks.json)

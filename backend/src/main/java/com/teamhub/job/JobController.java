@@ -1,7 +1,11 @@
 package com.teamhub.job;
 
+import com.teamhub.job.dto.CompleteJobRequest;
 import com.teamhub.job.dto.CreateJobRequest;
+import com.teamhub.job.dto.DonePendingApprovalRequest;
 import com.teamhub.job.dto.JobResponse;
+import com.teamhub.job.dto.PendingJobRequest;
+import com.teamhub.job.dto.StartJobRequest;
 import com.teamhub.job.dto.UpdateJobRequest;
 import com.teamhub.shared.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
@@ -175,6 +179,101 @@ public class JobController {
     UUID tenantId = TenantContext.get();
     UUID actorUserId = extractUserId(authentication);
     return jobService.claim(tenantId, id, actorUserId);
+  }
+
+  /**
+   * Starts a job: transitions {@code ASSIGNED_TO_TECHNICIAN → IN_PROGRESS} with sub-status {@code
+   * WORKING} (PRD §13, TASK-047).
+   *
+   * <p>The calling technician must be assigned to the job; otherwise 403 {@code
+   * JOB_NOT_ASSIGNED_TO_CALLER}.
+   */
+  @PostMapping("/{id}/start")
+  @PreAuthorize("hasAuthority('PERM_job.read.own')")
+  @Operation(
+      summary = "Start a job",
+      description =
+          "Technician transitions the job to IN_PROGRESS / WORKING. Must be the assigned"
+              + " technician (PRD §13).")
+  public JobResponse start(
+      @PathVariable UUID id,
+      @RequestBody(required = false) StartJobRequest request,
+      Authentication authentication) {
+    UUID tenantId = TenantContext.get();
+    UUID actorUserId = extractUserId(authentication);
+    String actorRole = extractRole(authentication);
+    return jobService.startJob(tenantId, id, actorUserId, actorRole);
+  }
+
+  /**
+   * Pauses a job: transitions {@code IN_PROGRESS → PENDING} and records the {@link PendingReason}
+   * (PRD §9.1, §13, TASK-047).
+   *
+   * <p>Returns 422 if {@code pendingReason} is absent. Returns 403 if the caller is not the
+   * assigned technician.
+   */
+  @PostMapping("/{id}/pending")
+  @PreAuthorize("hasAuthority('PERM_job.read.own')")
+  @Operation(
+      summary = "Pause a job",
+      description =
+          "Technician transitions the job to PENDING. pendingReason is required (PRD §9.1).")
+  public JobResponse pending(
+      @PathVariable UUID id,
+      @Valid @RequestBody PendingJobRequest request,
+      Authentication authentication) {
+    UUID tenantId = TenantContext.get();
+    UUID actorUserId = extractUserId(authentication);
+    String actorRole = extractRole(authentication);
+    return jobService.pendingJob(
+        tenantId, id, request.pendingReason(), request.note(), actorUserId, actorRole);
+  }
+
+  /**
+   * Marks a job as done pending approval: transitions {@code IN_PROGRESS → DONE_PENDING_APPROVAL}
+   * (PRD §9.2, §13, TASK-047).
+   *
+   * <p>Returns 403 if the caller is not the assigned technician.
+   */
+  @PostMapping("/{id}/done-pending-approval")
+  @PreAuthorize("hasAuthority('PERM_job.read.own')")
+  @Operation(
+      summary = "Mark a job done pending approval",
+      description =
+          "Technician signals work is complete; Dispatcher/Admin will approve (PRD §9.2).")
+  public JobResponse donePendingApproval(
+      @PathVariable UUID id,
+      @RequestBody(required = false) DonePendingApprovalRequest request,
+      Authentication authentication) {
+    UUID tenantId = TenantContext.get();
+    UUID actorUserId = extractUserId(authentication);
+    String actorRole = extractRole(authentication);
+    String note = request != null ? request.note() : null;
+    return jobService.donePendingApproval(tenantId, id, note, actorUserId, actorRole);
+  }
+
+  /**
+   * Completes a job: transitions {@code IN_PROGRESS → COMPLETED} (PRD §9.3, §13, TASK-047).
+   *
+   * <p>Only allowed when the tenant's {@code close_jobs_enabled} toggle is on (HTTP 403 {@code
+   * CLOSE_JOBS_DISABLED} otherwise). Returns 403 if the caller is not the assigned technician.
+   */
+  @PostMapping("/{id}/complete")
+  @PreAuthorize("hasAuthority('PERM_job.read.own')")
+  @Operation(
+      summary = "Complete a job",
+      description =
+          "Technician marks the job COMPLETED. Requires the tenant Close Jobs toggle to be on"
+              + " (PRD §9.3, §13).")
+  public JobResponse complete(
+      @PathVariable UUID id,
+      @RequestBody(required = false) CompleteJobRequest request,
+      Authentication authentication) {
+    UUID tenantId = TenantContext.get();
+    UUID actorUserId = extractUserId(authentication);
+    String actorRole = extractRole(authentication);
+    String note = request != null ? request.note() : null;
+    return jobService.completeJob(tenantId, id, note, actorUserId, actorRole);
   }
 
   /** Extracts the {@code sub} claim as a UUID from the validated JWT. */

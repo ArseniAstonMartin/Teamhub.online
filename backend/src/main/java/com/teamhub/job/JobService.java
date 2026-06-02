@@ -55,17 +55,21 @@ public class JobService {
 
   private final JobMetrics jobMetrics;
 
+  private final JobStateMachineService jobStateMachineService;
+
   public JobService(
       JobRepository jobRepository,
       CustomerRepository customerRepository,
       JobCustomFieldValidator customFieldValidator,
       OutboxPublisher outboxPublisher,
-      JobMetrics jobMetrics) {
+      JobMetrics jobMetrics,
+      JobStateMachineService jobStateMachineService) {
     this.jobRepository = jobRepository;
     this.customerRepository = customerRepository;
     this.customFieldValidator = customFieldValidator;
     this.outboxPublisher = outboxPublisher;
     this.jobMetrics = jobMetrics;
+    this.jobStateMachineService = jobStateMachineService;
   }
 
   /**
@@ -335,6 +339,130 @@ public class JobService {
 
   private static Point buildPoint(double lon, double lat) {
     return GF.createPoint(new Coordinate(lon, lat));
+  }
+
+  // =========================================================================
+  // Technician transition methods (PRD §9.2, §13, TASK-047)
+  // =========================================================================
+
+  /**
+   * Transitions a job to {@code IN_PROGRESS} with sub-status {@code WORKING} (PRD §13, TASK-047).
+   *
+   * <p>The calling technician must be assigned to the job; otherwise throws {@link
+   * JobNotAssignedToCallerException} (HTTP 403).
+   *
+   * @param tenantId the owning tenant
+   * @param jobId the job to start
+   * @param actorUserId UUID of the calling technician
+   * @param actorRole JWT {@code role} claim (must be {@code "TECHNICIAN"})
+   * @return the updated job as a response DTO
+   * @throws JobNotFoundException if the job does not exist
+   * @throws JobNotAssignedToCallerException if the technician is not assigned to this job
+   * @throws com.teamhub.job.IllegalStateTransitionException if the current status does not allow
+   *     this transition
+   */
+  @Transactional
+  public JobResponse startJob(UUID tenantId, UUID jobId, UUID actorUserId, String actorRole) {
+    Job job = loadActive(tenantId, jobId);
+    requireAssigned(job, actorUserId);
+    job.setInProgressSubstatus(InProgressSubstatus.WORKING);
+    jobStateMachineService.transition(jobId, JobStatus.IN_PROGRESS, actorUserId, actorRole, null);
+    return JobResponse.from(job);
+  }
+
+  /**
+   * Transitions a job to {@code PENDING} and records the {@link PendingReason} (PRD §9.1, §13,
+   * TASK-047).
+   *
+   * <p>The calling technician must be assigned to the job. The {@code pendingReason} is required
+   * (validated at the controller via {@code @NotNull}).
+   *
+   * @param tenantId the owning tenant
+   * @param jobId the job to pause
+   * @param pendingReason the reason the job is being paused (required)
+   * @param note optional free-text note stored in the history row
+   * @param actorUserId UUID of the calling technician
+   * @param actorRole JWT {@code role} claim
+   * @return the updated job as a response DTO
+   * @throws JobNotAssignedToCallerException if the technician is not assigned to this job
+   */
+  @Transactional
+  public JobResponse pendingJob(
+      UUID tenantId,
+      UUID jobId,
+      PendingReason pendingReason,
+      String note,
+      UUID actorUserId,
+      String actorRole) {
+    Job job = loadActive(tenantId, jobId);
+    requireAssigned(job, actorUserId);
+    job.setPendingReason(pendingReason);
+    jobStateMachineService.transition(jobId, JobStatus.PENDING, actorUserId, actorRole, note);
+    return JobResponse.from(job);
+  }
+
+  /**
+   * Transitions a job to {@code DONE_PENDING_APPROVAL} (PRD §9.2, §13, TASK-047).
+   *
+   * <p>The calling technician must be assigned to the job.
+   *
+   * @param tenantId the owning tenant
+   * @param jobId the job to mark as done pending approval
+   * @param note optional free-text note stored in the history row
+   * @param actorUserId UUID of the calling technician
+   * @param actorRole JWT {@code role} claim
+   * @return the updated job as a response DTO
+   * @throws JobNotAssignedToCallerException if the technician is not assigned to this job
+   */
+  @Transactional
+  public JobResponse donePendingApproval(
+      UUID tenantId, UUID jobId, String note, UUID actorUserId, String actorRole) {
+    Job job = loadActive(tenantId, jobId);
+    requireAssigned(job, actorUserId);
+    jobStateMachineService.transition(
+        jobId, JobStatus.DONE_PENDING_APPROVAL, actorUserId, actorRole, note);
+    return JobResponse.from(job);
+  }
+
+  /**
+   * Transitions a job to {@code COMPLETED} (PRD §9.3, §13, TASK-047).
+   *
+   * <p>The calling technician must be assigned to the job. The state machine enforces that the
+   * tenant's {@code close_jobs_enabled} toggle is on, throwing {@link CloseJobsDisabledException}
+   * (HTTP 403) when it is off.
+   *
+   * @param tenantId the owning tenant
+   * @param jobId the job to complete
+   * @param note optional free-text note stored in the history row
+   * @param actorUserId UUID of the calling technician
+   * @param actorRole JWT {@code role} claim
+   * @return the updated job as a response DTO
+   * @throws JobNotAssignedToCallerException if the technician is not assigned to this job
+   * @throws CloseJobsDisabledException if the tenant has not enabled Close Jobs
+   */
+  @Transactional
+  public JobResponse completeJob(
+      UUID tenantId, UUID jobId, String note, UUID actorUserId, String actorRole) {
+    Job job = loadActive(tenantId, jobId);
+    requireAssigned(job, actorUserId);
+    jobStateMachineService.transition(jobId, JobStatus.COMPLETED, actorUserId, actorRole, note);
+    return JobResponse.from(job);
+  }
+
+  // =========================================================================
+  // Private helpers
+  // =========================================================================
+
+  private Job loadActive(UUID tenantId, UUID jobId) {
+    return jobRepository
+        .findByIdAndTenantIdAndArchivedAtIsNull(jobId, tenantId)
+        .orElseThrow(() -> new JobNotFoundException(jobId));
+  }
+
+  private void requireAssigned(Job job, UUID actorUserId) {
+    if (!actorUserId.equals(job.getAssignedTechnicianId())) {
+      throw new JobNotAssignedToCallerException(job.getId());
+    }
   }
 
   /**
