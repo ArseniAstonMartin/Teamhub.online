@@ -1327,3 +1327,67 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 290 tests, 0 failures; jacocoTestCoverageVerification PASSED
 - Open TO-DOs created (with PRD reference): none
 - Completed through TASK-048 (feat/task-053-047-048-job-states-notes): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 048, 053 (see tasks.json)
+
+### 2026-06-02 — TASK-051 — Automation rules CRUD (Admin-only)
+- Agent: Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §16.2, §16.3, §16.4, §5.3
+- Files touched:
+  - backend/src/main/resources/db/migration/V17__automation_rules.sql (new — automation_rules table, RLS policy, index, automation.read permission)
+  - backend/src/main/java/com/teamhub/automation/AutomationRule.java (new — @Entity with JSONB columns trigger_fields/match_rules/actions, priority, soft-delete archivedAt)
+  - backend/src/main/java/com/teamhub/automation/AutomationRuleRepository.java (new — JpaRepository)
+  - backend/src/main/java/com/teamhub/automation/AutomationRuleValidator.java (new — validates field keys against active appointment schema via SchemaRepository)
+  - backend/src/main/java/com/teamhub/automation/AutomationRuleService.java (new — list/get/create/update/archive with validation)
+  - backend/src/main/java/com/teamhub/automation/AutomationRuleController.java (new — GET/POST /api/v1/automations, GET/PATCH/DELETE /api/v1/automations/{id}, PERM_automation.edit)
+  - backend/src/main/java/com/teamhub/automation/AutomationRuleNotFoundException.java (new — 404 domain exception)
+  - backend/src/main/java/com/teamhub/automation/AutomationRuleValidationException.java (new — 422 domain exception)
+  - backend/src/main/java/com/teamhub/automation/dto/CreateAutomationRuleRequest.java (new)
+  - backend/src/main/java/com/teamhub/automation/dto/UpdateAutomationRuleRequest.java (new)
+  - backend/src/main/java/com/teamhub/automation/dto/AutomationRuleResponse.java (new)
+  - backend/src/main/java/com/teamhub/schemas/AppointmentSchemaRepository.java (added findByTenantIdAndActiveTrue)
+  - backend/src/test/java/com/teamhub/automation/AutomationRuleIT.java (new — 6 integration tests covering all 3 test steps)
+  - tasks.json (TASK-051 status → done)
+  - progress.md (this entry)
+- Summary: Implemented the full automation-rules feature per PRD §16.2. V17 migration creates the automation_rules table with JSONB columns, RLS (same NULLIF tenant isolation pattern as jobs), priority ordering, and soft-delete. The AutomationRuleValidator checks every field key in trigger_fields/match_rules/actions against the union of all active appointment-schema fields for the tenant, throwing 422 AUTOMATION_RULE_INVALID on unknown keys. All five CRUD endpoints (list, get, create, update, archive) are Admin-only via PERM_automation.edit. The automation.read permission was added to V17 for future Dispatcher read-only access (§5.4 forward compatibility).
+- Acceptance criteria verified:
+  1. Flyway creates automation_rules with columns from PRD §16.2 + priority int default 100 — confirmed; V17 migration + AutomationRuleIT step1 verifies row persisted
+  2. Endpoints under /api/v1/automations: list, get, create, update, delete (soft) — Admin only — confirmed; all 6 IT tests pass; dispatcher → 403
+  3. trigger_fields, match_rules, actions validated against active appointment schema's field keys — confirmed; step3 + create_withUnknownActionKey_returns422
+- Test steps run (6 new tests, all passed):
+  - step1_adminCreatesLocksmithRule_returns201AndPersisted (Step 1: Admin creates automotive locksmith rule from PRD §16.4 → 201 + persisted) — PASSED
+  - step2_dispatcherCreatesRule_returns403 (Step 2: Dispatcher → 403 FORBIDDEN) — PASSED
+  - step3_updateRuleWithUnknownMatchRulesKey_returns422 (Step 3: PATCH with match_rules.make not in active schema → 422 AUTOMATION_RULE_INVALID) — PASSED
+  - list_asAdmin_returnsActiveRules (Additional: GET /automations returns active rules) — PASSED
+  - delete_asAdmin_softDeletesRule (Additional: DELETE → archived_at set, excluded from list) — PASSED
+  - create_withUnknownActionKey_returns422 (Additional: unknown actions key → 422) — PASSED
+  - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 296 tests, 0 failures; jacocoTestCoverageVerification PASSED
+- Open TO-DOs created (with PRD reference): none
+- Completed through TASK-051 (feat/task-051-052-automations): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 048, 051, 053 (see tasks.json)
+
+### 2026-06-02 — TASK-052 — Automation engine evaluation endpoint
+- Agent: Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §16.3, §16.4, §5.3
+- Files touched:
+  - backend/src/main/java/com/teamhub/automation/dto/EvaluateAutomationsRequest.java (new — draft_fields Map + manually_set_fields Set)
+  - backend/src/main/java/com/teamhub/automation/dto/AutoFilledField.java (new — fieldKey, value, ruleId, ruleName)
+  - backend/src/main/java/com/teamhub/automation/dto/EvaluateAutomationsResponse.java (new — suggestedPatch + autoFilledFields)
+  - backend/src/main/java/com/teamhub/automation/AutomationEngineService.java (new — priority-ordered rule evaluation with trigger + match_rules + _range suffix convention)
+  - backend/src/main/java/com/teamhub/automation/AutomationRuleController.java (added POST /evaluate endpoint with PERM_job.create; moved @PreAuthorize to individual CRUD methods)
+  - backend/src/test/java/com/teamhub/automation/AutomationEngineIT.java (new — 4 integration tests covering all 3 test steps)
+  - tasks.json (TASK-052 status → done)
+  - progress.md (this entry)
+- Summary: Implemented the automation engine per PRD §16.3. AutomationEngineService loads all active non-archived rules ordered by priority ASC, checks trigger_fields presence in draftFields, evaluates match_rules (with _range suffix convention for range-matching, e.g. year_range→year), and applies actions skipping manually-set and already-patched fields (first-match-wins per-field). The evaluate endpoint is stateless (no job ID needed) and secured with PERM_job.create so both ADMIN and DISPATCHER can trigger it during job creation. Engine also returns per-field AutoFilledField detail with ruleId for UI undo affordance.
+- Acceptance criteria verified:
+  1. Engine endpoint POST /api/v1/automations/evaluate accepts draft state and returns suggested_patch + auto_filled_fields — confirmed; step1 asserts all 6 action fields in patch
+  2. User-edited fields tracked via manually_set_fields; engine never overrides those — confirmed; step2 asserts description absent from patch when in manually_set_fields
+  3. First matching rule wins on overlapping fields; subsequent rules fill different fields — confirmed; step3 asserts Rule A (priority 10) wins on difficulty, Rule B fills price_usd
+  4. Returns rule_id so UI can show 'Auto-filled by Rule X' and undo affordance — confirmed; auto_filled_fields array with rule_id in step1
+- Test steps run (4 new tests, all passed):
+  - step1_locksmithDraftAllFields_fillsAllExpectedActions (Step 1: PRD §16.4 example → fills equipment, description, duration_min, duration_max, difficulty, price_usd) — PASSED
+  - step2_descriptionManuallySet_engineSkipsDescription_fillsOthers (Step 2: description in manuallySetFields → skipped; others filled) — PASSED
+  - step3_twoRules_differentPriorities_higherWinsOnOverlap_lowerFillsNonOverlap (Step 3: priority 10 wins on difficulty; priority 50 fills non-overlapping price_usd) — PASSED
+  - evaluate_asTechnician_returns403 (Additional: TECHNICIAN → 403 FORBIDDEN) — PASSED
+  - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 300 tests, 0 failures; jacocoTestCoverageVerification PASSED
+- Open TO-DOs created (with PRD reference): none
+- Completed through TASK-052 (feat/task-051-052-automations): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 048, 051, 052, 053 (see tasks.json)

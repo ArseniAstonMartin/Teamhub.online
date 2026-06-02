@@ -50,4 +50,10 @@ public interface AppointmentSchemaRepository extends JpaRepository<AppointmentSc
    * §5.3, §8.2).
    */
   List<AppointmentSchema> findAllByTenantIdOrderByNameAscVersionDesc(UUID tenantId);
+
+  /**
+   * Returns all currently active schema versions for the given tenant. Used by automation-rule
+   * validation to resolve the full set of known field keys (PRD §16.2; TASK-051).
+   */
+  List<AppointmentSchema> findByTenantIdAndActiveTrue(UUID tenantId);
 }
