@@ -60,4 +60,33 @@ public class UserService {
 
     return userRepository.save(user);
   }
+
+  /**
+   * Creates a new OAuth2 user without a password. Used when an invite is accepted via Google OAuth2
+   * (PRD §6.1, TASK-021). The {@code passwordHash} is left {@code null} — such users authenticate
+   * exclusively through Google and cannot use the password-login endpoint.
+   *
+   * @param tenantId the owning tenant
+   * @param email the user's email address (case-insensitive)
+   * @param role the user's role within the tenant
+   * @param name the user's display name
+   * @return the persisted {@link User}
+   * @throws UserAlreadyExistsException if the email is already registered
+   * @throws IllegalArgumentException if the tenant does not exist
+   */
+  @Transactional
+  public User createOAuth2User(UUID tenantId, String email, UserRole role, String name) {
+    if (userRepository.existsByEmail(email)) {
+      throw new UserAlreadyExistsException(email);
+    }
+
+    Tenant tenant =
+        tenantRepository
+            .findById(tenantId)
+            .orElseThrow(() -> new IllegalArgumentException("Tenant not found: " + tenantId));
+
+    User user = new User(tenant, email, role, name);
+    // passwordHash intentionally null: OAuth2 users authenticate via Google, not password.
+    return userRepository.save(user);
+  }
 }

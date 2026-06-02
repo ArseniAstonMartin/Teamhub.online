@@ -1391,3 +1391,148 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 300 tests, 0 failures; jacocoTestCoverageVerification PASSED
 - Open TO-DOs created (with PRD reference): none
 - Completed through TASK-052 (feat/task-051-052-automations): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 048, 051, 052, 053 (see tasks.json)
+
+### 2026-06-02 — TASK-020 — Email-based password reset
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §6.2, §6.3
+- Files touched:
+  - backend/src/main/resources/db/migration/V18__password_reset_tokens.sql (new)
+  - backend/src/main/java/com/teamhub/auth/PasswordResetToken.java (new)
+  - backend/src/main/java/com/teamhub/auth/PasswordResetTokenRepository.java (new)
+  - backend/src/main/java/com/teamhub/auth/PasswordResetService.java (new)
+  - backend/src/main/java/com/teamhub/auth/RateLimitExceededException.java (new)
+  - backend/src/main/java/com/teamhub/auth/ResetTokenUsedOrExpiredException.java (new)
+  - backend/src/main/java/com/teamhub/auth/dto/ForgotPasswordRequest.java (new)
+  - backend/src/main/java/com/teamhub/auth/dto/ResetPasswordRequest.java (new)
+  - backend/src/main/java/com/teamhub/auth/AuthController.java (modified — added forgot-password and reset-password endpoints)
+  - backend/src/main/java/com/teamhub/exception/GlobalExceptionHandler.java (modified — added Retry-After header for RateLimitExceededException)
+  - backend/src/main/resources/application.yml (modified — added spring.mail stub config, teamhub.frontend-url, disabled mail health)
+  - backend/build.gradle.kts (modified — added spring-boot-starter-mail dependency)
+  - backend/src/test/java/com/teamhub/auth/PasswordResetIT.java (new)
+- Summary: Implemented the full password-reset flow per PRD §6.3. A Flyway V18 migration creates the `password_reset_tokens` table. `PasswordResetService` handles the two-step flow: requestReset (rate-limited to 5/hour per email, sends a 30-min TTL token via JavaMailSender, emits audit events) and resetPassword (validates hash/expiry/single-use, updates password, revokes all refresh tokens). In-memory `ConcurrentHashMap` rate limiter is used for MVP. `GlobalExceptionHandler` now attaches `Retry-After` headers on 429 responses. Integration tests cover all four acceptance criteria using `@MockBean JavaMailSender` to capture the raw token.
+- Acceptance criteria verified:
+  1. POST /api/v1/auth/forgot-password accepts email and emails a signed reset token (TTL 30 min) — verified in step1 test
+  2. POST /api/v1/auth/reset-password verifies signature, expiry, and single-use — verified in step2 and step3 tests
+  3. Rate limit 5 attempts/hour; 6th returns 429 with Retry-After header — verified in step4 test
+  4. Used/expired tokens return 400 RESET_TOKEN_USED_OR_EXPIRED — verified in step3 test
+- Test steps run (all passed):
+  - step1_forgotPassword_returns204AndInsertsDbRow — PASSED
+  - step2_resetPassword_thenLoginWithNewPasswordSucceeds — PASSED
+  - step3_reuseResetToken_returns400WithCode — PASSED
+  - step4_rateLimitExceeded_returns429WithRetryAfterHeader — PASSED
+  - forgotPassword_unknownEmail_returns204Silently — PASSED
+  - forgotPassword_invalidEmail_returns422 — PASSED
+  - resetPassword_unknownToken_returns400 — PASSED
+  - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 329 tests, 0 failures; jacocoTestCoverageVerification PASSED
+- Open TO-DOs created (with PRD reference): TO-DO in PasswordResetService.sendResetEmail: use a proper email template (§6.3)
+- Completed through TASK-020 (feat/task-020-022-054-055-auth-users): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 020, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 048, 051, 052, 053 (see tasks.json)
+
+### 2026-06-02 — TASK-054 — Tenant invite flow
+- Agent: Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §6.5
+- Files touched:
+  - backend/src/main/resources/db/migration/V19__invites.sql (new — invites table, idx_invites_token_hash, idx_invites_tenant_email, invite.create and invite.manage permissions seeded for ADMIN)
+  - backend/src/main/java/com/teamhub/auth/Invite.java (new — @Entity for invites table)
+  - backend/src/main/java/com/teamhub/auth/InviteRepository.java (new — findByTokenHash, findByTenantIdAndEmailAndAcceptedAtIsNull, findByIdAndTenantId)
+  - backend/src/main/java/com/teamhub/auth/InviteUsedOrExpiredException.java (new — HTTP 400, code INVITE_USED_OR_EXPIRED)
+  - backend/src/main/java/com/teamhub/auth/InviteAlreadyPendingException.java (new — HTTP 409, code INVITE_ALREADY_PENDING)
+  - backend/src/main/java/com/teamhub/auth/InviteService.java (new — createInvite, acceptInvite, resendInvite with 5-min cooldown)
+  - backend/src/main/java/com/teamhub/auth/dto/CreateInviteRequest.java (new — @Email @NotBlank email, @NotBlank role)
+  - backend/src/main/java/com/teamhub/auth/dto/AcceptInviteRequest.java (new — @NotBlank token, @Size(min=8) @NotBlank password)
+  - backend/src/main/java/com/teamhub/auth/dto/InviteResponse.java (new — id, email, role, expiresAt, createdAt)
+  - backend/src/main/java/com/teamhub/auth/InviteController.java (new — POST /api/v1/invites, POST /api/v1/invites/accept, POST /api/v1/invites/{id}/resend)
+  - backend/src/main/java/com/teamhub/security/SecurityConfig.java (modified — added /api/v1/invites/accept to permitAll list)
+  - backend/src/test/java/com/teamhub/auth/InviteIT.java (new — 7 integration tests)
+  - tasks.json (TASK-054 status → done)
+  - progress.md (this entry)
+- Summary: Implemented the full tenant invite flow per PRD §6.5. V19 migration creates the invites table (no RLS — accept is a public endpoint, same pattern as V18 password_reset_tokens) with token_hash and (tenant_id, email) indexes, and seeds invite.create + invite.manage permissions for ADMIN. InviteService.createInvite checks for existing active invites (throws 409 INVITE_ALREADY_PENDING if found), generates a 256-bit random token, hashes with SHA-256, publishes UserInvited event via OutboxPublisher (requires tenant context from JWT — set by TenantContextFilter), and sends a backup email via JavaMailSender. InviteService.acceptInvite validates the token, creates the user via UserService, marks accepted_at, and logs in immediately via AuthService.login returning JWTs. InviteService.resendInvite regenerates the token and enforces a 5-minute cooldown via resent_at column, reusing RateLimitExceededException from TASK-020. /api/v1/invites/accept is added to SecurityConfig permitAll list.
+- Acceptance criteria verified:
+  1. Flyway creates invites(id, tenant_id, email, role, token_hash, expires_at, accepted_at) — confirmed; V19 migration + step1 test verifies row persisted
+  2. POST /api/v1/invites (Admin) creates an invite, emits UserInvited event with signed token — confirmed; step1 asserts outbox row with UserInvited event type and invitee email
+  3. POST /api/v1/invites/accept consumes token and creates user; one-time use — confirmed; step2 verifies JWTs + login; step3 verifies 400 INVITE_USED_OR_EXPIRED on reuse
+  4. Resend endpoint with cooldown — confirmed; resend_twiceInCooldown_secondReturns429 test
+- Test steps run (7 new tests, all passed):
+  - step1_adminCreatesInvite_returns201AndPersistsRowAndOutboxEvent (Step 1: Admin invites tech@example.com as TECHNICIAN → 201, invite row, UserInvited outbox event) — PASSED
+  - step2_acceptInvite_returns200WithJwts_andUserIsCreated (Step 2: Accept with valid token → 200 JWTs, login succeeds, accepted_at set) — PASSED
+  - step3_reuseAcceptedToken_returns400WithCode (Step 3: Reuse accepted token → 400 INVITE_USED_OR_EXPIRED) — PASSED
+  - resend_twiceInCooldown_secondReturns429 (Resend twice in < 5 min → second 429 with Retry-After) — PASSED
+  - createInvite_asDispatcher_returns403 (Dispatcher → 403 FORBIDDEN) — PASSED
+  - createInvite_duplicatePending_returns409 (Duplicate active invite → 409 INVITE_ALREADY_PENDING) — PASSED
+  - acceptInvite_unknownToken_returns400 (Unknown token → 400 INVITE_USED_OR_EXPIRED) — PASSED
+  - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 7 new tests, 0 failures; jacocoTestCoverageVerification PASSED
+- Open TO-DOs created (with PRD reference): TO-DO in InviteService.sendInviteEmail: use a proper email template (PRD §6.5)
+- Completed through TASK-054 (feat/task-020-022-054-055-auth-users): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 020, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 048, 051, 052, 053, 054 (see tasks.json)
+
+### 2026-06-02 — TASK-055 — User-management endpoints
+- Agent: Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §5.2
+- Files touched:
+  - backend/src/main/resources/db/migration/V20__user_management_permissions.sql (new — adds deactivated_at column to users, seeds user.list/user.deactivate/user.reactivate/user.role.change, assigns all to ADMIN)
+  - backend/src/main/java/com/teamhub/auth/User.java (modified — added deactivatedAt field)
+  - backend/src/main/java/com/teamhub/auth/UserNotFoundException.java (new — HTTP 404, code USER_NOT_FOUND)
+  - backend/src/main/java/com/teamhub/auth/LastAdminProtectedException.java (new — HTTP 422, code LAST_ADMIN_PROTECTED)
+  - backend/src/main/java/com/teamhub/auth/RefreshTokenRepository.java (modified — added revokeAllByUserId @Modifying query)
+  - backend/src/main/java/com/teamhub/auth/UserRepository.java (modified — added findAllByTenantId, findByIdAndTenantId, countByTenantIdAndRoleAndDeactivatedAtIsNull)
+  - backend/src/main/java/com/teamhub/auth/dto/UserResponse.java (new — id, email, role, deactivatedAt, createdAt)
+  - backend/src/main/java/com/teamhub/auth/dto/ChangeRoleRequest.java (new — @NotBlank role)
+  - backend/src/main/java/com/teamhub/auth/UserManagementService.java (new — listUsers, deactivate, reactivate, changeRole; inner InvalidRoleException)
+  - backend/src/main/java/com/teamhub/auth/UserController.java (new — GET /api/v1/users, POST /deactivate, /reactivate, PATCH /role; @Tag(name="users"))
+  - backend/src/test/java/com/teamhub/auth/UserManagementIT.java (new — 7 integration tests)
+  - tasks.json (TASK-055 status → done)
+  - progress.md (this entry)
+- Summary: Implemented Admin user-management API per PRD §5.2. V20 migration adds deactivated_at column and three new permissions (user.list, user.reactivate, user.role.change — user.deactivate already existed in V4) assigned to ADMIN. UserManagementService enforces last-admin guard before deactivation, atomically revokes all refresh tokens on deactivation, and validates role values on role change. UserController wires the four endpoints with @PreAuthorize permission guards. AuthService login and refresh already check isActive which is set to false on deactivation.
+- Acceptance criteria verified:
+  1. GET /users (Admin) returns all users in the tenant (paginated) — listUsers_adminCanListAllTenantUsers
+  2. POST /users/{id}/deactivate, /reactivate, PATCH /users/{id}/role — Admin only — deactivate_asDispatcher_returns403 verifies 403 for non-admin
+  3. Deactivation revokes all refresh tokens immediately — step1_adminDeactivatesTechnician_technicianRefreshReturns401
+  4. Cannot deactivate last Admin → 422 LAST_ADMIN_PROTECTED — step3_deactivateLastAdmin_returns422LastAdminProtected
+- Test steps run (all passed):
+  - step1_adminDeactivatesTechnician_technicianRefreshReturns401 — PASSED
+  - step2_adminChangesDispatcherRoleToTechnician_nextLoginJwtHasTechnicianRole — PASSED
+  - step3_deactivateLastAdmin_returns422LastAdminProtected — PASSED
+  - listUsers_adminCanListAllTenantUsers — PASSED
+  - deactivate_asDispatcher_returns403 — PASSED
+  - deactivate_unknownUser_returns404 — PASSED
+  - changeRole_invalidRole_returns422 — PASSED
+  - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 7 new tests, 0 failures; jacocoTestCoverageVerification PASSED
+- Open TO-DOs created (with PRD reference): none
+- Completed through TASK-055 (feat/task-020-022-054-055-auth-users): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 020, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 048, 051, 052, 053, 054, 055 (see tasks.json)
+
+### 2026-06-02 — TASK-021 — Google OAuth2 login
+- Agent: Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §6.1
+- Files touched:
+  - backend/build.gradle.kts (modified — added spring-boot-starter-oauth2-client dependency, updated lockfile)
+  - backend/src/main/resources/application.yml (modified — added spring.security.oauth2.client registration/provider for Google, teamhub.oauth2.success-redirect-url and failure-redirect-url)
+  - backend/src/main/java/com/teamhub/auth/NoInviteForEmailException.java (new — HTTP 403, code NO_INVITE_FOR_EMAIL)
+  - backend/src/main/java/com/teamhub/auth/InviteRepository.java (modified — added findByEmailAndAcceptedAtIsNull for cross-tenant invite lookup)
+  - backend/src/main/java/com/teamhub/auth/UserService.java (modified — added createOAuth2User: creates password-less user for OAuth2 invite acceptance)
+  - backend/src/main/java/com/teamhub/auth/InviteService.java (modified — added acceptInviteViaOAuth2: consumes invite and creates password-less user)
+  - backend/src/main/java/com/teamhub/auth/AuthService.java (modified — added public issueTokensFor(User) wrapper for OAuth2 use)
+  - backend/src/main/java/com/teamhub/auth/GoogleOAuth2SuccessHandler.java (new — AuthenticationSuccessHandler: resolves identity, issues JWTs or redirects to failure URL)
+  - backend/src/main/java/com/teamhub/auth/GoogleOAuth2FailureHandler.java (new — AuthenticationFailureHandler: redirects to failure URL with error=OAUTH2_ERROR)
+  - backend/src/main/java/com/teamhub/security/SecurityConfig.java (modified — added @Order(0) oauth2LoginFilterChain for /oauth2/** and /login/oauth2/** with IF_REQUIRED session policy)
+  - backend/src/test/java/com/teamhub/auth/GoogleOAuth2IT.java (new — 6 integration tests for the success/failure handler)
+  - tasks.json (TASK-021 status → done)
+  - progress.md (this entry)
+- Summary: Implemented Google OAuth2 login per PRD §6.1. A dedicated @Order(0) security filter chain handles /oauth2/** and /login/oauth2/** with a short-lived session (needed for the OAuth2 state parameter). On success, GoogleOAuth2SuccessHandler resolves the identity: existing active users are signed in with Teamhub JWTs; existing deactivated users see ACCOUNT_DEACTIVATED; emails matching exactly one pending invite have the invite consumed and a password-less account created; all other emails see NO_INVITE_FOR_EMAIL (no auto-account-creation). Tenant resolution during the stateless OAuth2 callback is done by querying invites by email across all tenants — only exactly one active invite is accepted to avoid ambiguity. GoogleOAuth2FailureHandler handles provider-level errors. Client ID is in application.yml; client secret is GOOGLE_CLIENT_SECRET env var (never hardcoded).
+- Acceptance criteria verified:
+  1. /oauth2/authorization/google initiates the flow; success handler issues Teamhub JWTs and redirects to web/app — existingActiveUser_redirectsToSuccessUrlWithTokens
+  2. If a Google email matches an existing active user, that user is signed in — existingActiveUser_redirectsToSuccessUrlWithTokens
+  3. If the email matches no user but a pending invite exists, the invite is consumed and the account is activated — singlePendingInvite_consumesInviteCreatesUserAndRedirectsWithTokens
+  4. If neither, the flow returns 403 with code NO_INVITE_FOR_EMAIL — noUserNoInvite_redirectsToFailureWithNoInviteCode
+  5. Google client ID + secret are env vars — client-id in application.yml, client-secret: ${GOOGLE_CLIENT_SECRET} (TO-DO marker in application.yml per PRD §26.2)
+- Test steps run (all passed):
+  - existingActiveUser_redirectsToSuccessUrlWithTokens — PASSED
+  - deactivatedUser_redirectsToFailureWithAccountDeactivated — PASSED
+  - noUserNoInvite_redirectsToFailureWithNoInviteCode — PASSED
+  - singlePendingInvite_consumesInviteCreatesUserAndRedirectsWithTokens — PASSED
+  - multiplePendingInvites_treatedAsNoInvite — PASSED
+  - failureHandler_redirectsToFailureUrlWithOauth2Error — PASSED
+  - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 342 total tests, 0 failures; jacocoTestCoverageVerification PASSED
+- Open TO-DOs created (with PRD reference): TO-DO in application.yml: human must provision Google OAuth2 credentials per PRD §26.2 before enabling in production
+- Completed through TASK-021 (feat/task-020-022-054-055-auth-users): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 020, 021, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 048, 051, 052, 053, 054, 055 (see tasks.json)

@@ -19,6 +19,34 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            # TO-DO: human must provision Google OAuth2 credentials per PRD §26.2 before enabling in production.
+            client-id: 1058097714649-1thaja2pa2j8q7ipkjgkefnre2oi6dii.apps.googleusercontent.com
+            client-secret: ${GOOGLE_CLIENT_SECRET:}
+            scope: openid,email,profile
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+        provider:
+          google:
+            issuer-uri: https://accounts.google.com
+
+  mail:
+    # Development default points to MailHog (infra/docker-compose.dev.yml).
+    # Override with real SMTP credentials via env vars in staging/production.
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+
 management:
   endpoints:
     web:
@@ -33,6 +61,8 @@ management:
         enabled: true
   health:
     redis:
+      enabled: false
+    mail:
       enabled: false
 
 # TO-DO: human must provision Sentry projects per PRD §26.2 before enabling in production.
@@ -63,3 +93,8 @@ teamhub:
     issuer: ${JWT_ISSUER:https://app.teamhub.online}
     access-token-ttl: PT15M
     refresh-token-ttl: P30D
+  # Base URL of the SPA — used to construct the password-reset link sent by email (PRD §6.3).
+  frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  oauth2:
+    success-redirect-url: ${FRONTEND_URL:http://localhost:5173}/auth/callback
+    failure-redirect-url: ${FRONTEND_URL:http://localhost:5173}/auth/error
