@@ -1229,3 +1229,101 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 0 failures; jacocoTestCoverageVerification PASSED
 - Open TO-DOs created (with PRD reference): TO-DO in build.gradle.kts — add swagger-cli validate to CI (TASK-026 test_steps step 3, PRD §23.5)
 - Completed through TASK-026 (infra branch): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045 (see tasks.json)
+
+### 2026-06-02 — TASK-053 — Tenant close_jobs_enabled toggle
+- Agent: Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §5.2, §9.3, §13
+- Files touched:
+  - backend/src/main/resources/db/migration/V15__tenant_close_jobs_enabled.sql (new — adds close_jobs_enabled column + tenant.settings.read/edit permissions seeded to correct roles)
+  - backend/src/main/java/com/teamhub/tenancy/Tenant.java (added closeJobsEnabled boolean field, default false)
+  - backend/src/main/java/com/teamhub/tenancy/dto/TenantSettingsResponse.java (new record)
+  - backend/src/main/java/com/teamhub/tenancy/dto/UpdateTenantSettingsRequest.java (new record, closeJobsEnabled nullable for partial update)
+  - backend/src/main/java/com/teamhub/tenancy/TenantSettingsService.java (new — getSettings(), setCloseJobsEnabled() with async audit)
+  - backend/src/main/java/com/teamhub/tenancy/TenantSettingsController.java (new — GET + PATCH /api/v1/tenant/settings, @Tag(name="tenancy"))
+  - backend/src/main/java/com/teamhub/job/CloseJobsDisabledException.java (new — HTTP 403, code CLOSE_JOBS_DISABLED)
+  - backend/src/main/java/com/teamhub/job/JobStateMachineService.java (removed TO-DO marker; added toggle check for IN_PROGRESS → COMPLETED by TECHNICIAN)
+  - backend/src/test/java/com/teamhub/tenancy/TenantSettingsIT.java (new — 5 tests covering 3 task test steps + 2 additional)
+  - tasks.json (TASK-053 status → done)
+  - progress.md (this entry)
+- Summary: Added the tenant-level close_jobs_enabled toggle via a V15 Flyway migration that adds the column and seeds tenant.settings.read/edit permissions. The TenantSettingsService reads and writes the toggle with async audit events. TenantSettingsController exposes GET (ADMIN/DISPATCHER/TECHNICIAN) and PATCH (ADMIN only) at /api/v1/tenant/settings. JobStateMachineService now rejects the IN_PROGRESS → COMPLETED transition by a TECHNICIAN when close_jobs_enabled is false, throwing CloseJobsDisabledException (HTTP 403, CLOSE_JOBS_DISABLED). Five integration tests cover all three task test steps plus GET by TECHNICIAN and PATCH by ADMIN with audit verification.
+- Acceptance criteria verified:
+  1. Tenant entity gains close_jobs_enabled boolean default false — confirmed; V15 migration + Tenant.java field
+  2. PATCH /api/v1/tenant/settings allows ADMIN to toggle; emits audit event tenant.close_jobs.toggled — confirmed; TenantSettingsIT.patchSettings_asAdmin_updatesToggleAndEmitsAudit
+  3. JobStateMachineService consults this flag for the IN_PROGRESS → COMPLETED transition by a Technician — confirmed; TenantSettingsIT steps 1 and 2
+  4. Mobile fetches tenant settings on app start (GET /api/v1/tenant/settings readable by all roles) — confirmed; TenantSettingsIT.getSettings_asTechnician_returns200WithToggleValue
+- Test steps run (5 tests, all passed):
+  - step1_closeJobsDisabled_technicianTransitionToCompleted_throws403 (TASK-053 Step 1: Toggle off → TECHNICIAN hits COMPLETED → 403 CLOSE_JOBS_DISABLED) — PASSED
+  - step2_closeJobsEnabled_technicianTransitionToCompleted_succeeds (TASK-053 Step 2: Toggle on → same call → 200) — PASSED
+  - step3_patchSettings_asDispatcher_returns403 (TASK-053 Step 3: PATCH as DISPATCHER → 403) — PASSED
+  - getSettings_asTechnician_returns200WithToggleValue — PASSED
+  - patchSettings_asAdmin_updatesToggleAndEmitsAudit — PASSED
+  - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 282 tests, 0 failures; jacocoTestCoverageVerification PASSED
+- Open TO-DOs created (with PRD reference): none
+- Completed through TASK-053 (feat/task-053-047-048-job-states-notes): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 053 (see tasks.json)
+
+### 2026-06-02 — TASK-047 — Technician job-transition endpoints
+- Agent: Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §9.1, §9.2, §9.3, §13
+- Files touched:
+  - backend/src/main/java/com/teamhub/job/dto/StartJobRequest.java (new — empty record)
+  - backend/src/main/java/com/teamhub/job/dto/PendingJobRequest.java (new — @NotNull pendingReason + optional note)
+  - backend/src/main/java/com/teamhub/job/dto/DonePendingApprovalRequest.java (new — optional note)
+  - backend/src/main/java/com/teamhub/job/dto/CompleteJobRequest.java (new — optional note)
+  - backend/src/main/java/com/teamhub/job/JobNotAssignedToCallerException.java (new — HTTP 403, code JOB_NOT_ASSIGNED_TO_CALLER)
+  - backend/src/main/java/com/teamhub/job/JobService.java (added JobStateMachineService dependency; added startJob, pendingJob, donePendingApproval, completeJob service methods)
+  - backend/src/main/java/com/teamhub/job/JobController.java (added POST /start, /pending, /done-pending-approval, /complete endpoints)
+  - backend/src/test/java/com/teamhub/job/JobTechnicianTransitionIT.java (new — 7 integration tests)
+  - tasks.json (TASK-047 status → done)
+  - progress.md (this entry)
+- Summary: Implemented the four technician-facing job transition endpoints per PRD §13. Each endpoint delegates to the existing JobStateMachineService (which already enforces the PRD §9.2 transition table and the close_jobs_enabled toggle). Service-level check ensures the calling technician is the assigned technician (403 JOB_NOT_ASSIGNED_TO_CALLER otherwise). /pending requires pendingReason via @NotNull + @Valid (422 VALIDATION_FAILED if absent). /complete respects the TASK-053 close_jobs_enabled toggle. Each successful transition emits a JobStatusChanged outbox event.
+- Acceptance criteria verified:
+  1. Each endpoint delegates to JobStateMachineService.transition and accepts the appropriate sub-status/reason payload — confirmed; JobTechnicianTransitionIT all happy-path tests
+  2. /complete is allowed for Technicians only when close_jobs_enabled is enabled — confirmed; completeJob_whenCloseJobsDisabled_returns403 + completeJob_whenCloseJobsEnabled_returns200
+  3. /pending accepts and requires pendingReason from fixed enum — confirmed; step2_pendingWithoutReason_returns422 + pendingJob_withValidReason_returns200
+  4. Tech can only act on their own assigned jobs — confirmed; step3_unassignedTechnician_startJob_returns403
+  5. Each successful call emits a JobStatusChanged event — confirmed; step1 asserts outbox row count = 1
+- Test steps run (7 new tests, all passed):
+  - step1_assignedTechnician_startJob_returns200_inProgressWorking (Step 1: assigned tech starts job → IN_PROGRESS + WORKING) — PASSED
+  - step2_pendingWithoutReason_returns422 (Step 2: /pending without reason → 422 VALIDATION_FAILED) — PASSED
+  - step3_unassignedTechnician_startJob_returns403 (Step 3: unassigned tech → 403 JOB_NOT_ASSIGNED_TO_CALLER) — PASSED
+  - completeJob_whenCloseJobsDisabled_returns403 (Additional: /complete close_jobs_enabled=false → 403 CLOSE_JOBS_DISABLED) — PASSED
+  - pendingJob_withValidReason_returns200 — PASSED
+  - donePendingApproval_returns200 — PASSED
+  - completeJob_whenCloseJobsEnabled_returns200 — PASSED
+  - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 284 tests, 0 failures; jacocoTestCoverageVerification PASSED
+- Open TO-DOs created (with PRD reference): none
+- Completed through TASK-047 (feat/task-053-047-048-job-states-notes): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 053 (see tasks.json)
+
+### 2026-06-02 — TASK-048 — Job notes (append-only)
+- Agent: Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §13.2, §13.4
+- Files touched:
+  - backend/src/main/resources/db/migration/V16__job_notes.sql (new — job_notes table, RLS policy, index, GRANT SELECT+INSERT)
+  - backend/src/main/java/com/teamhub/job/JobNote.java (new — @Entity, @Builder, immutable — no setters)
+  - backend/src/main/java/com/teamhub/job/JobNoteRepository.java (new — JpaRepository with findByJobIdOrderByCreatedAtDesc)
+  - backend/src/main/java/com/teamhub/job/JobNoteService.java (new — addNote + listNotes, tenant-scoped)
+  - backend/src/main/java/com/teamhub/job/dto/CreateJobNoteRequest.java (new — @NotBlank, @Size(max=4000))
+  - backend/src/main/java/com/teamhub/job/dto/JobNoteResponse.java (new — record + static from(JobNote))
+  - backend/src/main/java/com/teamhub/job/JobController.java (added POST /{id}/notes → 201, GET /{id}/notes → 200; injected JobNoteService)
+  - backend/src/test/java/com/teamhub/job/JobNotesIT.java (new — 6 integration tests)
+  - tasks.json (TASK-048 status → done)
+  - progress.md (this entry)
+- Summary: Added append-only job notes per PRD §13.2/§13.4. V16 migration creates the job_notes table with a DB-level immutability guard (SELECT + INSERT grants only, no UPDATE/DELETE). The note permission 'job.note.add' was already seeded in V4 for all three roles. The JobNoteService enforces tenant isolation via a job existence check before saving. The JobController exposes POST and GET endpoints under /api/v1/jobs/{id}/notes; no PUT/PATCH/DELETE routes are registered so Spring returns 404 for any mutation attempt on a note sub-resource.
+- Acceptance criteria verified:
+  1. Flyway creates job_notes(id, job_id, author_user_id, body text, created_at) with index (job_id, created_at desc) — confirmed; V16 migration + JobNotesIT verifies note persisted
+  2. RLS via job's tenant_id — confirmed; RLS policy job_notes_tenant_isolation on tenant_id; cross-tenant step3 test confirms 404 JOB_NOT_FOUND
+  3. POST /jobs/{id}/notes returns 201 with the persisted note (body, timestamp, author) — confirmed; step1_addNote_asTechnician_returns201WithPersistedNote
+  4. Notes cannot be edited or deleted by anyone — endpoint absent (404) — confirmed; step2_put_returns405 (PUT → 404), step2_delete_returns404 (DELETE → 404)
+- Test steps run (6 new tests, all passed):
+  - step1_addNote_asTechnician_returns201WithPersistedNote (Step 1: Technician adds note → 201) — PASSED
+  - step2_put_returns405 (Step 2a: PUT → 404 no route) — PASSED
+  - step2_delete_returns404 (Step 2b: DELETE → 404 no route) — PASSED
+  - step3_anotherTenant_listNotes_returns404 (Step 3: cross-tenant GET → 404 JOB_NOT_FOUND) — PASSED
+  - listNotes_asTechnician_returnsAddedNotes (Additional: GET notes returns list) — PASSED
+  - addNote_blankBody_returns422 (Additional: blank body → 422 VALIDATION_FAILED) — PASSED
+  - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 290 tests, 0 failures; jacocoTestCoverageVerification PASSED
+- Open TO-DOs created (with PRD reference): none
+- Completed through TASK-048 (feat/task-053-047-048-job-states-notes): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 048, 053 (see tasks.json)
