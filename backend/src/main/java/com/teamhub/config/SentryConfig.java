@@ -9,8 +9,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Attaches MDC context (tenant_id, user_id, request_id) as Sentry tags and user info on every
- * event so that errors can be correlated across tenants and requests in the Sentry dashboard.
+ * Attaches MDC context (tenant_id, user_id, request_id) as Sentry tags and user info on every event
+ * so that errors can be correlated across tenants and requests in the Sentry dashboard.
  *
  * <p>MDC keys are populated by the request-scoped filter defined in TASK-013. Until that filter
  * exists the tags will be absent but the event will still be captured.
