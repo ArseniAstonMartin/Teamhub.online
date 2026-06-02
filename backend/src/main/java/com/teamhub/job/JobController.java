@@ -10,6 +10,11 @@ import com.teamhub.job.dto.PendingJobRequest;
 import com.teamhub.job.dto.StartJobRequest;
 import com.teamhub.job.dto.UpdateJobRequest;
 import com.teamhub.shared.TenantContext;
+import com.teamhub.storage.PhotoUploadService;
+import com.teamhub.storage.dto.ConfirmUploadRequest;
+import com.teamhub.storage.dto.GenerateUploadUrlRequest;
+import com.teamhub.storage.dto.JobPhotoResponse;
+import com.teamhub.storage.dto.UploadUrlResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -65,9 +70,13 @@ public class JobController {
 
   private final JobNoteService jobNoteService;
 
-  public JobController(JobService jobService, JobNoteService jobNoteService) {
+  private final PhotoUploadService photoUploadService;
+
+  public JobController(
+      JobService jobService, JobNoteService jobNoteService, PhotoUploadService photoUploadService) {
     this.jobService = jobService;
     this.jobNoteService = jobNoteService;
+    this.photoUploadService = photoUploadService;
   }
 
   /**
@@ -321,6 +330,55 @@ public class JobController {
   public List<JobNoteResponse> listNotes(@PathVariable UUID id) {
     UUID tenantId = TenantContext.get();
     return jobNoteService.listNotes(tenantId, id);
+  }
+
+  // =========================================================================
+  // Photo upload endpoints (PRD §14.2, §14.3; TASK-049)
+  // =========================================================================
+
+  /**
+   * Generates a pre-signed PUT URL for uploading a photo (PRD §14.2; TASK-049).
+   *
+   * <p>Allowed content types: image/jpeg, image/png, image/heic, image/webp (PRD §14.3). Returns
+   * 422 {@code UNSUPPORTED_MIME} for any other type.
+   */
+  @PostMapping("/{id}/photo-upload-url")
+  @PreAuthorize("hasAuthority('PERM_photo.upload')")
+  @Operation(
+      summary = "Generate a pre-signed photo upload URL",
+      description =
+          "Returns a PUT URL valid for 5 min. Allowed types: image/jpeg, png, heic, webp"
+              + " (PRD §14.3).")
+  public UploadUrlResponse generatePhotoUploadUrl(
+      @PathVariable UUID id,
+      @Valid @RequestBody GenerateUploadUrlRequest request,
+      Authentication authentication) {
+    UUID tenantId = TenantContext.get();
+    UUID actorUserId = extractUserId(authentication);
+    return photoUploadService.generateUploadUrl(
+        tenantId, id, actorUserId, request.contentType(), request.fileExtension());
+  }
+
+  /**
+   * Confirms a completed photo upload by persisting metadata and publishing a {@code PhotoUploaded}
+   * event (PRD §14.2; TASK-049).
+   *
+   * <p>Returns 422 {@code PHOTO_TOO_LARGE} if {@code sizeBytes} exceeds 20 MB.
+   */
+  @PostMapping("/{id}/photos")
+  @PreAuthorize("hasAuthority('PERM_photo.upload')")
+  @Operation(
+      summary = "Confirm a photo upload",
+      description = "Persists photo metadata and emits PhotoUploaded event. Max 20 MB (PRD §14.3).")
+  public ResponseEntity<JobPhotoResponse> confirmPhotoUpload(
+      @PathVariable UUID id,
+      @Valid @RequestBody ConfirmUploadRequest request,
+      Authentication authentication) {
+    UUID tenantId = TenantContext.get();
+    UUID actorUserId = extractUserId(authentication);
+    JobPhotoResponse response =
+        photoUploadService.confirmUpload(tenantId, id, actorUserId, request);
+    return ResponseEntity.status(HttpStatus.CREATED).body(response);
   }
 
   /** Extracts the {@code sub} claim as a UUID from the validated JWT. */
