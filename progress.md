@@ -1464,3 +1464,39 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 7 new tests, 0 failures; jacocoTestCoverageVerification PASSED
 - Open TO-DOs created (with PRD reference): TO-DO in InviteService.sendInviteEmail: use a proper email template (PRD §6.5)
 - Completed through TASK-054 (feat/task-020-022-054-055-auth-users): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 020, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 048, 051, 052, 053, 054 (see tasks.json)
+
+### 2026-06-02 — TASK-055 — User-management endpoints
+- Agent: Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §5.2
+- Files touched:
+  - backend/src/main/resources/db/migration/V20__user_management_permissions.sql (new — adds deactivated_at column to users, seeds user.list/user.deactivate/user.reactivate/user.role.change, assigns all to ADMIN)
+  - backend/src/main/java/com/teamhub/auth/User.java (modified — added deactivatedAt field)
+  - backend/src/main/java/com/teamhub/auth/UserNotFoundException.java (new — HTTP 404, code USER_NOT_FOUND)
+  - backend/src/main/java/com/teamhub/auth/LastAdminProtectedException.java (new — HTTP 422, code LAST_ADMIN_PROTECTED)
+  - backend/src/main/java/com/teamhub/auth/RefreshTokenRepository.java (modified — added revokeAllByUserId @Modifying query)
+  - backend/src/main/java/com/teamhub/auth/UserRepository.java (modified — added findAllByTenantId, findByIdAndTenantId, countByTenantIdAndRoleAndDeactivatedAtIsNull)
+  - backend/src/main/java/com/teamhub/auth/dto/UserResponse.java (new — id, email, role, deactivatedAt, createdAt)
+  - backend/src/main/java/com/teamhub/auth/dto/ChangeRoleRequest.java (new — @NotBlank role)
+  - backend/src/main/java/com/teamhub/auth/UserManagementService.java (new — listUsers, deactivate, reactivate, changeRole; inner InvalidRoleException)
+  - backend/src/main/java/com/teamhub/auth/UserController.java (new — GET /api/v1/users, POST /deactivate, /reactivate, PATCH /role; @Tag(name="users"))
+  - backend/src/test/java/com/teamhub/auth/UserManagementIT.java (new — 7 integration tests)
+  - tasks.json (TASK-055 status → done)
+  - progress.md (this entry)
+- Summary: Implemented Admin user-management API per PRD §5.2. V20 migration adds deactivated_at column and three new permissions (user.list, user.reactivate, user.role.change — user.deactivate already existed in V4) assigned to ADMIN. UserManagementService enforces last-admin guard before deactivation, atomically revokes all refresh tokens on deactivation, and validates role values on role change. UserController wires the four endpoints with @PreAuthorize permission guards. AuthService login and refresh already check isActive which is set to false on deactivation.
+- Acceptance criteria verified:
+  1. GET /users (Admin) returns all users in the tenant (paginated) — listUsers_adminCanListAllTenantUsers
+  2. POST /users/{id}/deactivate, /reactivate, PATCH /users/{id}/role — Admin only — deactivate_asDispatcher_returns403 verifies 403 for non-admin
+  3. Deactivation revokes all refresh tokens immediately — step1_adminDeactivatesTechnician_technicianRefreshReturns401
+  4. Cannot deactivate last Admin → 422 LAST_ADMIN_PROTECTED — step3_deactivateLastAdmin_returns422LastAdminProtected
+- Test steps run (all passed):
+  - step1_adminDeactivatesTechnician_technicianRefreshReturns401 — PASSED
+  - step2_adminChangesDispatcherRoleToTechnician_nextLoginJwtHasTechnicianRole — PASSED
+  - step3_deactivateLastAdmin_returns422LastAdminProtected — PASSED
+  - listUsers_adminCanListAllTenantUsers — PASSED
+  - deactivate_asDispatcher_returns403 — PASSED
+  - deactivate_unknownUser_returns404 — PASSED
+  - changeRole_invalidRole_returns422 — PASSED
+  - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 7 new tests, 0 failures; jacocoTestCoverageVerification PASSED
+- Open TO-DOs created (with PRD reference): none
+- Completed through TASK-055 (feat/task-020-022-054-055-auth-users): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 020, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 048, 051, 052, 053, 054, 055 (see tasks.json)
