@@ -8,6 +8,7 @@ import com.teamhub.eventing.payloads.JobSubmitted;
 import com.teamhub.job.dto.CreateJobRequest;
 import com.teamhub.job.dto.JobResponse;
 import com.teamhub.job.dto.UpdateJobRequest;
+import com.teamhub.metrics.JobMetrics;
 import com.teamhub.shared.TenantContext;
 import jakarta.persistence.criteria.Predicate;
 import java.time.Instant;
@@ -52,15 +53,19 @@ public class JobService {
 
   private final OutboxPublisher outboxPublisher;
 
+  private final JobMetrics jobMetrics;
+
   public JobService(
       JobRepository jobRepository,
       CustomerRepository customerRepository,
       JobCustomFieldValidator customFieldValidator,
-      OutboxPublisher outboxPublisher) {
+      OutboxPublisher outboxPublisher,
+      JobMetrics jobMetrics) {
     this.jobRepository = jobRepository;
     this.customerRepository = customerRepository;
     this.customFieldValidator = customFieldValidator;
     this.outboxPublisher = outboxPublisher;
+    this.jobMetrics = jobMetrics;
   }
 
   /**
@@ -171,6 +176,8 @@ public class JobService {
     }
 
     job = jobRepository.save(job);
+
+    jobMetrics.recordJobCreated(tenantId.toString());
 
     outboxPublisher.publish(
         "JobSubmitted",

@@ -57,6 +57,7 @@ dependencies {
   annotationProcessor("org.projectlombok:lombok-mapstruct-binding:0.2.0")
   annotationProcessor("org.mapstruct:mapstruct-processor:$mapstructVersion")
 
+  runtimeOnly("io.micrometer:micrometer-registry-prometheus")
   runtimeOnly("org.flywaydb:flyway-database-postgresql")
   runtimeOnly("org.postgresql:postgresql")
 
