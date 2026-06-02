@@ -1363,3 +1363,31 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 296 tests, 0 failures; jacocoTestCoverageVerification PASSED
 - Open TO-DOs created (with PRD reference): none
 - Completed through TASK-051 (feat/task-051-052-automations): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 048, 051, 053 (see tasks.json)
+
+### 2026-06-02 — TASK-052 — Automation engine evaluation endpoint
+- Agent: Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §16.3, §16.4, §5.3
+- Files touched:
+  - backend/src/main/java/com/teamhub/automation/dto/EvaluateAutomationsRequest.java (new — draft_fields Map + manually_set_fields Set)
+  - backend/src/main/java/com/teamhub/automation/dto/AutoFilledField.java (new — fieldKey, value, ruleId, ruleName)
+  - backend/src/main/java/com/teamhub/automation/dto/EvaluateAutomationsResponse.java (new — suggestedPatch + autoFilledFields)
+  - backend/src/main/java/com/teamhub/automation/AutomationEngineService.java (new — priority-ordered rule evaluation with trigger + match_rules + _range suffix convention)
+  - backend/src/main/java/com/teamhub/automation/AutomationRuleController.java (added POST /evaluate endpoint with PERM_job.create; moved @PreAuthorize to individual CRUD methods)
+  - backend/src/test/java/com/teamhub/automation/AutomationEngineIT.java (new — 4 integration tests covering all 3 test steps)
+  - tasks.json (TASK-052 status → done)
+  - progress.md (this entry)
+- Summary: Implemented the automation engine per PRD §16.3. AutomationEngineService loads all active non-archived rules ordered by priority ASC, checks trigger_fields presence in draftFields, evaluates match_rules (with _range suffix convention for range-matching, e.g. year_range→year), and applies actions skipping manually-set and already-patched fields (first-match-wins per-field). The evaluate endpoint is stateless (no job ID needed) and secured with PERM_job.create so both ADMIN and DISPATCHER can trigger it during job creation. Engine also returns per-field AutoFilledField detail with ruleId for UI undo affordance.
+- Acceptance criteria verified:
+  1. Engine endpoint POST /api/v1/automations/evaluate accepts draft state and returns suggested_patch + auto_filled_fields — confirmed; step1 asserts all 6 action fields in patch
+  2. User-edited fields tracked via manually_set_fields; engine never overrides those — confirmed; step2 asserts description absent from patch when in manually_set_fields
+  3. First matching rule wins on overlapping fields; subsequent rules fill different fields — confirmed; step3 asserts Rule A (priority 10) wins on difficulty, Rule B fills price_usd
+  4. Returns rule_id so UI can show 'Auto-filled by Rule X' and undo affordance — confirmed; auto_filled_fields array with rule_id in step1
+- Test steps run (4 new tests, all passed):
+  - step1_locksmithDraftAllFields_fillsAllExpectedActions (Step 1: PRD §16.4 example → fills equipment, description, duration_min, duration_max, difficulty, price_usd) — PASSED
+  - step2_descriptionManuallySet_engineSkipsDescription_fillsOthers (Step 2: description in manuallySetFields → skipped; others filled) — PASSED
+  - step3_twoRules_differentPriorities_higherWinsOnOverlap_lowerFillsNonOverlap (Step 3: priority 10 wins on difficulty; priority 50 fills non-overlapping price_usd) — PASSED
+  - evaluate_asTechnician_returns403 (Additional: TECHNICIAN → 403 FORBIDDEN) — PASSED
+  - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 300 tests, 0 failures; jacocoTestCoverageVerification PASSED
+- Open TO-DOs created (with PRD reference): none
+- Completed through TASK-052 (feat/task-051-052-automations): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 048, 051, 052, 053 (see tasks.json)
