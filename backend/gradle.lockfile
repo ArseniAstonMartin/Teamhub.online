@@ -70,6 +70,7 @@ net.java.dev.jna:jna:5.13.0=testCompileClasspath,testRuntimeClasspath
 net.javacrumbs.shedlock:shedlock-core:6.6.0=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 net.javacrumbs.shedlock:shedlock-provider-jdbc-template:6.6.0=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 net.javacrumbs.shedlock:shedlock-spring:6.6.0=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+net.logstash.logback:logstash-logback-encoder:8.1=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 net.minidev:accessors-smart:2.5.2=testCompileClasspath,testRuntimeClasspath
 net.minidev:json-smart:2.5.2=testCompileClasspath,testRuntimeClasspath
 net.sf.saxon:Saxon-HE:12.5=checkstyle

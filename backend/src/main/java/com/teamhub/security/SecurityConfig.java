@@ -1,5 +1,6 @@
 package com.teamhub.security;
 
+import com.teamhub.logging.MdcLoggingFilter;
 import com.teamhub.security.rbac.PermissionJwtAuthenticationConverter;
 import com.teamhub.shared.TenantContextFilter;
 import org.springframework.context.annotation.Bean;
@@ -43,7 +44,8 @@ public class SecurityConfig {
       PermissionJwtAuthenticationConverter jwtAuthenticationConverter,
       AccessDeniedHandler accessDeniedHandler,
       AuthenticationEntryPoint authenticationEntryPoint,
-      CorsConfigurationSource corsConfigurationSource)
+      CorsConfigurationSource corsConfigurationSource,
+      MdcLoggingFilter mdcLoggingFilter)
       throws Exception {
     http.csrf(AbstractHttpConfigurer::disable)
         .httpBasic(AbstractHttpConfigurer::disable)
@@ -73,7 +75,8 @@ public class SecurityConfig {
                 handling
                     .accessDeniedHandler(accessDeniedHandler)
                     .authenticationEntryPoint(authenticationEntryPoint))
-        .addFilterAfter(new TenantContextFilter(), BearerTokenAuthenticationFilter.class);
+        .addFilterAfter(new TenantContextFilter(), BearerTokenAuthenticationFilter.class)
+        .addFilterAfter(mdcLoggingFilter, TenantContextFilter.class);
 
     return http.build();
   }

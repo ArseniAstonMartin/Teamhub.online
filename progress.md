@@ -1140,3 +1140,20 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - **Mobile**: Ran Sentry wizard (`@sentry/wizard@6.12.0`) which installed `@sentry/react-native`, added `@sentry/react-native/expo` plugin to `app.json`, and created `metro.config.js`; fixed `App.tsx` to read DSN from `process.env.EXPO_PUBLIC_SENTRY_DSN` (not hardcoded), set `sendDefaultPii: false`, and added release tag `teamhub-mobile@<version>+<gitSha>` using `expo-constants` + `EAS_BUILD_GIT_COMMIT_HASH`
 - Open TO-DOs: all three apps carry `TO-DO: human must provision Sentry projects per PRD §26.2`; SENTRY_AUTH_TOKEN must be set as GitHub Secret for source map upload to activate in CI
 - Note: two Sentry auth tokens were exposed in session logs during wizard setup — both should be rotated
+
+---
+
+### 2026-06-02 — TASK-013 — Structured JSON logging + PII redaction + MDC filter
+- Agent: Composer (Sonnet 4.6)
+- Status change: pending → done
+- PRD sections consulted: §24.6
+- Files touched: backend/build.gradle.kts, backend/gradle.lockfile, backend/src/main/resources/logback-spring.xml, backend/src/main/java/com/teamhub/logging/PiiRedactingConverter.java, backend/src/main/java/com/teamhub/logging/PiiRedactingMessageProvider.java, backend/src/main/java/com/teamhub/logging/MdcLoggingFilter.java, backend/src/main/java/com/teamhub/logging/LoggingConfig.java, backend/src/main/java/com/teamhub/security/SecurityConfig.java, backend/src/test/java/com/teamhub/logging/PiiRedactionTest.java, backend/src/test/java/com/teamhub/logging/MdcLoggingFilterIT.java, tasks.json, progress.md
+- Summary: Added `net.logstash.logback:logstash-logback-encoder:8.1` to Gradle and created `logback-spring.xml` with two Spring profiles: `prod` uses `LoggingEventCompositeJsonEncoder` with a custom `PiiRedactingMessageProvider` and MDC provider; `!prod` uses a `PatternLayoutEncoder` with the `%redact` conversion word. Implemented `PiiRedactingConverter` (extends `ClassicConverter`) with static `redact()` that masks emails to `***@<domain>` and E.164 phones to `+<CC>*******<last4>` using fixed-width asterisk replacement. Implemented `MdcLoggingFilter` (extends `OncePerRequestFilter`) registered in the Spring Security filter chain after `TenantContextFilter`, populating MDC keys `request_id` (from `X-Request-ID` header or UUID), `tenant_id` (from `TenantContext`), and `user_id` (from JWT sub). All tests pass with coverage verification green.
+- Acceptance criteria verified: 1, 2, 3, 4
+- Test steps run:
+  - Step 1 (prod profile JSON): log format verified via `logback-spring.xml` `prod` profile with `LoggingEventCompositeJsonEncoder` + MDC provider; MDC keys present in filter chain
+  - Step 2 (phone redaction): `PiiRedactionTest.e164Phone_isMasked` asserts `+15551234567` → `+1*******4567` — PASSED
+  - Step 3 (`./gradlew test`): all 7 new tests pass; `PiiRedactionTest` (7 assertions) and `MdcLoggingFilterIT` (5 assertions) — PASSED; `./gradlew check --no-daemon` BUILD SUCCESSFUL
+- Open TO-DOs created (with PRD reference): none
+- Commits: (see commit SHA after push)
+- Completed through TASK-013 (infra branch): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 016, 017, 018, 019, 023, 024, 025, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045 (see `tasks.json`)

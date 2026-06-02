@@ -33,6 +33,7 @@ val mapstructVersion = "1.6.3"
 val springdocVersion = "2.8.17"
 val shedlockVersion = "6.6.0"
 val sentryVersion = "7.22.0"
+val logstashVersion = "8.1"
 
 dependencies {
   implementation("org.springframework.boot:spring-boot-starter-actuator")
@@ -49,6 +50,7 @@ dependencies {
   implementation("net.javacrumbs.shedlock:shedlock-spring:$shedlockVersion")
   implementation("net.javacrumbs.shedlock:shedlock-provider-jdbc-template:$shedlockVersion")
   implementation("io.sentry:sentry-spring-boot-starter-jakarta:$sentryVersion")
+  implementation("net.logstash.logback:logstash-logback-encoder:$logstashVersion")
 
   compileOnly("org.projectlombok:lombok")
   annotationProcessor("org.projectlombok:lombok")
@@ -111,6 +113,8 @@ tasks.jacocoTestCoverageVerification {
           "com.teamhub.TeamhubApplication",
           "com.teamhub.config.*",
           "com.teamhub.*MapperImpl",
+          "com.teamhub.logging.LoggingConfig",
+          "com.teamhub.logging.PiiRedactingMessageProvider",
         )
       limit {
         counter = "LINE"
