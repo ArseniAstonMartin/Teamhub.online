@@ -10,6 +10,16 @@ import com.teamhub.job.dto.PendingJobRequest;
 import com.teamhub.job.dto.StartJobRequest;
 import com.teamhub.job.dto.UpdateJobRequest;
 import com.teamhub.shared.TenantContext;
+import com.teamhub.storage.MultipartUploadService;
+import com.teamhub.storage.PhotoUploadService;
+import com.teamhub.storage.dto.CompleteMultipartRequest;
+import com.teamhub.storage.dto.ConfirmUploadRequest;
+import com.teamhub.storage.dto.GenerateUploadUrlRequest;
+import com.teamhub.storage.dto.JobPhotoResponse;
+import com.teamhub.storage.dto.PartUploadUrlResponse;
+import com.teamhub.storage.dto.StartMultipartRequest;
+import com.teamhub.storage.dto.StartMultipartResponse;
+import com.teamhub.storage.dto.UploadUrlResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -65,9 +75,19 @@ public class JobController {
 
   private final JobNoteService jobNoteService;
 
-  public JobController(JobService jobService, JobNoteService jobNoteService) {
+  private final PhotoUploadService photoUploadService;
+
+  private final MultipartUploadService multipartUploadService;
+
+  public JobController(
+      JobService jobService,
+      JobNoteService jobNoteService,
+      PhotoUploadService photoUploadService,
+      MultipartUploadService multipartUploadService) {
     this.jobService = jobService;
     this.jobNoteService = jobNoteService;
+    this.photoUploadService = photoUploadService;
+    this.multipartUploadService = multipartUploadService;
   }
 
   /**
@@ -321,6 +341,140 @@ public class JobController {
   public List<JobNoteResponse> listNotes(@PathVariable UUID id) {
     UUID tenantId = TenantContext.get();
     return jobNoteService.listNotes(tenantId, id);
+  }
+
+  // =========================================================================
+  // Photo upload endpoints (PRD §14.2, §14.3; TASK-049)
+  // =========================================================================
+
+  /**
+   * Generates a pre-signed PUT URL for uploading a photo (PRD §14.2; TASK-049).
+   *
+   * <p>Allowed content types: image/jpeg, image/png, image/heic, image/webp (PRD §14.3). Returns
+   * 422 {@code UNSUPPORTED_MIME} for any other type.
+   */
+  @PostMapping("/{id}/photo-upload-url")
+  @PreAuthorize("hasAuthority('PERM_photo.upload')")
+  @Operation(
+      summary = "Generate a pre-signed photo upload URL",
+      description =
+          "Returns a PUT URL valid for 5 min. Allowed types: image/jpeg, png, heic, webp"
+              + " (PRD §14.3).")
+  public UploadUrlResponse generatePhotoUploadUrl(
+      @PathVariable UUID id,
+      @Valid @RequestBody GenerateUploadUrlRequest request,
+      Authentication authentication) {
+    UUID tenantId = TenantContext.get();
+    UUID actorUserId = extractUserId(authentication);
+    return photoUploadService.generateUploadUrl(
+        tenantId, id, actorUserId, request.contentType(), request.fileExtension());
+  }
+
+  /**
+   * Confirms a completed photo upload by persisting metadata and publishing a {@code PhotoUploaded}
+   * event (PRD §14.2; TASK-049).
+   *
+   * <p>Returns 422 {@code PHOTO_TOO_LARGE} if {@code sizeBytes} exceeds 20 MB.
+   */
+  @PostMapping("/{id}/photos")
+  @PreAuthorize("hasAuthority('PERM_photo.upload')")
+  @Operation(
+      summary = "Confirm a photo upload",
+      description = "Persists photo metadata and emits PhotoUploaded event. Max 20 MB (PRD §14.3).")
+  public ResponseEntity<JobPhotoResponse> confirmPhotoUpload(
+      @PathVariable UUID id,
+      @Valid @RequestBody ConfirmUploadRequest request,
+      Authentication authentication) {
+    UUID tenantId = TenantContext.get();
+    UUID actorUserId = extractUserId(authentication);
+    JobPhotoResponse response =
+        photoUploadService.confirmUpload(tenantId, id, actorUserId, request);
+    return ResponseEntity.status(HttpStatus.CREATED).body(response);
+  }
+
+  // =========================================================================
+  // Multipart upload endpoints (PRD §14.4; TASK-050)
+  // =========================================================================
+
+  /**
+   * Starts a multipart upload session for a large photo (PRD §14.4; TASK-050).
+   *
+   * <p>Returns 201 with an {@code uploadId} and {@code objectKey} the client must use for
+   * subsequent part-URL requests.
+   */
+  @PostMapping("/{id}/photo-multipart/start")
+  @PreAuthorize("hasAuthority('PERM_photo.upload')")
+  @Operation(
+      summary = "Start a multipart photo upload",
+      description =
+          "Initiates an S3 multipart upload session. Returns uploadId + objectKey (PRD §14.4).")
+  public ResponseEntity<StartMultipartResponse> startMultipartUpload(
+      @PathVariable UUID id,
+      @Valid @RequestBody StartMultipartRequest request,
+      Authentication authentication) {
+    UUID tenantId = TenantContext.get();
+    UUID actorUserId = extractUserId(authentication);
+    StartMultipartResponse response =
+        multipartUploadService.startUpload(tenantId, id, actorUserId, request);
+    return ResponseEntity.status(HttpStatus.CREATED).body(response);
+  }
+
+  /**
+   * Returns a pre-signed PUT URL for uploading a single part (PRD §14.4; TASK-050).
+   *
+   * <p>The URL is valid for 15 minutes. The client must upload each part directly to S3 and collect
+   * the returned ETag for use in the complete request.
+   */
+  @PostMapping("/{id}/photo-multipart/{uploadId}/part/{partNumber}")
+  @PreAuthorize("hasAuthority('PERM_photo.upload')")
+  @Operation(
+      summary = "Get a pre-signed URL for a multipart upload part",
+      description = "Returns a 15-min presigned PUT URL for the specified part number (PRD §14.4).")
+  public PartUploadUrlResponse getPartUploadUrl(
+      @PathVariable UUID id, @PathVariable UUID uploadId, @PathVariable int partNumber) {
+    UUID tenantId = TenantContext.get();
+    return multipartUploadService.getPartUploadUrl(tenantId, uploadId, partNumber);
+  }
+
+  /**
+   * Completes a multipart upload by assembling all parts and persisting a {@link
+   * com.teamhub.storage.JobPhoto} record (PRD §14.4; TASK-050).
+   *
+   * <p>Returns 201 with the {@link JobPhotoResponse} for the newly created photo record.
+   */
+  @PostMapping("/{id}/photo-multipart/{uploadId}/complete")
+  @PreAuthorize("hasAuthority('PERM_photo.upload')")
+  @Operation(
+      summary = "Complete a multipart photo upload",
+      description =
+          "Assembles S3 parts, persists photo metadata, emits PhotoUploaded event (PRD §14.4).")
+  public ResponseEntity<JobPhotoResponse> completeMultipartUpload(
+      @PathVariable UUID id,
+      @PathVariable UUID uploadId,
+      @RequestBody CompleteMultipartRequest request,
+      Authentication authentication) {
+    UUID tenantId = TenantContext.get();
+    UUID actorUserId = extractUserId(authentication);
+    JobPhotoResponse response =
+        multipartUploadService.completeUpload(tenantId, id, actorUserId, uploadId, request);
+    return ResponseEntity.status(HttpStatus.CREATED).body(response);
+  }
+
+  /**
+   * Aborts a multipart upload, cancelling in-progress part uploads in S3 (PRD §14.4; TASK-050).
+   *
+   * <p>Returns 204 No Content on success.
+   */
+  @DeleteMapping("/{id}/photo-multipart/{uploadId}")
+  @PreAuthorize("hasAuthority('PERM_photo.upload')")
+  @Operation(
+      summary = "Abort a multipart photo upload",
+      description = "Cancels the S3 multipart upload and marks the session ABORTED (PRD §14.4).")
+  public ResponseEntity<Void> abortMultipartUpload(
+      @PathVariable UUID id, @PathVariable UUID uploadId) {
+    UUID tenantId = TenantContext.get();
+    multipartUploadService.abortUpload(tenantId, uploadId);
+    return ResponseEntity.noContent().build();
   }
 
   /** Extracts the {@code sub} claim as a UUID from the validated JWT. */
