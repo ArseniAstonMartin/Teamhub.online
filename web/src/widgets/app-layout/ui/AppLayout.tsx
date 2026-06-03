@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, useMatch } from 'react-router-dom';
 import {
   Calendar,
   Briefcase,
@@ -6,6 +6,8 @@ import {
   BarChart2,
   Settings,
   LogOut,
+  Building2,
+  UserCog,
 } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { useAuthStore, type UserRole } from '@/entities/user/model/authStore';
@@ -17,6 +19,7 @@ interface NavItem {
   to: string;
   icon: React.ComponentType<{ className?: string }>;
   allowedRoles: UserRole[];
+  subItems?: Array<{ label: string; to: string; icon: React.ComponentType<{ className?: string }> }>;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -49,6 +52,10 @@ const NAV_ITEMS: NavItem[] = [
     to: '/settings',
     icon: Settings,
     allowedRoles: ['ADMIN'],
+    subItems: [
+      { label: 'Tenant', to: '/settings/tenant', icon: Building2 },
+      { label: 'Users', to: '/settings/users', icon: UserCog },
+    ],
   },
 ];
 
@@ -56,6 +63,7 @@ export default function AppLayout() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
+  const isInSettings = useMatch('/settings/*');
 
   const role = user?.role ?? 'TECHNICIAN';
 
@@ -91,21 +99,46 @@ export default function AppLayout() {
           {/* Nav */}
           <nav className="flex-1 py-4 px-3 space-y-0.5 overflow-y-auto">
             {visibleItems.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) =>
-                  cn(
-                    'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
-                    isActive
-                      ? 'bg-brand-blue/10 text-brand-blue font-semibold'
-                      : 'text-brand-muted hover:bg-brand-blue/5 hover:text-brand-navy',
-                  )
-                }
-              >
-                <item.icon className="h-4 w-4 shrink-0" />
-                {item.label}
-              </NavLink>
+              <div key={item.to}>
+                <NavLink
+                  to={item.to}
+                  end={!item.subItems}
+                  className={({ isActive }) =>
+                    cn(
+                      'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                      isActive
+                        ? 'bg-brand-blue/10 text-brand-blue font-semibold'
+                        : 'text-brand-muted hover:bg-brand-blue/5 hover:text-brand-navy',
+                    )
+                  }
+                >
+                  <item.icon className="h-4 w-4 shrink-0" />
+                  {item.label}
+                </NavLink>
+
+                {/* Sub-items — shown when parent route is active */}
+                {item.subItems && isInSettings && (
+                  <div className="ml-4 mt-0.5 space-y-0.5">
+                    {item.subItems.map((sub) => (
+                      <NavLink
+                        key={sub.to}
+                        to={sub.to}
+                        className={({ isActive }) =>
+                          cn(
+                            'flex items-center gap-3 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                            isActive
+                              ? 'bg-brand-blue/10 text-brand-blue font-semibold'
+                              : 'text-brand-muted hover:bg-brand-blue/5 hover:text-brand-navy',
+                          )
+                        }
+                      >
+                        <sub.icon className="h-3.5 w-3.5 shrink-0" />
+                        {sub.label}
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
           </nav>
 

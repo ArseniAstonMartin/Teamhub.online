@@ -1869,3 +1869,21 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - Archived badge shown on header; restore button omitted (TO-DO comment for POST restore endpoint)
 - **Test count**: 20 new + 217 existing = **238 passing** across 15 files
 - **Checks**: typecheck ✓ lint ✓ test ✓ build ✓
+
+## TASK-086 — Web Settings → Tenant Page (2026-06-03)
+- **New files**:
+  - `web/src/entities/tenant/model/types.ts` — `TenantSettingsResponse`, `UpdateTenantSettingsRequest` interfaces
+  - `web/src/entities/tenant/api/tenantApi.ts` — `useTenantSettings`, `useUpdateTenantSettings` TanStack Query hooks
+  - `web/src/pages/settings-tenant/ui/SettingsTenantPage.tsx` — Admin-only page with Jobs Settings and Workspace sections
+  - `web/src/pages/settings-tenant/ui/SettingsTenantPage.test.tsx` — 11 tests covering all ACs
+- **Modified files**:
+  - `web/src/app/router.tsx` — added `{ path: '/settings/tenant', element: <SettingsTenantPage /> }` route
+  - `web/src/widgets/app-layout/ui/AppLayout.tsx` — added Settings sub-nav (Tenant, Users) with `useMatch('/settings/*')` expansion
+- **Key behaviours**:
+  - Close Jobs toggle: fetches `GET /api/v1/tenant/settings`, optimistic update on change → `PATCH /api/v1/tenant/settings { closeJobsEnabled }`, rollback + `toast.error` on failure; loading spinner during mutation
+  - Team display name: `<Input>` rendered but disabled; Save button disabled with "Coming soon" title; `// TO-DO: wire to PATCH /api/v1/tenant endpoint when available`
+  - Default time zone: `<Select>` with 7 US time zones rendered but disabled; Save button disabled; `// TO-DO: wire to PATCH /api/v1/tenant/settings when timezone field added`
+  - Non-Admin users redirected to `/schedule` (consistent with SettingsUsersPage)
+  - Settings sidebar expands sub-items (Tenant, Users) when on any `/settings/*` route
+- **Test count**: 11 new + 238 existing = **249 passing** across 16 files
+- **Checks**: typecheck ✓ lint ✓ test ✓ build ✓
