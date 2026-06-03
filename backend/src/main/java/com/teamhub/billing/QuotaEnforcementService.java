@@ -107,6 +107,23 @@ public class QuotaEnforcementService {
     }
   }
 
+  /**
+   * Checks whether the tenant's plan includes access to advanced reports (per-technician
+   * comparisons, custom date ranges — PRD §18.2, TASK-067). Requires Team+ plan (TEAM or
+   * ENTERPRISE).
+   *
+   * @param tenantId the owning tenant
+   * @throws PlanFeatureLockedException when the plan does not include advanced reports
+   */
+  @Transactional(readOnly = true)
+  public void checkAdvancedReports(UUID tenantId) {
+    Tenant tenant = tenantRepository.findById(tenantId).orElseThrow();
+    PlanCatalog.PlanLimits limits = PlanCatalog.limitsFor(tenant.getPlan());
+    if (!limits.advancedReportsEnabled()) {
+      throw new PlanFeatureLockedException("advanced_reports");
+    }
+  }
+
   // -------------------------------------------------------------------------
   // Private helpers
   // -------------------------------------------------------------------------

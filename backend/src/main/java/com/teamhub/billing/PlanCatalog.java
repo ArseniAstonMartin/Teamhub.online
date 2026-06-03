@@ -12,14 +12,15 @@ import java.util.Map;
 public final class PlanCatalog {
 
   /** Immutable value object holding the numeric and boolean limits for a plan tier. */
-  public record PlanLimits(int jobsPerMonth, int seats, boolean schemaEditorEnabled) {}
+  public record PlanLimits(
+      int jobsPerMonth, int seats, boolean schemaEditorEnabled, boolean advancedReportsEnabled) {}
 
   private static final Map<Plan, PlanLimits> LIMITS =
       Map.of(
-          Plan.FREE, new PlanLimits(25, 1, false),
-          Plan.STARTER, new PlanLimits(200, 5, true),
-          Plan.TEAM, new PlanLimits(1000, 20, true),
-          Plan.ENTERPRISE, new PlanLimits(Integer.MAX_VALUE, Integer.MAX_VALUE, true));
+          Plan.FREE, new PlanLimits(25, 1, false, false),
+          Plan.STARTER, new PlanLimits(200, 5, true, false),
+          Plan.TEAM, new PlanLimits(1000, 20, true, true),
+          Plan.ENTERPRISE, new PlanLimits(Integer.MAX_VALUE, Integer.MAX_VALUE, true, true));
 
   private PlanCatalog() {}
 
