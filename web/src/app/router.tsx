@@ -5,6 +5,7 @@ import LoginPage from '@/pages/login/ui/LoginPage';
 import ForgotPasswordPage from '@/pages/forgot-password/ui/ForgotPasswordPage';
 import ResetPasswordPage from '@/pages/reset-password/ui/ResetPasswordPage';
 import AcceptInvitePage from '@/pages/accept-invite/ui/AcceptInvitePage';
+import DesignSystemPage from '@/pages/design-system/ui/DesignSystemPage';
 import SchedulePage from '@/pages/schedule/ui/SchedulePage';
 import JobsPage from '@/pages/jobs/ui/JobsPage';
 import CustomersPage from '@/pages/customers/ui/CustomersPage';
@@ -17,6 +18,7 @@ export const router = createBrowserRouter([
   { path: '/forgot-password', element: <ForgotPasswordPage /> },
   { path: '/reset-password', element: <ResetPasswordPage /> },
   { path: '/accept-invite', element: <AcceptInvitePage /> },
+  { path: '/design-system', element: <DesignSystemPage /> },
 
   // ── Protected routes ────────────────────────────────────────────────
   {
