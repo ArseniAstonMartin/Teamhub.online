@@ -1718,3 +1718,23 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - **Test steps run**: Step 1 (combines 3 URL filters → useJobs called with all params), Step 2 (pagination Next/Previous, skeleton rows, disabled states), Step 3 (all 7 status aria-labels verified). 33 new tests; total suite: 96/96 passing.
 - **Open TO-DOs**: Assignee filter (uses GET /api/v1/users?role=TECHNICIAN — deferred to TASK-055 integration); bulk-selection scaffolding deferred
 - **Commits**: see git log
+
+---
+
+## TASK-077 — Web Calendar View
+
+- **Date**: 2026-06-03
+- **Branch**: UI
+- **Status**: done
+- **Packages installed**: `react-big-calendar@1.20.0`, `date-fns@4.4.0`, `@types/react-big-calendar` (devDep)
+- **Files changed**:
+  - `web/src/index.css` (added `@keyframes shake` + `.animate-shake` utility class)
+  - `web/src/entities/job/api/jobsApi.ts` (added `updateJobSchedule(id, start, end)` function)
+  - `web/src/pages/schedule/ui/SchedulePage.tsx` (replaced placeholder — full implementation)
+  - `web/src/pages/schedule/ui/SchedulePage.test.tsx` (new — 17 tests)
+  - `tasks.json` (TASK-077 status: pending → done)
+- **Summary**: Built the full Calendar view replacing the placeholder. Uses `react-big-calendar` 1.20.0 with `dateFnsLocalizer` (date-fns v4) and `withDragAndDrop` HOC. Three view tabs (Day/Week/Month) swap the calendar view and compute the appropriate date window for `useJobs` fetching (so TanStack Query caches per window). Job events are colored by status using Tailwind bg/text classes and rendered with `EventComponent` that shows both status label text and customer name — color is never the only signal (AC2). Drag-and-drop uses an async handler that applies an optimistic `queryClient.setQueryData` immediately, fires `updateJobSchedule` (PATCH), and on failure rolls back via a second `setQueryData`, triggers a 600ms `animate-shake` CSS animation on the event, and shows a Sonner toast (AC3/AC4). TZ note: `// TO-DO: replace with tenant TZ setting` comment added (AC5). Build note: `react-big-calendar` ESM uses named export `{ Calendar }`, not a default export — fixed accordingly.
+- **Acceptance criteria verified**: 1, 2, 3, 4, 5
+- **Test steps run**: Step 1 (optimistic setQueryData + PATCH called with correct args), Step 2 (double setQueryData for rollback + error toast), Step 3 (view tab switching + useJobs called with different window). 17 new tests; total suite: 113/113 passing.
+- **Open TO-DOs**: Tenant TZ setting (marked with TO-DO comment per PRD §20.5)
+- **Commits**: see git log
