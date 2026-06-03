@@ -12,7 +12,11 @@ import {
   ChevronRight,
   AlertCircle,
   SearchX,
+  List,
+  Columns,
 } from 'lucide-react';
+
+import KanbanView from './KanbanView';
 
 import { useJobs } from '@/entities/job/api/jobsApi';
 import type { JobDto, JobStatus } from '@/entities/job/model/types';
@@ -172,6 +176,9 @@ const SORT_OPTIONS = [
 export default function JobsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
+  // View mode: 'list' | 'kanban' — URL-synced
+  const viewMode = searchParams.get('view') ?? 'list';
+
   // Derive filter state from URL
   const q = searchParams.get('q') ?? '';
   const statusParam = (searchParams.get('status') as JobStatus) || undefined;
@@ -240,11 +247,38 @@ export default function JobsPage() {
   return (
     <div className="space-y-4 font-sans">
       {/* ── Header ── */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <h1 className="text-2xl font-semibold text-brand-navy">Jobs</h1>
-        {isFetching && !isLoading && (
-          <span className="text-xs text-brand-muted animate-pulse">Refreshing…</span>
-        )}
+
+        <div className="flex items-center gap-3">
+          {isFetching && !isLoading && (
+            <span className="text-xs text-brand-muted animate-pulse">Refreshing…</span>
+          )}
+
+          {/* List / Kanban toggle */}
+          <div className="flex gap-1" role="group" aria-label="View mode">
+            <Button
+              variant={viewMode === 'list' ? 'default' : 'outline'}
+              size="sm"
+              aria-pressed={viewMode === 'list'}
+              data-testid="view-toggle-list"
+              onClick={() => setParam('view', 'list')}
+            >
+              <List className="size-4 mr-1" aria-hidden="true" />
+              List
+            </Button>
+            <Button
+              variant={viewMode === 'kanban' ? 'default' : 'outline'}
+              size="sm"
+              aria-pressed={viewMode === 'kanban'}
+              data-testid="view-toggle-kanban"
+              onClick={() => setParam('view', 'kanban')}
+            >
+              <Columns className="size-4 mr-1" aria-hidden="true" />
+              Kanban
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* ── Filter bar ── */}
@@ -337,92 +371,99 @@ export default function JobsPage() {
         )}
       </div>
 
-      {/* ── Table ── */}
-      <div className="rounded-lg border border-border overflow-hidden bg-brand-surface">
-        <table className="w-full text-sm">
-          <caption className="sr-only">Job list</caption>
-          <thead>
-            <tr className="border-b border-border bg-gray-50 text-brand-muted text-left text-xs font-medium uppercase tracking-wide">
-              <th scope="col" className="px-4 py-3">Status</th>
-              <th scope="col" className="px-4 py-3">Customer</th>
-              <th scope="col" className="px-4 py-3">Technician</th>
-              <th scope="col" className="px-4 py-3">Scheduled</th>
-              <th scope="col" className="px-4 py-3">Created</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {showSkeleton &&
-              Array.from({ length: PAGE_SIZE }).map((_, i) => <SkeletonRow key={i} />)}
+      {/* ── Kanban view ── */}
+      {viewMode === 'kanban' && <KanbanView />}
 
-            {!showSkeleton && isError && (
-              <ErrorState onRetry={() => { void refetch(); }} />
-            )}
+      {/* ── Table + Pagination (list view only) ── */}
+      {viewMode !== 'kanban' && (
+        <>
+          <div className="rounded-lg border border-border overflow-hidden bg-brand-surface">
+            <table className="w-full text-sm">
+              <caption className="sr-only">Job list</caption>
+              <thead>
+                <tr className="border-b border-border bg-gray-50 text-brand-muted text-left text-xs font-medium uppercase tracking-wide">
+                  <th scope="col" className="px-4 py-3">Status</th>
+                  <th scope="col" className="px-4 py-3">Customer</th>
+                  <th scope="col" className="px-4 py-3">Technician</th>
+                  <th scope="col" className="px-4 py-3">Scheduled</th>
+                  <th scope="col" className="px-4 py-3">Created</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {showSkeleton &&
+                  Array.from({ length: PAGE_SIZE }).map((_, i) => <SkeletonRow key={i} />)}
 
-            {!showSkeleton && !isError && jobs.length === 0 && <EmptyState />}
+                {!showSkeleton && isError && (
+                  <ErrorState onRetry={() => { void refetch(); }} />
+                )}
 
-            {!showSkeleton && !isError && jobs.map((job) => (
-              <tr
-                key={job.id}
-                className="hover:bg-gray-50 transition-colors"
-              >
-                <td className="px-4 py-3">
-                  <StatusBadge status={job.status} />
-                </td>
-                <td className="px-4 py-3">
-                  <p className="font-medium text-brand-navy">
-                    {job.customer?.name ?? '—'}
-                  </p>
-                  {job.customer?.address && (
-                    <p className="text-xs text-brand-muted">{job.customer.address}</p>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-brand-navy">
-                  {job.assignedTechnician?.name ?? '—'}
-                </td>
-                <td className="px-4 py-3 text-brand-muted tabular-nums">
-                  {formatDateTime(job.scheduledStart)}
-                </td>
-                <td className="px-4 py-3 text-brand-muted tabular-nums">
-                  {formatDateTime(job.createdAt)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                {!showSkeleton && !isError && jobs.length === 0 && <EmptyState />}
 
-      {/* ── Pagination ── */}
-      {!isLoading && !isError && totalPages > 0 && (
-        <div className="flex items-center justify-between text-sm text-brand-muted">
-          <span>
-            {totalElements} job{totalElements !== 1 ? 's' : ''} total
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page === 0}
-              onClick={() => handlePageChange(page - 1)}
-              aria-label="Previous page"
-            >
-              <ChevronLeft className="size-4" aria-hidden="true" />
-              Previous
-            </Button>
-            <span aria-live="polite" aria-atomic="true">
-              Page {page + 1} of {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages - 1}
-              onClick={() => handlePageChange(page + 1)}
-              aria-label="Next page"
-            >
-              Next
-              <ChevronRight className="size-4" aria-hidden="true" />
-            </Button>
+                {!showSkeleton && !isError && jobs.map((job) => (
+                  <tr
+                    key={job.id}
+                    className="hover:bg-gray-50 transition-colors"
+                  >
+                    <td className="px-4 py-3">
+                      <StatusBadge status={job.status} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-brand-navy">
+                        {job.customer?.name ?? '—'}
+                      </p>
+                      {job.customer?.address && (
+                        <p className="text-xs text-brand-muted">{job.customer.address}</p>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-brand-navy">
+                      {job.assignedTechnician?.name ?? '—'}
+                    </td>
+                    <td className="px-4 py-3 text-brand-muted tabular-nums">
+                      {formatDateTime(job.scheduledStart)}
+                    </td>
+                    <td className="px-4 py-3 text-brand-muted tabular-nums">
+                      {formatDateTime(job.createdAt)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </div>
+
+          {/* Pagination */}
+          {!isLoading && !isError && totalPages > 0 && (
+            <div className="flex items-center justify-between text-sm text-brand-muted">
+              <span>
+                {totalElements} job{totalElements !== 1 ? 's' : ''} total
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === 0}
+                  onClick={() => handlePageChange(page - 1)}
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft className="size-4" aria-hidden="true" />
+                  Previous
+                </Button>
+                <span aria-live="polite" aria-atomic="true">
+                  Page {page + 1} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= totalPages - 1}
+                  onClick={() => handlePageChange(page + 1)}
+                  aria-label="Next page"
+                >
+                  Next
+                  <ChevronRight className="size-4" aria-hidden="true" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

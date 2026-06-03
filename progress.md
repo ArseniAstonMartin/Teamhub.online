@@ -1738,3 +1738,23 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - **Test steps run**: Step 1 (optimistic setQueryData + PATCH called with correct args), Step 2 (double setQueryData for rollback + error toast), Step 3 (view tab switching + useJobs called with different window). 17 new tests; total suite: 113/113 passing.
 - **Open TO-DOs**: Tenant TZ setting (marked with TO-DO comment per PRD §20.5)
 - **Commits**: see git log
+
+---
+
+## TASK-078 — Web Kanban View
+
+- **Date**: 2026-06-03
+- **Branch**: UI
+- **Status**: done
+- **Packages installed**: `@hello-pangea/dnd@18.0.1` (ships own types; no `@types/` needed)
+- **Files changed**:
+  - `web/src/entities/job/api/jobsApi.ts` (added `fireTransition(id, endpoint)` function)
+  - `web/src/pages/jobs/ui/KanbanView.tsx` (new — full kanban board)
+  - `web/src/pages/jobs/ui/KanbanView.test.tsx` (new — 33 tests)
+  - `web/src/pages/jobs/ui/JobsPage.tsx` (added List/Kanban toggle; conditionally renders KanbanView vs table)
+  - `tasks.json` (TASK-078 status: pending → done)
+- **Summary**: Implementation approach chosen: KanbanView as a dedicated component embedded in JobsPage when `?view=kanban` URL param is active (cleanest approach, preserves all existing list-view behavior). Seven columns match the JobStatus enum (`SUBMITTED`, `ASSIGNED`, `IN_PROGRESS`, `PENDING`, `DONE_PENDING_APPROVAL`, `COMPLETED`, `CANCELED`). State machine map (`ALLOWED_TRANSITIONS` Set + `TRANSITION_ENDPOINT` Record) mirrors the backend FSM — disallowed transitions are rejected client-side before calling any API (AC2). Named transition endpoints map to backend routes: `claim`, `start`, `pending`, `done-pending-approval`, `complete`. Cancel/reopen transitions are allowed by the state machine but show an info toast ("not yet available via Kanban") since no dedicated backend endpoint exists (TO-DO). Drag fires an optimistic `queryClient.setQueryData` immediately, then calls `fireTransition`; on backend error: second `setQueryData` rollback + `animate-shake` CSS + `toast.error` with the backend error message (AC1). Keyboard accessibility: `@hello-pangea/dnd` provides Space/arrow/Escape keyboard DnD out of the box; each card and column have descriptive `aria-label` attributes (AC4). Cards show: customer name, address, scheduledStart formatted, assignee initial avatar (or UserCircle icon for unassigned), column-colored header with icon (AC3).
+- **Transition endpoint map**: claim, start, pending, done-pending-approval, complete
+- **Acceptance criteria verified**: 1, 2, 3, 4
+- **Test steps run**: Step 1 (SUBMITTED→CANCELED rejected client-side via ALLOWED_TRANSITIONS), Step 2 (SUBMITTED→COMPLETED rejected client-side; no API call), Step 3 (aria-label on cards tested). 33 new tests; total suite: 146/146 passing.
+- **Open TO-DOs**: Cancel/reopen backend endpoints (marked with TO-DO comment); COMPLETED re-open (Admin-only, awaiting backend support)
