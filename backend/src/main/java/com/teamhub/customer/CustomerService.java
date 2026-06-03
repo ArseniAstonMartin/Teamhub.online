@@ -2,6 +2,8 @@ package com.teamhub.customer;
 
 import com.teamhub.customer.dto.CreateCustomerRequest;
 import com.teamhub.customer.dto.UpdateCustomerRequest;
+import com.teamhub.integration.geocoding.GeocodeResult;
+import com.teamhub.integration.geocoding.GeocodingService;
 import com.teamhub.shared.TenantContext;
 import java.time.Instant;
 import java.util.UUID;
@@ -25,8 +27,11 @@ public class CustomerService {
 
   private final CustomerRepository customerRepository;
 
-  public CustomerService(CustomerRepository customerRepository) {
+  private final GeocodingService geocodingService;
+
+  public CustomerService(CustomerRepository customerRepository, GeocodingService geocodingService) {
     this.customerRepository = customerRepository;
+    this.geocodingService = geocodingService;
   }
 
   /**
@@ -147,17 +152,39 @@ public class CustomerService {
     if (req.addressLine() != null && !req.addressLine().isBlank()) {
       existing.setAddressLine(req.addressLine());
     }
-    if (req.city() != null && !req.city().isBlank()) {
-      existing.setCity(req.city());
-    }
-    if (req.state() != null && !req.state().isBlank()) {
-      existing.setState(req.state());
-    }
-    if (req.zip() != null && !req.zip().isBlank()) {
-      existing.setZip(req.zip());
-    }
     if (req.lat() != null && req.lon() != null) {
+      if (req.city() != null && !req.city().isBlank()) {
+        existing.setCity(req.city());
+      }
+      if (req.state() != null && !req.state().isBlank()) {
+        existing.setState(req.state());
+      }
+      if (req.zip() != null && !req.zip().isBlank()) {
+        existing.setZip(req.zip());
+      }
       existing.setLocation(buildPoint(req.lon(), req.lat()));
+    } else if (req.address() != null && !req.address().isBlank()) {
+      GeocodeResult geo = geocodingService.geocode(req.address());
+      if (geo.city() != null) {
+        existing.setCity(geo.city());
+      }
+      if (geo.state() != null) {
+        existing.setState(geo.state());
+      }
+      if (geo.zip() != null) {
+        existing.setZip(geo.zip());
+      }
+      existing.setLocation(buildPoint(geo.lon(), geo.lat()));
+    } else {
+      if (req.city() != null && !req.city().isBlank()) {
+        existing.setCity(req.city());
+      }
+      if (req.state() != null && !req.state().isBlank()) {
+        existing.setState(req.state());
+      }
+      if (req.zip() != null && !req.zip().isBlank()) {
+        existing.setZip(req.zip());
+      }
     }
     return customerRepository.save(existing);
   }
@@ -170,10 +197,25 @@ public class CustomerService {
     c.setEmail(req.email());
     c.setCompanyName(req.companyName());
     c.setAddressLine(req.addressLine());
-    c.setCity(req.city());
-    c.setState(req.state());
-    c.setZip(req.zip());
-    c.setLocation(buildPoint(req.lon(), req.lat()));
+
+    if (req.lat() != null && req.lon() != null) {
+      c.setCity(req.city());
+      c.setState(req.state());
+      c.setZip(req.zip());
+      c.setLocation(buildPoint(req.lon(), req.lat()));
+    } else if (req.address() != null && !req.address().isBlank()) {
+      GeocodeResult geo = geocodingService.geocode(req.address());
+      c.setCity(geo.city() != null ? geo.city() : req.city());
+      c.setState(geo.state() != null ? geo.state() : req.state());
+      c.setZip(geo.zip() != null ? geo.zip() : req.zip());
+      c.setLocation(buildPoint(geo.lon(), geo.lat()));
+    } else {
+      c.setCity(req.city());
+      c.setState(req.state());
+      c.setZip(req.zip());
+      // No lat/lon and no geocodable address — location is left null
+    }
+
     return c;
   }
 
