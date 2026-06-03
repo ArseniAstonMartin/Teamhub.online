@@ -1814,3 +1814,19 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - ADMIN-only role guard (non-admin → redirect to /schedule)
 - **Test count**: 12 new (AutomationsPage) + 179 existing = **191 passing** across 11 files
 - **Checks**: typecheck ✓ lint ✓ test ✓ build ✓
+
+## TASK-084 — Settings → Users Page (2026-06-03)
+- **Route**: `/settings/users` (ADMIN only, redirect to `/schedule` for other roles)
+- **New files**:
+  - `web/src/entities/user/model/userTypes.ts` — `UserResponse`, `UsersPageResponse`, `InviteResponse`, `InviteRequest`, `ChangeRoleRequest`
+  - `web/src/entities/user/api/usersApi.ts` — `useUsers`, `useInviteUser`, `useChangeRole`, `useDeactivateUser`, `useReactivateUser`, optimistic cache helper
+  - `web/src/pages/settings-users/ui/SettingsUsersPage.tsx` — full page with table, invite dialog, change-role dialog, deactivate/reactivate confirm dialogs
+  - `web/src/pages/settings-users/ui/SettingsUsersPage.test.tsx` — 10 new tests
+- **Key behaviours**:
+  - Table: email, role badge (ADMIN=blue, DISPATCHER=indigo, TECHNICIAN=cyan), status badge (Active/Deactivated), Joined date (createdAt — TO-DO: replace with lastSeen when backend adds field)
+  - Invite dialog: email + role select → POST /api/v1/invites → toast "Invite sent to {email}"
+  - Change role: optimistic cache update, rollback on error
+  - Deactivate: 422 LAST_ADMIN_PROTECTED → toast "Cannot deactivate the last Admin." without UI state change
+  - Reactivate: confirm dialog → POST /api/v1/users/{id}/reactivate
+- **Test count**: 10 new (SettingsUsersPage) + 191 existing = **201 passing** across 12 files
+- **Checks**: typecheck ✓ lint ✓ test ✓ build ✓
