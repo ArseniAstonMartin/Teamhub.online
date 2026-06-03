@@ -1795,3 +1795,22 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - **Features implemented**: schema selector with version loading, drag-and-drop field reordering (`@hello-pangea/dnd`), Add/Edit/Delete field dialog (key, label, type, required, options, validation, depends_on, options_by_parent), live preview pane, "Save as new version" (POST /api/v1/schemas), collapsible version history with Deactivate, ADMIN-only role guard (non-admin → redirect)
 - **Test count**: 12 new (SchemaEditorPage) + 167 existing = **179 passing** across 10 files
 - **Checks**: typecheck ✓ lint ✓ test ✓ build ✓
+
+---
+
+## TASK-083 — Automation Rules Page (2026-06-03)
+
+- **Files created**:
+  - `web/src/entities/automation/model/types.ts` — `AutomationRuleResponse`, `CreateAutomationRuleRequest`, `UpdateAutomationRuleRequest`, `EvaluateAutomationsRequest/Response`, `MatchRule` variants
+  - `web/src/entities/automation/api/automationsApi.ts` — `useAutomations`, `useCreateAutomation`, `useUpdateAutomation`, `useDeleteAutomation`, `useEvaluateAutomations` TanStack Query hooks
+  - `web/src/pages/automations/ui/AutomationsPage.tsx` — full Automation Rules page
+  - `web/src/pages/automations/ui/AutomationsPage.test.tsx` — 12 tests
+- **Route added**: `/automations` inside the protected + AppLayout block in `router.tsx`
+- **Features implemented**:
+  - Rule list: draggable rows (`@hello-pangea/dnd`) with priority number, name, trigger fields, actions summary, active toggle (PATCH `{ active: !current }`), edit/delete buttons
+  - Priority drag-and-drop: renumbers 1…N on drop and issues PATCH for each changed rule
+  - Rule editor dialog: name input, trigger field multi-select chips (from active schema), per-field match conditions (op: eq/in/range with appropriate value inputs), dynamic action rows (field key select + value), active checkbox; key-prop reset pattern for fresh form state
+  - Test pane: collapsible, key/value draft fields, POST /evaluate, renders auto-filled fields table with rule_name badges
+  - ADMIN-only role guard (non-admin → redirect to /schedule)
+- **Test count**: 12 new (AutomationsPage) + 179 existing = **191 passing** across 11 files
+- **Checks**: typecheck ✓ lint ✓ test ✓ build ✓

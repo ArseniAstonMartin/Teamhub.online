@@ -15,6 +15,7 @@ import SettingsPage from '@/pages/settings/ui/SettingsPage';
 import AuthCallbackPage from '@/pages/auth-callback/ui/AuthCallbackPage';
 import AuthErrorPage from '@/pages/auth-error/ui/AuthErrorPage';
 import SchemaEditorPage from '@/pages/schema-editor/ui/SchemaEditorPage';
+import AutomationsPage from '@/pages/automations/ui/AutomationsPage';
 
 export const router = createBrowserRouter([
   // ── Public routes ───────────────────────────────────────────────────
@@ -43,6 +44,7 @@ export const router = createBrowserRouter([
           { path: '/reports', element: <ReportsPage /> },
           { path: '/settings/*', element: <SettingsPage /> },
           { path: '/schema-editor', element: <SchemaEditorPage /> },
+          { path: '/automations', element: <AutomationsPage /> },
         ],
       },
     ],
