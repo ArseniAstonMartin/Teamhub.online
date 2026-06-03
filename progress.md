@@ -2128,4 +2128,23 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 ---
 
+### 2026-06-03 — TASK-068 — Materialized views + refresh job for reports
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §18.2 (materialized views, refresh schedule)
+- Files touched:
+  - `backend/src/main/resources/db/migration/V28__report_materialized_views.sql` (new)
+  - `backend/src/main/java/com/teamhub/reports/ReportRepository.java` (added 6 MV query methods + `pivotJobCountRows` helper)
+  - `backend/src/main/java/com/teamhub/reports/MaterializedViewRefreshJob.java` (new)
+  - `backend/src/test/java/com/teamhub/reports/MaterializedViewIT.java` (new — 7 tests)
+- Summary: Created 6 Postgres materialized views (`mv_jobs_daily`, `mv_jobs_weekly`, `mv_jobs_monthly`, `mv_time_to_claim`, `mv_time_to_completion`, `mv_tech_completion_rate`) via Flyway migration V28. Each view has a unique index enabling `REFRESH MATERIALIZED VIEW CONCURRENTLY`. Added corresponding native-JDBC query methods to `ReportRepository`. Created `MaterializedViewRefreshJob` annotated with `@Scheduled(fixedDelay=900_000)` and `@SchedulerLock` (lockAtMostFor=PT10M, lockAtLeastFor=PT1M) that refreshes all 6 views every 15 minutes with per-view error isolation. RLS cannot be applied to materialized views directly — documented in SQL comment; tenant scoping enforced by `tenant_id` WHERE clause in every query.
+- Acceptance criteria verified:
+  1. All 6 materialized views created (`mv_jobs_daily`, `mv_jobs_weekly`, `mv_jobs_monthly`, `mv_tech_completion_rate`, `mv_time_to_claim`, `mv_time_to_completion`) — VERIFIED (step1 IT test queries `pg_catalog.pg_matviews`)
+  2. Each view has `tenant_id` column; RLS note documented — VERIFIED (SQL comment in V28)
+  3. `@Scheduled` job runs `REFRESH MATERIALIZED VIEW CONCURRENTLY` every 15 min — VERIFIED (annotation present, `@SchedulerLock` guards it)
+  4. Unique indexes on all views for concurrent refresh — VERIFIED (V28 migration)
+- Test steps run: Step 1 (all 6 views in pg_catalog), Step 2 (3-job insert → refresh → count=3), Step 3 (concurrent refresh + SELECT no exception) + 4 additional repository method coverage tests — all 7 tests PASS
+- Open TO-DOs: none
+- Completed through TASK-068 (feat/task-067-068-admin-reports): 001–005, 007–010, 012–014, 016–021, 023–036, 037, 039–055, 060–066, 067, 068
+
 <!-- Completed through TASK-107 (2026-06-03 rebase sync): 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 020, 021, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 047, 048, 049, 050, 051, 052, 053, 054, 055, 060, 061, 062, 063, 064, 065, 066, 072, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 086, 107 (see tasks.json) -->
