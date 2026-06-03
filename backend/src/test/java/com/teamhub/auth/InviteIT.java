@@ -15,6 +15,7 @@ import com.teamhub.auth.dto.CreateInviteRequest;
 import com.teamhub.auth.dto.LoginRequest;
 import com.teamhub.config.TestcontainersConfiguration;
 import com.teamhub.eventing.OutboxEventRepository;
+import com.teamhub.tenancy.Plan;
 import com.teamhub.tenancy.Tenant;
 import com.teamhub.tenancy.TenantRepository;
 import java.time.Instant;
@@ -108,6 +109,8 @@ class InviteIT {
         .send(any(SimpleMailMessage.class));
 
     Tenant tenant = tenantRepository.save(new Tenant("Test HVAC Co"));
+    tenant.setPlan(Plan.STARTER);
+    tenantRepository.save(tenant);
     tenantId = tenant.getId();
     userService.createUser(tenantId, "admin@example.com", "Admin-P@ss1", UserRole.ADMIN, "Admin");
     adminToken = mintToken(tenantId, UserRole.ADMIN.name());

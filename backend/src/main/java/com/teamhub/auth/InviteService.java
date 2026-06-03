@@ -2,6 +2,7 @@ package com.teamhub.auth;
 
 import com.teamhub.auth.dto.InviteResponse;
 import com.teamhub.auth.dto.TokenResponse;
+import com.teamhub.billing.QuotaEnforcementService;
 import com.teamhub.eventing.OutboxPublisher;
 import com.teamhub.eventing.payloads.UserInvited;
 import java.nio.charset.StandardCharsets;
@@ -52,6 +53,8 @@ public class InviteService {
 
   private final String frontendUrl;
 
+  private final QuotaEnforcementService quotaEnforcementService;
+
   private final SecureRandom secureRandom = new SecureRandom();
 
   public InviteService(
@@ -60,13 +63,15 @@ public class InviteService {
       AuthService authService,
       OutboxPublisher outboxPublisher,
       JavaMailSender mailSender,
-      @Value("${teamhub.frontend-url:http://localhost:5173}") String frontendUrl) {
+      @Value("${teamhub.frontend-url:http://localhost:5173}") String frontendUrl,
+      QuotaEnforcementService quotaEnforcementService) {
     this.inviteRepository = inviteRepository;
     this.userService = userService;
     this.authService = authService;
     this.outboxPublisher = outboxPublisher;
     this.mailSender = mailSender;
     this.frontendUrl = frontendUrl;
+    this.quotaEnforcementService = quotaEnforcementService;
   }
 
   /**
@@ -84,6 +89,8 @@ public class InviteService {
   @Transactional
   public InviteResponse createInvite(
       UUID tenantId, UUID actorUserId, String email, String roleCode) {
+    quotaEnforcementService.checkSeatQuota(tenantId);
+
     Instant now = Instant.now();
 
     List<Invite> pending =

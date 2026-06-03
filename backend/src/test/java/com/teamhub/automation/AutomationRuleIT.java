@@ -14,7 +14,9 @@ import com.teamhub.config.TestcontainersConfiguration;
 import com.teamhub.schemas.FieldDefinition;
 import com.teamhub.schemas.dto.PublishSchemaRequest;
 import com.teamhub.tenancy.InternalTenantService;
+import com.teamhub.tenancy.Plan;
 import com.teamhub.tenancy.Tenant;
+import com.teamhub.tenancy.TenantRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -92,6 +94,8 @@ class AutomationRuleIT {
 
   @Autowired private JdbcTemplate jdbc;
 
+  @Autowired private TenantRepository tenantRepository;
+
   private Tenant tenant;
 
   private UUID adminUserId;
@@ -104,6 +108,8 @@ class AutomationRuleIT {
   void setUp() {
     String ownerEmail = "auto+" + UUID.randomUUID() + "@test.com";
     tenant = tenantService.provision("Auto Rules Co " + UUID.randomUUID(), ownerEmail);
+    tenant.setPlan(Plan.STARTER);
+    tenantRepository.save(tenant);
     adminUserId =
         userRepository
             .findByEmail(ownerEmail)

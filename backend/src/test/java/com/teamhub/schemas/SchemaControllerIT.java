@@ -15,7 +15,9 @@ import com.teamhub.auth.UserRole;
 import com.teamhub.config.TestcontainersConfiguration;
 import com.teamhub.schemas.dto.PublishSchemaRequest;
 import com.teamhub.tenancy.InternalTenantService;
+import com.teamhub.tenancy.Plan;
 import com.teamhub.tenancy.Tenant;
+import com.teamhub.tenancy.TenantRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -78,6 +80,8 @@ class SchemaControllerIT {
 
   @Autowired private JdbcTemplate jdbcTemplate;
 
+  @Autowired private TenantRepository tenantRepository;
+
   private Tenant tenant;
 
   /** ID of the Admin user created by {@link InternalTenantService#provision}. */
@@ -91,6 +95,8 @@ class SchemaControllerIT {
   void setUp() {
     String ownerEmail = "schema+" + UUID.randomUUID() + "@test.com";
     tenant = tenantService.provision("Schema Test Co " + UUID.randomUUID(), ownerEmail);
+    tenant.setPlan(Plan.STARTER);
+    tenantRepository.save(tenant);
     // Use the real admin user ID as the JWT subject so AuditLogService FK constraint is satisfied.
     adminUserId =
         userRepository

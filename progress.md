@@ -2015,3 +2015,37 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Open TO-DOs created (with PRD reference):
   - TO-DO in BillingWebhookIT: end-to-end portal + webhook test with Stripe test clock (PRD §17.2)
 - Completed through TASK-063 (feat/task-060-066-stripe-quota): 001–005, 007–010, 012–014, 016–021, 023–036, 037, 039–055, 060, 061, 062, 063
+
+---
+
+### 2026-06-03 — TASK-064 — Plan quota enforcement at API boundary
+
+- Agent: claude-sonnet-4-5
+- Status change: pending → done
+- PRD sections consulted: §17.3
+- Files touched:
+  - `backend/src/main/java/com/teamhub/billing/PlanCatalog.java` (new)
+  - `backend/src/main/java/com/teamhub/billing/QuotaExceededException.java` (new)
+  - `backend/src/main/java/com/teamhub/billing/SeatLimitExceededException.java` (new)
+  - `backend/src/main/java/com/teamhub/billing/PlanFeatureLockedException.java` (new)
+  - `backend/src/main/java/com/teamhub/billing/QuotaEnforcementService.java` (new)
+  - `backend/src/test/java/com/teamhub/billing/QuotaEnforcementIT.java` (new)
+  - `backend/src/main/java/com/teamhub/job/JobRepository.java` (add count query)
+  - `backend/src/main/java/com/teamhub/auth/UserRepository.java` (add countByTenantIdAndDeactivatedAtIsNull)
+  - `backend/src/main/java/com/teamhub/job/JobService.java` (inject QuotaEnforcementService, call checkJobQuota before save)
+  - `backend/src/main/java/com/teamhub/auth/InviteService.java` (inject QuotaEnforcementService, call checkSeatQuota before save)
+  - `backend/src/main/java/com/teamhub/schemas/SchemaController.java` (inject QuotaEnforcementService, call checkSchemaEditorAccess on publish + deactivate)
+  - `backend/src/test/java/com/teamhub/auth/InviteIT.java` (set plan=STARTER so existing tests pass)
+  - `backend/src/test/java/com/teamhub/schemas/SchemaControllerIT.java` (set plan=STARTER so existing tests pass)
+  - `backend/src/test/java/com/teamhub/automation/AutomationRuleIT.java` (set plan=STARTER so existing tests pass)
+  - `backend/src/test/java/com/teamhub/automation/AutomationEngineIT.java` (set plan=STARTER so existing tests pass)
+- Summary: Implemented `PlanCatalog` as the single source of truth for per-plan limits (free/starter/team/enterprise). Created three 402-mapped domain exceptions. `QuotaEnforcementService` enforces monthly job quota, seat count, and schema-editor feature lock. Wired into `JobService`, `InviteService`, and `SchemaController`. Updated four existing ITs to set plan=STARTER so their tenants are not blocked by the new checks.
+- Acceptance criteria verified:
+  1. Job create: COUNT check enforced; 402 QUOTA_EXCEEDED thrown when count >= limit — VERIFIED (step1)
+  2. Invite create: seat count check enforced; 402 SEAT_LIMIT_EXCEEDED thrown — VERIFIED (step2)
+  3. Schema editor endpoints return 402 PLAN_FEATURE_LOCKED for Free tier — VERIFIED (step3, step3b)
+  4. Plan limits centralized in PlanCatalog, not duplicated — VERIFIED (single source of truth)
+- Test steps run: 1, 2, 3 — all passed; step4 (starter happy-path) also passed
+- Open TO-DOs created (with PRD reference):
+  - TO-DO: Add currentPeriodStart column to tenants for exact billing-period window (PRD §17.3)
+- Completed through TASK-064 (feat/task-060-066-stripe-quota): 001–005, 007–010, 012–014, 016–021, 023–036, 037, 039–055, 060, 061, 062, 063, 064

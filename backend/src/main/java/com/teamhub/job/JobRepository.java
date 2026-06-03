@@ -1,5 +1,6 @@
 package com.teamhub.job;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -18,6 +19,16 @@ public interface JobRepository extends JpaRepository<Job, UUID>, JpaSpecificatio
    * DataSource connects as the postgres super-user (bypasses RLS).
    */
   Optional<Job> findByIdAndTenantIdAndArchivedAtIsNull(UUID id, UUID tenantId);
+
+  /**
+   * Counts active (non-archived) jobs created at or after {@code periodStart} for the tenant
+   * (TASK-064, PRD §17.3).
+   *
+   * <p>Used by {@code QuotaEnforcementService} to enforce the monthly job quota before a new job is
+   * created.
+   */
+  long countByTenantIdAndCreatedAtGreaterThanEqualAndArchivedAtIsNull(
+      UUID tenantId, Instant periodStart);
 
   /**
    * Atomically claims a {@code SUBMITTED} job for a technician using an optimistic-lock UPDATE (PRD
