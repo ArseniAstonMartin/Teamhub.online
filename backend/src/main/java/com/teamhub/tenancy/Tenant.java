@@ -43,6 +43,9 @@ public class Tenant {
   @Column(name = "stripe_customer_id")
   private String stripeCustomerId;
 
+  @Column(name = "stripe_subscription_id")
+  private String stripeSubscriptionId;
+
   @Column(name = "close_jobs_enabled", nullable = false)
   private boolean closeJobsEnabled = false;
 

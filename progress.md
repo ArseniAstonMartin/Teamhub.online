@@ -1924,3 +1924,36 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - TO-DO in application.yml: comment block lists all 6 secrets to provision
 - Commits: (pending — will be committed after this entry)
 - Completed through TASK-060 (feat/task-060-066-stripe-quota): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 020, 021, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 048, 049, 050, 051, 052, 053, 054, 055, 060 (see tasks.json)
+
+---
+
+### 2026-06-03 — TASK-061 — Stripe Checkout Session integration (PRD §17.2)
+- Agent: Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §17.1, §17.2
+- Files touched:
+  - backend/src/main/resources/db/migration/V24__tenant_stripe_fields.sql (new — adds stripe_subscription_id column; seeds billing.manage permission for ADMIN)
+  - backend/src/main/java/com/teamhub/tenancy/Tenant.java (modified — added stripeSubscriptionId field)
+  - backend/src/main/java/com/teamhub/billing/InvalidPriceKeyException.java (new — HTTP 400, code INVALID_PRICE_KEY)
+  - backend/src/main/java/com/teamhub/billing/BillingServiceException.java (new — HTTP 502, code STRIPE_ERROR, wraps StripeException)
+  - backend/src/main/java/com/teamhub/billing/dto/CheckoutSessionResponse.java (new — record with url field)
+  - backend/src/main/java/com/teamhub/billing/BillingService.java (new — lazy Stripe Customer creation + Checkout Session creation)
+  - backend/src/main/java/com/teamhub/billing/BillingController.java (new — POST /api/v1/billing/checkout/{priceKey}, PERM_billing.manage)
+  - backend/src/test/java/com/teamhub/billing/BillingCheckoutIT.java (new — 4 IT steps using MockedStatic for Stripe SDK)
+  - tasks.json (TASK-061 status → done)
+  - progress.md (this entry)
+- Summary: Implemented Stripe Checkout Session flow per PRD §17.2. Admin hits POST /api/v1/billing/checkout/{priceKey}, backend validates the price key against StripePriceProperties, lazily creates a Stripe Customer (storing the ID on tenant), then creates a Checkout Session with mode=SUBSCRIPTION and returns the hosted URL. API version 2026-04-22.dahlia is set via RequestOptions.RequestOptionsBuilder.unsafeSetStripeVersionOverride (the per-request override in stripe-java 29.x). billing.manage permission seeded to ADMIN only in V24 migration.
+- Acceptance criteria verified:
+  1. POST /api/v1/billing/checkout/{priceKey} (Admin) returns { url } — step1_adminCheckout_lazyCustomerCreated_returnsUrl PASSED
+  2. Success URL: https://app.teamhub.online/settings/billing?checkout=success&session_id={CHECKOUT_SESSION_ID} — hardcoded in BillingService.SUCCESS_URL constant
+  3. Cancel URL: https://app.teamhub.online/settings/billing?checkout=cancelled — hardcoded in BillingService.CANCEL_URL constant
+  4. Customer creation is lazy: first checkout creates the Stripe Customer and stores stripe_customer_id on tenant — step1 verifies stripeCustomerId saved; step2 verifies no second Customer.create call
+- Test steps run (all passed):
+  - step1_adminCheckout_lazyCustomerCreated_returnsUrl — PASSED
+  - step2_secondCheckout_reusesExistingCustomerId — PASSED
+  - step3_dispatcher_isForbidden — PASSED
+  - step4_invalidPriceKey_returns400 — PASSED
+  - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, jacocoTestCoverageVerification PASSED
+- Open TO-DOs created (with PRD reference):
+  - TO-DO comment in BillingCheckoutIT.java: test with Stripe test clock when webhook handler is implemented (TASK-062)
+- Completed through TASK-061 (feat/task-060-066-stripe-quota): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 020, 021, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 048, 049, 050, 051, 052, 053, 054, 055, 060, 061 (see tasks.json)
