@@ -2174,3 +2174,49 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Completed through TASK-068 (feat/task-067-068-admin-reports): 001–005, 007–010, 012–014, 016–021, 023–036, 037, 039–055, 060–066, 067, 068
 
 <!-- Completed through TASK-107 (2026-06-03 rebase sync): 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 020, 021, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 047, 048, 049, 050, 051, 052, 053, 054, 055, 060, 061, 062, 063, 064, 065, 066, 072, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 086, 107 (see tasks.json) -->
+
+### 2026-06-03 — TASK-085 — Settings → Billing page
+
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- Files touched:
+  - `web/src/entities/billing/model/types.ts` (new — BillingStatus interface, PLAN_LIMITS, PLAN_PRICES, PriceKey)
+  - `web/src/entities/billing/api/billingApi.ts` (new — useBillingStatus stub, useCreateCheckout, useCreatePortal mutations)
+  - `web/src/pages/settings-billing/ui/SettingsBillingPage.tsx` (new — full billing page with skeleton card, banners, upgrade dropdown, manage billing button)
+  - `web/src/pages/settings-billing/ui/SettingsBillingPage.test.tsx` (new — 11 tests)
+  - `web/src/app/router.tsx` (added /settings/billing route)
+  - `web/src/widgets/app-layout/ui/AppLayout.tsx` (added Billing sub-item to Settings sidebar)
+- Summary: Implemented Admin-only Settings → Billing page. Upgrade button opens dropdown with STARTER/TEAM/ENTERPRISE tiers, calls POST /api/v1/billing/checkout/{priceKey} and redirects to Stripe Checkout URL. Manage Billing button calls POST /api/v1/billing/portal and redirects to Stripe Customer Portal. On mount, checks ?checkout=success query param and shows success toast. Plan card renders skeleton/placeholder with TO-DO comment for wiring to future GET /api/v1/billing/status endpoint. Quota banners (80%/100%) and payment failed banner gated on billingStatus (null for now) with TO-DO comment.
+- Acceptance criteria verified: All 5 ACs met; action buttons fully wired; skeleton card with TO-DO stub; banners with TO-DO stub
+- Test steps run: 261 tests pass (11 new billing tests) — typecheck clean, lint clean, build successful
+- Open TO-DOs: wire useBillingStatus to GET /api/v1/billing/status when backend endpoint is added
+
+### 2026-06-03 — TASK-087 — Web Reports page
+
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- Files touched:
+  - `web/src/entities/report/model/types.ts` (new — DayBucket, JobCountsResponse, AvgTimesResponse, TechnicianRateEntry, ReportPeriod)
+  - `web/src/entities/report/api/reportsApi.ts` (new — useJobCounts, useAvgTimes, usePerTechnician hooks; 402 guard returns null for plan gate)
+  - `web/src/pages/reports/ui/ReportsPage.tsx` (full implementation — period tabs, avg-time cards, line chart, bar chart, upgrade card)
+  - `web/src/pages/reports/ui/ReportsPage.test.tsx` (new — 8 tests)
+- Summary: Implemented Admin/Dispatcher Reports page. Date-range period tabs (Day/Week/Month/Year) sync to URL params (?period=&from=&to=). Custom tab rendered disabled with Team+ lock icon. Two avg-time cards show human-readable durations (or "No data" when null). Line chart (recharts LineChart) renders jobs created/completed/cancelled over time with distinct shapes per series (circle/square/triangle) and legend for AC4. Per-technician bar chart (recharts BarChart) renders completion rates with value labels above bars. On 402 from GET /api/v1/reports/per-technician the bar chart is replaced by an upgrade card with a link to /settings/billing. Route /reports was already registered in router.tsx (TASK-085).
+- Acceptance criteria verified: AC1 (all 4 chart types), AC2 (period picker + disabled Custom tab), AC3 (upgrade card on 402), AC4 (shapes + labels supplement color)
+- Test steps run: 269 tests pass (8 new reports tests) — typecheck clean, lint clean, build successful
+- Open TO-DOs: enable Custom date-range pickers for Team+ when plan status endpoint is available
+
+### 2026-06-03 — TASK-089 — Web Playwright E2E Critical Journey Tests
+
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- Files touched:
+  - `web/e2e/helpers/auth.ts` (new — setupAuth, loginAs, makeToken helpers)
+  - `web/e2e/helpers/fixtures.ts` (new — makeJobDto, makeJobResponse, makeJobsPage, makeSchema, makeNote factories)
+  - `web/e2e/auth.spec.ts` (new — 3 login journey tests)
+  - `web/e2e/jobs.spec.ts` (new — 4 jobs list + create-job tests)
+  - `web/e2e/job-detail.spec.ts` (new — 4 job-detail + transition + notes tests)
+  - `.github/workflows/web-ci.yml` (added schedule: cron '0 2 * * *' nightly trigger)
+- Summary: Added 11 Playwright e2e tests (plus 2 pre-existing = 13 total) covering 4 critical journeys via page.route() API mocking: (1) Login — renders form, successful redirect to /schedule, error toast on bad credentials; (2) Jobs list — heading/button render, empty state, create-job dialog opens, new job appears in list after POST; (3) Job detail + FSM transition — status badge shows Submitted, clicking Claim optimistically updates badge to Assigned; (4) Notes — empty "No notes yet" state, adding note appears in thread. Auth bootstrap uses localStorage refresh-token injection + 401→refresh interceptor flow for Zustand user population (ADMIN role) without needing a real backend. All locators use getByRole/getByLabel/getByTestId — no CSS class selectors.
+- Acceptance criteria verified: AC1 (API mocking, no real backend), AC2 (login, create-job, claim, notes journeys), AC3 (nightly cron added to web-ci.yml), AC4 (stable locators, no waitForTimeout)
+- Test steps run: 13/13 e2e tests pass (8.3 s); 269 unit tests pass; typecheck clean; lint clean; build successful
+- Open TO-DOs: none
