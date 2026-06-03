@@ -2,6 +2,7 @@ package com.teamhub.reports;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.teamhub.config.TestcontainersConfiguration;
 import com.teamhub.customer.Customer;
@@ -304,6 +305,128 @@ class MaterializedViewIT {
 
     List<TechnicianRateEntry> rates =
         reportRepository.mvGetTechnicianCompletionRates(tenant.getId());
+
+    assertThat(rates).isEmpty();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Direct (non-MV) repository method coverage
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Exercises {@link ReportRepository#getJobCountsByDay} — the convenience delegation to {@link
+   * ReportRepository#getJobCountsByPeriod} with period={@code day}.
+   */
+  @Test
+  void getJobCountsByDay_delegatesCorrectly() {
+    UUID tid = tenant.getId();
+    LocalDate today = LocalDate.now();
+    String scheduledStart = java.time.Instant.now().toString();
+
+    tx.execute(
+        s -> {
+          jdbc.update(
+              "INSERT INTO jobs (tenant_id, customer_id, status, scheduled_start,"
+                  + " custom_fields, version)"
+                  + " VALUES (?::uuid, ?::uuid, 'SUBMITTED', ?::timestamptz, '{}', 0)",
+              tid.toString(),
+              customerId.toString(),
+              scheduledStart);
+          return null;
+        });
+
+    List<DayBucket> buckets = reportRepository.getJobCountsByDay(tid, today, today);
+
+    assertThat(buckets).isNotEmpty();
+    assertThat(buckets.get(0).created()).isGreaterThanOrEqualTo(1L);
+  }
+
+  /** Invalid period string must throw (wrapped or unwrapped) {@link IllegalArgumentException}. */
+  @Test
+  void getJobCountsByPeriod_invalidPeriod_throwsIllegalArgumentException() {
+    assertThatThrownBy(
+            () ->
+                reportRepository.getJobCountsByPeriod(
+                    tenant.getId(), "invalid", LocalDate.now(), LocalDate.now()))
+        .satisfies(
+            ex -> {
+              Throwable cause = ex;
+              boolean found = false;
+              while (cause != null) {
+                if (cause instanceof IllegalArgumentException
+                    && cause.getMessage() != null
+                    && cause.getMessage().contains("Invalid period")) {
+                  found = true;
+                  break;
+                }
+                cause = cause.getCause();
+              }
+              assertThat(found)
+                  .as("Expected an IllegalArgumentException with 'Invalid period' in the chain")
+                  .isTrue();
+            });
+  }
+
+  /**
+   * Exercises the direct {@link ReportRepository#getAvgTimes} (non-MV) with no history — both
+   * averages must be {@code null}.
+   */
+  @Test
+  void getAvgTimes_directQuery_noHistory_returnsNullAverages() {
+    AvgTimesResponse response =
+        reportRepository.getAvgTimes(tenant.getId(), LocalDate.now().minusDays(1), LocalDate.now());
+
+    assertThat(response).isNotNull();
+    assertThat(response.avgTimeToClaimSeconds()).isNull();
+    assertThat(response.avgTimeToCompletionSeconds()).isNull();
+  }
+
+  /**
+   * Exercises the direct {@link ReportRepository#getTechnicianCompletionRates} with one COMPLETED
+   * job assigned to a technician.
+   */
+  @Test
+  void getTechnicianCompletionRates_directQuery_returnsEntry() {
+    UUID tid = tenant.getId();
+    UUID techId = UUID.randomUUID();
+    String scheduledStart = java.time.Instant.now().toString();
+
+    tx.execute(
+        s -> {
+          jdbc.update(
+              "INSERT INTO users (id, tenant_id, email, role)"
+                  + " VALUES (?::uuid, ?::uuid, ?, 'TECHNICIAN')",
+              techId.toString(),
+              tid.toString(),
+              "direct-tech-" + techId + "@test.com");
+          jdbc.update(
+              "INSERT INTO jobs (tenant_id, customer_id, status, scheduled_start, custom_fields,"
+                  + " version, assigned_technician_id)"
+                  + " VALUES (?::uuid, ?::uuid, 'COMPLETED', ?::timestamptz, '{}', 0, ?::uuid)",
+              tid.toString(),
+              customerId.toString(),
+              scheduledStart,
+              techId.toString());
+          return null;
+        });
+
+    List<TechnicianRateEntry> rates =
+        reportRepository.getTechnicianCompletionRates(
+            tid, LocalDate.now().minusDays(1), LocalDate.now().plusDays(1));
+
+    assertThat(rates).hasSize(1);
+    assertThat(rates.get(0).technicianId()).isEqualTo(techId);
+    assertThat(rates.get(0).totalAssigned()).isEqualTo(1L);
+    assertThat(rates.get(0).totalCompleted()).isEqualTo(1L);
+    assertThat(rates.get(0).completionRate()).isEqualTo(1.0);
+  }
+
+  /** Exercises zero-assigned-jobs branch — completion rate must be 0.0 (not division-by-zero). */
+  @Test
+  void getTechnicianCompletionRates_directQuery_noJobs_returnsEmptyList() {
+    List<TechnicianRateEntry> rates =
+        reportRepository.getTechnicianCompletionRates(
+            tenant.getId(), LocalDate.now().minusDays(1), LocalDate.now());
 
     assertThat(rates).isEmpty();
   }

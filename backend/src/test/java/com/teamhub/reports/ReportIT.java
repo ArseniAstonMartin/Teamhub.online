@@ -279,6 +279,47 @@ class ReportIT {
   }
 
   // ---------------------------------------------------------------------------
+  // Additional: GET /reports/avg-times endpoint coverage
+  // ---------------------------------------------------------------------------
+
+  @Test
+  void avgTimes_withExplicitDates_returnsOk() throws Exception {
+    String today = java.time.LocalDate.now().toString();
+
+    mockMvc
+        .perform(
+            get(BASE_URL + "/avg-times")
+                .param("from", today)
+                .param("to", today)
+                .header("Authorization", "Bearer " + adminToken))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  void avgTimes_noParams_usesDefaults() throws Exception {
+    mockMvc
+        .perform(get(BASE_URL + "/avg-times").header("Authorization", "Bearer " + dispatcherToken))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  void getJobCounts_noParams_usesDefaultDateRange() throws Exception {
+    mockMvc
+        .perform(get(BASE_URL + "/jobs").header("Authorization", "Bearer " + adminToken))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  void perTechnician_noParams_usesDefaultDateRange() throws Exception {
+    tenant.setPlan(com.teamhub.tenancy.Plan.TEAM);
+    tenantRepository.saveAndFlush(tenant);
+
+    mockMvc
+        .perform(get(BASE_URL + "/per-technician").header("Authorization", "Bearer " + adminToken))
+        .andExpect(status().isOk());
+  }
+
+  // ---------------------------------------------------------------------------
   // Additional: 403 for TECHNICIAN role
   // ---------------------------------------------------------------------------
 
