@@ -2128,6 +2128,32 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 ---
 
+### 2026-06-03 — TASK-067 — Admin/Dispatcher report endpoints
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §18.1 (report endpoints), §18.2 (Redis caching, materialized views)
+- Files touched:
+  - `backend/src/main/resources/db/migration/V27__reports_permissions.sql` (new)
+  - `backend/src/main/java/com/teamhub/billing/PlanCatalog.java` (added `advancedReportsEnabled` flag to `PlanLimits`)
+  - `backend/src/main/java/com/teamhub/billing/QuotaEnforcementService.java` (added `checkAdvancedReports()`)
+  - `backend/src/main/java/com/teamhub/reports/ReportRepository.java` (new — native-SQL queries via JdbcTemplate)
+  - `backend/src/main/java/com/teamhub/reports/ReportService.java` (new — Redis caching for monthly totals)
+  - `backend/src/main/java/com/teamhub/reports/ReportController.java` (new — 3 GET endpoints)
+  - `backend/src/main/java/com/teamhub/reports/dto/DayBucket.java` (new)
+  - `backend/src/main/java/com/teamhub/reports/dto/JobCountsResponse.java` (new)
+  - `backend/src/main/java/com/teamhub/reports/dto/AvgTimesResponse.java` (new)
+  - `backend/src/main/java/com/teamhub/reports/dto/TechnicianRateEntry.java` (new)
+  - `backend/src/test/java/com/teamhub/reports/ReportIT.java` (new — 5 integration tests)
+- Summary: Implemented `GET /api/v1/reports/jobs`, `GET /api/v1/reports/avg-times`, and `GET /api/v1/reports/per-technician` endpoints for Admin/Dispatcher roles. `ReportRepository` uses native `JdbcTemplate` queries against the live `jobs` table (materialized views added in TASK-068). `ReportService` caches monthly job counts in Redis at `reports:totals:<tenantId>:<yearMonth>` with 5-min TTL. Per-technician endpoint is gated behind Team+ plan via `QuotaEnforcementService.checkAdvancedReports()`. `PlanCatalog` gained `advancedReportsEnabled` flag — free/starter: false, team/enterprise: true. V27 migration seeds `report.read` (Admin + Dispatcher) and `report.read.advanced` (ADMIN only in DB, plan-gated in code).
+- Acceptance criteria verified:
+  1. Endpoints under `/api/v1/reports/...` (Admin and Dispatcher only) — ✅ (`PERM_report.read` guard; TECHNICIAN → 403 tested)
+  2. Heavy aggregations use live Postgres queries (materialized views in TASK-068) — ✅ (native SQL via JdbcTemplate)
+  3. Top-level monthly totals cached in Redis with TTL 5 min — ✅ (ReportIT step 3 verifies key exists)
+  4. Advanced per-technician gated behind Team+ plan → 402 `PLAN_FEATURE_LOCKED` otherwise — ✅ (ReportIT step 2)
+- Test steps run: Step 1 (10 jobs → daily counts correct), Step 2 (Free tenant → 402 PLAN_FEATURE_LOCKED), Step 3 (monthly call → Redis key populated), + 403 for TECHNICIAN + Team+ happy path — all 5 tests PASS
+- Open TO-DOs created (with PRD reference): none
+- Commits: 758c078
+
 ### 2026-06-03 — TASK-068 — Materialized views + refresh job for reports
 - Agent: Claude Sonnet 4.6
 - Status change: pending → done
