@@ -213,7 +213,7 @@ public class CustomerService {
       c.setCity(req.city());
       c.setState(req.state());
       c.setZip(req.zip());
-      c.setLocation(buildPoint(req.lon(), req.lat()));
+      // No lat/lon and no geocodable address — location is left null
     }
 
     return c;

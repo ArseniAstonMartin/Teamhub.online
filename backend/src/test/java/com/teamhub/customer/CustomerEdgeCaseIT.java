@@ -354,6 +354,165 @@ class CustomerEdgeCaseIT {
   }
 
   // ---------------------------------------------------------------------------
+  // POST (upsert) — existing customer, no lat/lon, no address → mergeInto else branch
+  //                 (city/state/zip-only update)
+  // ---------------------------------------------------------------------------
+
+  @Test
+  void upsert_existingCustomer_withCityStateZipOnly_updatesCityStateZipWithoutGeocode()
+      throws Exception {
+    // Seed: create with explicit lat/lon so a known location exists
+    CreateCustomerRequest seed =
+        new CreateCustomerRequest(
+            "CSZ Update Customer",
+            "+15038880001",
+            null,
+            null,
+            "100 Seed St",
+            "OldCity",
+            "XX",
+            "00000",
+            LAT,
+            LON,
+            null);
+    mockMvc
+        .perform(
+            post(BASE_URL)
+                .header("Authorization", "Bearer " + dispatcherToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(seed)))
+        .andExpect(status().isCreated());
+
+    // Upsert: same phone, no lat/lon, no address → mergeInto else branch (just city/state/zip)
+    CreateCustomerRequest upsert =
+        new CreateCustomerRequest(
+            "CSZ Update Customer",
+            "+15038880001",
+            null,
+            null,
+            "100 Seed St",
+            "NewCity",
+            "WA",
+            "98001",
+            null,
+            null,
+            null);
+
+    mockMvc
+        .perform(
+            post(BASE_URL)
+                .header("Authorization", "Bearer " + dispatcherToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(upsert)))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.city").value("NewCity"))
+        .andExpect(jsonPath("$.state").value("WA"))
+        .andExpect(jsonPath("$.zip").value("98001"))
+        // location is unchanged because we did not provide lat/lon or address
+        .andExpect(jsonPath("$.lat").value(LAT))
+        .andExpect(jsonPath("$.lon").value(LON));
+  }
+
+  // ---------------------------------------------------------------------------
+  // POST (upsert) — existing customer, lat/lon provided but city/state/zip null
+  //                 covers the false branches of the city/state/zip null-guards
+  //                 inside the mergeInto if(lat && lon) block
+  // ---------------------------------------------------------------------------
+
+  @Test
+  void upsert_existingCustomer_withLatLonButNullCityStateZip_updatesLocationOnly()
+      throws Exception {
+    // Seed: create with city/state/zip so we can verify they stay unchanged
+    CreateCustomerRequest seed =
+        new CreateCustomerRequest(
+            "LatLon Only Upsert",
+            "+15038880002",
+            null,
+            null,
+            "200 Seed Ave",
+            "OrigCity",
+            "OR",
+            "97000",
+            LAT,
+            LON,
+            null);
+    mockMvc
+        .perform(
+            post(BASE_URL)
+                .header("Authorization", "Bearer " + dispatcherToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(seed)))
+        .andExpect(status().isCreated());
+
+    double newLat = 45.5231;
+    double newLon = -122.6765;
+
+    // Upsert: same phone, lat/lon provided, city/state/zip all null → null-guard false branches
+    CreateCustomerRequest upsert =
+        new CreateCustomerRequest(
+            "LatLon Only Upsert",
+            "+15038880002",
+            null,
+            null,
+            "200 Seed Ave",
+            null,
+            null,
+            null,
+            newLat,
+            newLon,
+            null);
+
+    mockMvc
+        .perform(
+            post(BASE_URL)
+                .header("Authorization", "Bearer " + dispatcherToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(upsert)))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.lat").value(newLat))
+        .andExpect(jsonPath("$.lon").value(newLon))
+        // city/state/zip unchanged because we passed null
+        .andExpect(jsonPath("$.city").value("OrigCity"))
+        .andExpect(jsonPath("$.state").value("OR"))
+        .andExpect(jsonPath("$.zip").value("97000"));
+  }
+
+  // ---------------------------------------------------------------------------
+  // POST (create) — no lat/lon and no address → toEntity else branch
+  //                 customer is created with city/state/zip, location stays null
+  // ---------------------------------------------------------------------------
+
+  @Test
+  void createCustomer_withCityStateZipOnly_createsWithoutLocation() throws Exception {
+    CreateCustomerRequest req =
+        new CreateCustomerRequest(
+            "No Location Customer",
+            "+15038880003",
+            null,
+            null,
+            "300 No Location Blvd",
+            "Portland",
+            "OR",
+            "97201",
+            null,
+            null,
+            null);
+
+    mockMvc
+        .perform(
+            post(BASE_URL)
+                .header("Authorization", "Bearer " + dispatcherToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.city").value("Portland"))
+        .andExpect(jsonPath("$.state").value("OR"))
+        .andExpect(jsonPath("$.zip").value("97201"))
+        .andExpect(jsonPath("$.lat").doesNotExist())
+        .andExpect(jsonPath("$.lon").doesNotExist());
+  }
+
+  // ---------------------------------------------------------------------------
   // Customer @PrePersist — createdAt/updatedAt pre-set → @PrePersist does not overwrite them
   // ---------------------------------------------------------------------------
 

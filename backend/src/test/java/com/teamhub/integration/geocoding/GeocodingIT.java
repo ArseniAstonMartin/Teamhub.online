@@ -289,6 +289,286 @@ class GeocodingIT {
   }
 
   // ---------------------------------------------------------------------------
+  // Additional — null API key throws GeocodingFailedException (covers key==null branch)
+  // ---------------------------------------------------------------------------
+
+  @Test
+  void geocode_nullApiKey_throwsGeocodingFailedException() {
+    GoogleMapsProperties nullProps = new GoogleMapsProperties(null);
+    GeocodingService service = new GeocodingService(RestClient.builder(), nullProps);
+
+    assertThatThrownBy(() -> service.geocode("1600 Amphitheatre Parkway"))
+        .isInstanceOf(GeocodingFailedException.class)
+        .hasMessageContaining("not configured");
+  }
+
+  // ---------------------------------------------------------------------------
+  // Additional — null HTTP response body throws GeocodingFailedException
+  // ---------------------------------------------------------------------------
+
+  @Test
+  void geocode_nullResponseBody_throwsGeocodingFailedException() {
+    RestClient.Builder builder = RestClient.builder();
+    MockRestServiceServer mockServer = MockRestServiceServer.bindTo(builder).build();
+
+    // JSON "null" deserializes to a Java null Map, triggering the null-response guard
+    mockServer
+        .expect(requestTo(containsString(GEOCODE_BASE_URL)))
+        .andRespond(withSuccess("null", MediaType.APPLICATION_JSON));
+
+    GoogleMapsProperties props = new GoogleMapsProperties("test-key");
+    GeocodingService service = new GeocodingService(builder, props);
+
+    assertThatThrownBy(() -> service.geocode("1600 Amphitheatre Parkway"))
+        .isInstanceOf(GeocodingFailedException.class)
+        .hasMessageContaining("Empty response");
+
+    mockServer.verify();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Additional — null results array (distinct from empty) throws GeocodingFailedException
+  // ---------------------------------------------------------------------------
+
+  private static final String NULL_RESULTS_RESPONSE =
+      """
+      {
+        "status": "OK",
+        "results": null
+      }
+      """;
+
+  @Test
+  void geocode_nullResultsArray_throwsGeocodingFailedException() {
+    RestClient.Builder builder = RestClient.builder();
+    MockRestServiceServer mockServer = MockRestServiceServer.bindTo(builder).build();
+
+    mockServer
+        .expect(requestTo(containsString(GEOCODE_BASE_URL)))
+        .andRespond(withSuccess(NULL_RESULTS_RESPONSE, MediaType.APPLICATION_JSON));
+
+    GoogleMapsProperties props = new GoogleMapsProperties("test-key");
+    GeocodingService service = new GeocodingService(builder, props);
+
+    assertThatThrownBy(() -> service.geocode("999 Fake Street"))
+        .isInstanceOf(GeocodingFailedException.class)
+        .hasMessageContaining("No geocoding results");
+
+    mockServer.verify();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Additional — null address_components covers both extractComponent/extractShortName
+  // null-guard branches and returns null city/state/zip with valid lat/lon
+  // ---------------------------------------------------------------------------
+
+  private static final String NO_COMPONENTS_RESPONSE =
+      """
+      {
+        "status": "OK",
+        "results": [{
+          "address_components": null,
+          "geometry": {
+            "location": {"lat": 37.422, "lng": -122.084}
+          }
+        }]
+      }
+      """;
+
+  @Test
+  void geocode_nullAddressComponents_returnsNullCityStateZipWithValidCoordinates() {
+    RestClient.Builder builder = RestClient.builder();
+    MockRestServiceServer mockServer = MockRestServiceServer.bindTo(builder).build();
+
+    mockServer
+        .expect(requestTo(containsString(GEOCODE_BASE_URL)))
+        .andRespond(withSuccess(NO_COMPONENTS_RESPONSE, MediaType.APPLICATION_JSON));
+
+    GoogleMapsProperties props = new GoogleMapsProperties("test-key");
+    GeocodingService service = new GeocodingService(builder, props);
+
+    GeocodeResult result = service.geocode("some address");
+
+    assertThat(result.city()).isNull();
+    assertThat(result.state()).isNull();
+    assertThat(result.zip()).isNull();
+    assertThat(result.lat()).isCloseTo(37.422, Offset.offset(0.001));
+    assertThat(result.lon()).isCloseTo(-122.084, Offset.offset(0.001));
+
+    mockServer.verify();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Upsert — existing customer with address-only triggers geocoding in mergeInto
+  // (else-if branch: geo returns full city/state/zip)
+  // ---------------------------------------------------------------------------
+
+  @Test
+  void upsertExistingCustomer_withAddressOnly_triggersGeocodingAndUpdatesLocation()
+      throws Exception {
+    // Seed: create the customer with explicit lat/lon so we have a known starting state
+    CreateCustomerRequest seed =
+        new CreateCustomerRequest(
+            "Merge Geocode Customer",
+            "+15039990001",
+            null,
+            null,
+            "1600 Amphitheatre Pkwy",
+            "OldCity",
+            "XX",
+            "00000",
+            37.0,
+            -122.0,
+            null);
+    mockMvc
+        .perform(
+            post(CUSTOMERS_URL)
+                .header("Authorization", "Bearer " + dispatcherToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(seed)))
+        .andExpect(status().isCreated());
+
+    // Stub geocodingService to return a full result
+    doReturn(new GeocodeResult("Mountain View", "CA", "94043", 37.4220656, -122.0840897))
+        .when(geocodingService)
+        .geocode(anyString());
+
+    // Upsert: same phone, address-only (no lat/lon) → triggers mergeInto geocode path
+    CreateCustomerRequest upsert =
+        new CreateCustomerRequest(
+            "Merge Geocode Customer",
+            "+15039990001",
+            null,
+            null,
+            "1600 Amphitheatre Pkwy",
+            null,
+            null,
+            null,
+            null,
+            null,
+            "1600 Amphitheatre Pkwy, Mountain View, CA 94043");
+
+    mockMvc
+        .perform(
+            post(CUSTOMERS_URL)
+                .header("Authorization", "Bearer " + dispatcherToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(upsert)))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.city").value("Mountain View"))
+        .andExpect(jsonPath("$.state").value("CA"))
+        .andExpect(jsonPath("$.zip").value("94043"))
+        .andExpect(jsonPath("$.lat").value(37.4220656))
+        .andExpect(jsonPath("$.lon").value(-122.0840897));
+
+    verify(geocodingService).geocode("1600 Amphitheatre Pkwy, Mountain View, CA 94043");
+  }
+
+  // ---------------------------------------------------------------------------
+  // Create — new customer with address, geocode returns null city/state/zip:
+  // ternary false-branches in toEntity use req.city/state/zip as fallbacks
+  // ---------------------------------------------------------------------------
+
+  @Test
+  void customerCreate_withAddressOnly_geocodeReturnsNullFields_fallsBackToRequestCityStateZip()
+      throws Exception {
+    doReturn(new GeocodeResult(null, null, null, 37.4220656, -122.0840897))
+        .when(geocodingService)
+        .geocode(anyString());
+
+    CreateCustomerRequest req =
+        new CreateCustomerRequest(
+            "Fallback Customer",
+            "+15039990003",
+            null,
+            null,
+            "100 Fallback Rd",
+            "FallbackCity",
+            "FB",
+            "12345",
+            null,
+            null,
+            "100 Fallback Rd, FallbackCity, FB 12345");
+
+    mockMvc
+        .perform(
+            post(CUSTOMERS_URL)
+                .header("Authorization", "Bearer " + dispatcherToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.city").value("FallbackCity"))
+        .andExpect(jsonPath("$.state").value("FB"))
+        .andExpect(jsonPath("$.zip").value("12345"))
+        .andExpect(jsonPath("$.lat").value(37.4220656))
+        .andExpect(jsonPath("$.lon").value(-122.0840897));
+
+    verify(geocodingService).geocode("100 Fallback Rd, FallbackCity, FB 12345");
+  }
+
+  // ---------------------------------------------------------------------------
+  // Upsert — existing customer, geocode returns null city/state/zip covers false
+  // branches of the geo.city/state/zip != null guards in mergeInto
+  // ---------------------------------------------------------------------------
+
+  @Test
+  void upsertExistingCustomer_withAddressOnly_geocodeReturnsNullFields_setsLocationOnly()
+      throws Exception {
+    // Seed
+    CreateCustomerRequest seed =
+        new CreateCustomerRequest(
+            "Partial Geo Customer",
+            "+15039990002",
+            null,
+            null,
+            "Unknown Pkwy",
+            "OrigCity",
+            "OR",
+            "97000",
+            45.0,
+            -122.0,
+            null);
+    mockMvc
+        .perform(
+            post(CUSTOMERS_URL)
+                .header("Authorization", "Bearer " + dispatcherToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(seed)))
+        .andExpect(status().isCreated());
+
+    // Stub geocodingService to return null city/state/zip (covers null-check false branches)
+    doReturn(new GeocodeResult(null, null, null, 37.4220656, -122.0840897))
+        .when(geocodingService)
+        .geocode(anyString());
+
+    CreateCustomerRequest upsert =
+        new CreateCustomerRequest(
+            "Partial Geo Customer",
+            "+15039990002",
+            null,
+            null,
+            "Unknown Pkwy",
+            null,
+            null,
+            null,
+            null,
+            null,
+            "Unknown Pkwy, Somewhere");
+
+    mockMvc
+        .perform(
+            post(CUSTOMERS_URL)
+                .header("Authorization", "Bearer " + dispatcherToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(upsert)))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.lat").value(37.4220656))
+        .andExpect(jsonPath("$.lon").value(-122.0840897));
+
+    verify(geocodingService).geocode("Unknown Pkwy, Somewhere");
+  }
+
+  // ---------------------------------------------------------------------------
   // Helper: mint a JWT signed with the application's own key
   // ---------------------------------------------------------------------------
 
