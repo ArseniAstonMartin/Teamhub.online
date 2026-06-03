@@ -14,6 +14,7 @@ import ReportsPage from '@/pages/reports/ui/ReportsPage';
 import SettingsPage from '@/pages/settings/ui/SettingsPage';
 import AuthCallbackPage from '@/pages/auth-callback/ui/AuthCallbackPage';
 import AuthErrorPage from '@/pages/auth-error/ui/AuthErrorPage';
+import SchemaEditorPage from '@/pages/schema-editor/ui/SchemaEditorPage';
 
 export const router = createBrowserRouter([
   // ── Public routes ───────────────────────────────────────────────────
@@ -41,6 +42,7 @@ export const router = createBrowserRouter([
           { path: '/customers', element: <CustomersPage /> },
           { path: '/reports', element: <ReportsPage /> },
           { path: '/settings/*', element: <SettingsPage /> },
+          { path: '/schema-editor', element: <SchemaEditorPage /> },
         ],
       },
     ],

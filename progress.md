@@ -1781,3 +1781,17 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - **Open TO-DOs**: Photos grid+lightbox when `GET /api/v1/jobs/{id}/photos` ships (PRD §14); full status history when `GET /api/v1/jobs/{id}/status-history` ships; enrich customer/technician names from user service when backend returns nested objects.
 - **Test count**: 21 new (JobDetailPage) + 146 existing = **167 passing** across 9 files
 - **Checks**: typecheck ✓ lint ✓ test ✓ build ✓
+
+---
+
+## TASK-082 — Schema Editor Page (2026-06-03)
+
+- **Files created**:
+  - `web/src/entities/schema/model/types.ts` — `FieldDefinition`, `SchemaResponse`, `PublishSchemaRequest` TS interfaces
+  - `web/src/entities/schema/api/schemasApi.ts` — `useSchemas`, `usePublishSchema`, `useDeactivateSchema` TanStack Query hooks
+  - `web/src/pages/schema-editor/ui/SchemaEditorPage.tsx` — full Schema Editor page
+  - `web/src/pages/schema-editor/ui/SchemaEditorPage.test.tsx` — 12 tests
+- **Route added**: `/schema-editor` inside the protected + AppLayout block in `router.tsx`
+- **Features implemented**: schema selector with version loading, drag-and-drop field reordering (`@hello-pangea/dnd`), Add/Edit/Delete field dialog (key, label, type, required, options, validation, depends_on, options_by_parent), live preview pane, "Save as new version" (POST /api/v1/schemas), collapsible version history with Deactivate, ADMIN-only role guard (non-admin → redirect)
+- **Test count**: 12 new (SchemaEditorPage) + 167 existing = **179 passing** across 10 files
+- **Checks**: typecheck ✓ lint ✓ test ✓ build ✓
