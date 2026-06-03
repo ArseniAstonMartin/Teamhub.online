@@ -2173,4 +2173,26 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Open TO-DOs: none
 - Completed through TASK-068 (feat/task-067-068-admin-reports): 001–005, 007–010, 012–014, 016–021, 023–036, 037, 039–055, 060–066, 067, 068
 
+### 2026-06-03 — TASK-069 — Redis-backed rate limiting (Bucket4j)
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §24.4 (rate limiting, 429 format)
+- Files touched:
+  - `backend/build.gradle.kts` (added `bucket4j_jdk17-core:8.18.0` and `bucket4j_jdk17-lettuce:8.18.0`)
+  - `backend/gradle.lockfile` (updated with Bucket4j transitive deps)
+  - `backend/src/main/resources/application.yml` (added `teamhub.rate-limit.routes` config)
+  - `backend/src/main/java/com/teamhub/ratelimit/RateLimitProperties.java` (new — `@ConfigurationProperties` record)
+  - `backend/src/main/java/com/teamhub/ratelimit/RateLimitConfig.java` (new — Lettuce `StatefulRedisConnection`, `ProxyManager<String>`, and `RateLimitFilter` beans)
+  - `backend/src/main/java/com/teamhub/ratelimit/RateLimitFilter.java` (new — `OncePerRequestFilter` implementing IP-based auth limit + user-based claim limit)
+  - `backend/src/main/java/com/teamhub/security/SecurityConfig.java` (added `RateLimitFilter` via `addFilterBefore(BearerTokenAuthenticationFilter.class)`)
+  - `backend/src/test/java/com/teamhub/ratelimit/RateLimitIT.java` (new — 3 integration tests)
+- Summary: Implemented per-route Bucket4j token-bucket rate limiting backed by Redis (Testcontainer in tests, real Redis in prod). `RateLimitFilter` gates `POST /api/v1/auth/login` and `/auth/refresh` at 5 req/min/IP and `POST /api/v1/jobs/{id}/claim` at 10 req/min/user. The claim path user ID is extracted from the JWT Bearer token payload without re-verification (safe for rate-limit key derivation). Exhausted buckets write a 429 JSON response directly (uniform error envelope, §23.4) with `Retry-After` header using `ObjectMapper`, reusing the `RateLimitExceededException.CODE` constant from TASK-020. `GlobalExceptionHandler` already sets `Retry-After` for controller-level `RateLimitExceededException` — no change needed there. Route limits are fully configurable via `teamhub.rate-limit.routes` in `application.yml` so future endpoints can opt in.
+- Acceptance criteria verified:
+  1. Filter applies 5/min/IP on auth paths and 10/min/user on claim path, returns 429 with `Retry-After` and `RATE_LIMIT_EXCEEDED` — VERIFIED (Step 1 and 2 tests)
+  2. Bucket state survives process restart (Redis-backed) — VERIFIED (Step 3: re-acquire bucket from `ProxyManager`, `getAvailableTokens()` == 2 after 3 consumptions)
+  3. Configurable per-route limits via `application.yml` — VERIFIED (`RateLimitProperties` record + YAML config)
+- Test steps run: Step 1 (6th login → 429 + Retry-After + RATE_LIMIT_EXCEEDED), Step 2 (11th claim → 429), Step 3 (3 consumptions → Redis bucket shows 2 remaining) — all 3 PASS; full suite BUILD SUCCESSFUL (coverage ≥80%)
+- Open TO-DOs: none
+- Completed through TASK-069 (feat/task-069-071-security): 001–005, 007–010, 012–014, 016–021, 023–036, 037, 039–055, 060–066, 067, 068, 069
+
 <!-- Completed through TASK-107 (2026-06-03 rebase sync): 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 020, 021, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 047, 048, 049, 050, 051, 052, 053, 054, 055, 060, 061, 062, 063, 064, 065, 066, 072, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 086, 107 (see tasks.json) -->
