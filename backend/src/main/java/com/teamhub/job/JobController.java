@@ -143,9 +143,11 @@ public class JobController {
   @GetMapping("/{id}")
   @PreAuthorize("hasAuthority('PERM_job.read.own') or hasAuthority('PERM_job.read.tenant')")
   @Operation(summary = "Get a job by ID")
-  public JobResponse get(@PathVariable UUID id) {
+  public JobResponse get(@PathVariable UUID id, Authentication authentication) {
     UUID tenantId = TenantContext.get();
-    return jobService.getById(tenantId, id);
+    UUID actorUserId = extractUserId(authentication);
+    String actorRole = extractRole(authentication);
+    return jobService.getById(tenantId, id, actorUserId, actorRole);
   }
 
   /** Partially updates non-status fields of an existing job. */

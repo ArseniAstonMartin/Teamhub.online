@@ -241,19 +241,40 @@ public class JobService {
   }
 
   /**
-   * Retrieves a single active job by ID, scoped to the given tenant.
+   * Retrieves a single active job by ID, scoped to the given tenant and the caller's role.
+   *
+   * <p>TECHNICIAN callers can only read a job that is assigned to them or is in {@code SUBMITTED}
+   * (shared-pool) state. Any other job within the same tenant throws {@link
+   * JobNotAssignedToCallerException} (HTTP 403, PRD §5.2 — {@code job.read.own}). All other roles
+   * (DISPATCHER, ADMIN) with {@code PERM_job.read.tenant} may read any job in their tenant.
    *
    * <p>The {@code customerPhone} field in the response is masked (set to {@code null}) when the job
    * is still in {@code SUBMITTED} state (PRD §10.1).
    *
+   * @param tenantId the owning tenant (from JWT / TenantContext)
+   * @param jobId UUID of the job to retrieve
+   * @param actorUserId UUID of the authenticated caller (used for TECHNICIAN scoping)
+   * @param actorRole JWT {@code role} claim of the caller
    * @throws JobNotFoundException when the job does not exist or belongs to another tenant
+   * @throws JobNotAssignedToCallerException when a TECHNICIAN attempts to read a job not assigned
+   *     to them and not in SUBMITTED status
    */
   @Transactional(readOnly = true)
-  public JobResponse getById(UUID tenantId, UUID jobId) {
+  public JobResponse getById(UUID tenantId, UUID jobId, UUID actorUserId, String actorRole) {
     Job job =
         jobRepository
             .findByIdAndTenantIdAndArchivedAtIsNull(jobId, tenantId)
             .orElseThrow(() -> new JobNotFoundException(jobId));
+
+    if (ROLE_TECHNICIAN.equals(actorRole)) {
+      boolean isAssignedToCalller =
+          actorUserId != null && actorUserId.equals(job.getAssignedTechnicianId());
+      boolean isSharedPool = job.getStatus() == JobStatus.SUBMITTED;
+      if (!isAssignedToCalller && !isSharedPool) {
+        throw new JobNotAssignedToCallerException(jobId);
+      }
+    }
+
     String customerPhone = resolvePhone(job.getCustomerId());
     return JobResponse.from(job, customerPhone);
   }
