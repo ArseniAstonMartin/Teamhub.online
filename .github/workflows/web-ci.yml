@@ -11,6 +11,9 @@ on:
     paths:
       - 'web/**'
       - '.github/workflows/web-ci.yml'
+  # Nightly run at 02:00 UTC — catches regressions not triggered by code changes
+  schedule:
+    - cron: '0 2 * * *'
 
 jobs:
   web-ci:
