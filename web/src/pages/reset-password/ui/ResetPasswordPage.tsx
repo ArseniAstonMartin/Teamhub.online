@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import type { AxiosError } from 'axios';
 
 import apiClient from '@/shared/api/client';
+import { resetPasswordSchema } from '@/shared/lib/validations';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
 import { Label } from '@/shared/ui/label';
@@ -18,23 +19,20 @@ import {
   CardTitle,
 } from '@/shared/ui/card';
 
-const schema = z
-  .object({
-    newPassword: z.string().min(8, 'Password must be at least 8 characters'),
-    confirmPassword: z.string().min(1, 'Please confirm your password'),
-  })
-  .refine((data) => data.newPassword === data.confirmPassword, {
-    message: 'Passwords do not match',
-    path: ['confirmPassword'],
-  });
-
-type FormValues = z.infer<typeof schema>;
+type FormValues = z.infer<typeof resetPasswordSchema>;
 
 interface ApiError {
   error: {
     code: string;
     message: string;
   };
+}
+
+function retryMinutes(headers: Record<string, string> | undefined): number {
+  const raw = headers?.['retry-after'];
+  if (!raw) return 5;
+  const seconds = Number(raw);
+  return isNaN(seconds) ? 5 : Math.max(1, Math.ceil(seconds / 60));
 }
 
 function InvalidTokenState() {
@@ -68,7 +66,7 @@ export default function ResetPasswordPage() {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<FormValues>({ resolver: zodResolver(schema) });
+  } = useForm<FormValues>({ resolver: zodResolver(resetPasswordSchema) });
 
   if (!token) {
     return <InvalidTokenState />;
@@ -84,6 +82,14 @@ export default function ResetPasswordPage() {
       navigate('/login', { replace: true });
     } catch (err) {
       const axiosErr = err as AxiosError<ApiError>;
+      const status = axiosErr.response?.status;
+
+      if (status === 429) {
+        const mins = retryMinutes(axiosErr.response?.headers as Record<string, string>);
+        toast.error(`Too many requests. Please try again in ${mins} minute${mins !== 1 ? 's' : ''}.`);
+        return;
+      }
+
       const code = axiosErr.response?.data?.error?.code;
       if (code === 'RESET_TOKEN_USED_OR_EXPIRED') {
         toast.error('This reset link has expired or already been used.');

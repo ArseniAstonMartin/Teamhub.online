@@ -7,23 +7,27 @@ import { toast } from 'sonner';
 import type { AxiosError } from 'axios';
 
 import apiClient from '@/shared/api/client';
+import { forgotPasswordSchema } from '@/shared/lib/validations';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
 import { Label } from '@/shared/ui/label';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from '@/shared/ui/card';
 
-const schema = z.object({
-  email: z.string().email('Enter a valid email address'),
-});
+type FormValues = z.infer<typeof forgotPasswordSchema>;
 
-type FormValues = z.infer<typeof schema>;
+function retryMinutes(headers: Record<string, string> | undefined): number {
+  const raw = headers?.['retry-after'];
+  if (!raw) return 5;
+  const seconds = Number(raw);
+  return isNaN(seconds) ? 5 : Math.max(1, Math.ceil(seconds / 60));
+}
 
 export default function ForgotPasswordPage() {
   const [submitted, setSubmitted] = useState(false);
@@ -32,19 +36,27 @@ export default function ForgotPasswordPage() {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<FormValues>({ resolver: zodResolver(schema) });
+  } = useForm<FormValues>({ resolver: zodResolver(forgotPasswordSchema) });
 
-  async function onSubmit(values: FormValues) {
+  async function onSubmit(_values: FormValues) {
     try {
-      await apiClient.post('/api/v1/auth/forgot-password', values);
+      await apiClient.post('/api/v1/auth/forgot-password', _values);
     } catch (err) {
       const axiosErr = err as AxiosError;
-      if (!axiosErr.response || axiosErr.response.status >= 500) {
+      const status = axiosErr.response?.status;
+
+      if (status === 429) {
+        const mins = retryMinutes(axiosErr.response?.headers as Record<string, string>);
+        toast.error(`Too many requests. Please try again in ${mins} minute${mins !== 1 ? 's' : ''}.`);
+        return;
+      }
+
+      if (!status || status >= 500) {
         toast.error('Something went wrong. Please try again.');
         return;
       }
-      // 4xx — intentionally fall through to show the generic success state
-      // (anti-enumeration: never leak whether the email exists)
+
+      // Other 4xx — fall through to success (anti-enumeration: never leak whether email exists)
     }
     setSubmitted(true);
   }

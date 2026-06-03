@@ -1661,3 +1661,23 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - **Test steps run**: All 3 — covered by unit tests: valid credentials → navigate to /schedule, wrong password → toast with server error.message, keyboard Tab order + Enter submit
 - **Open TO-DOs**: Apple OAuth (TASK-022) not implemented server-side yet; button remains disabled with "coming soon" text per spec
 - **Commits**: see git log
+
+---
+
+## TASK-074 — Forgot Password + Reset Password flows
+
+- **Date**: 2026-06-03
+- **Branch**: UI
+- **Status**: done
+- **Files changed**:
+  - `web/src/shared/lib/validations.ts` (new — shared `forgotPasswordSchema`, `resetPasswordSchema`, `emailSchema`, `passwordSchema`)
+  - `web/src/pages/forgot-password/ui/ForgotPasswordPage.tsx` (updated — import shared schema; 429 rate-limit toast with `Retry-After` extraction)
+  - `web/src/pages/reset-password/ui/ResetPasswordPage.tsx` (updated — import shared schema; 429 rate-limit toast with `Retry-After` extraction)
+  - `web/src/pages/forgot-password/ui/ForgotPasswordPage.test.tsx` (new — 11 tests)
+  - `web/src/pages/reset-password/ui/ResetPasswordPage.test.tsx` (new — 14 tests)
+  - `tasks.json` (TASK-074 status: pending → done)
+- **Summary**: Audited both pages against all 4 acceptance criteria. AC1 (anti-enumeration success state) and AC2 (reset success + redirect) were already correct. AC3 gap fixed: extracted Zod schemas into a new `@/shared/lib/validations.ts` shared module and updated both pages to import from it. AC4 gap fixed: both pages now detect HTTP 429 responses, extract minutes from the `Retry-After` header (falling back to 5 minutes), and show a friendly "try again in N minutes" toast — 429 no longer silently shows the success screen in ForgotPassword. Added 25 new unit tests (11 + 14) across both pages covering all 4 acceptance criteria and all test steps.
+- **Acceptance criteria verified**: 1, 2, 3, 4
+- **Test steps run**: Steps 1–4 covered via unit tests (45 tests total across all auth pages, all passing)
+- **Open TO-DOs**: None
+- **Commits**: see git log
