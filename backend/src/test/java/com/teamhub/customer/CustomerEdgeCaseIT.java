@@ -292,7 +292,8 @@ class CustomerEdgeCaseIT {
             "OR",
             "97201",
             LAT,
-            LON);
+            LON,
+            null);
 
     mockMvc
         .perform(
@@ -305,7 +306,17 @@ class CustomerEdgeCaseIT {
     // Second upsert: email and companyName are null → mergeInto must skip those fields
     CreateCustomerRequest second =
         new CreateCustomerRequest(
-            "Frank Lloyd II", PHONE, null, null, "10 Arch St", "Portland", "OR", "97201", LAT, LON);
+            "Frank Lloyd II",
+            PHONE,
+            null,
+            null,
+            "10 Arch St",
+            "Portland",
+            "OR",
+            "97201",
+            LAT,
+            LON,
+            null);
 
     mockMvc
         .perform(
@@ -371,7 +382,17 @@ class CustomerEdgeCaseIT {
   private String createCustomer(String phone) throws Exception {
     CreateCustomerRequest req =
         new CreateCustomerRequest(
-            "Test Customer", phone, null, null, "1 Test St", "Hillsboro", "OR", "97124", LAT, LON);
+            "Test Customer",
+            phone,
+            null,
+            null,
+            "1 Test St",
+            "Hillsboro",
+            "OR",
+            "97124",
+            LAT,
+            LON,
+            null);
 
     MvcResult r =
         mockMvc

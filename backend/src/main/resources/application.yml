@@ -105,3 +105,6 @@ teamhub:
     bucket: ${MINIO_BUCKET:teamhub}
     region: ${MINIO_REGION:us-east-1}
     presigned-url-ttl-minutes: 5
+  google:
+    # TO-DO: restrict API key in Google Cloud Console — HTTP referrer for web, IP allowlist for server (PRD §8.1)
+    maps-api-key: ${GOOGLE_MAPS_API_KEY:}

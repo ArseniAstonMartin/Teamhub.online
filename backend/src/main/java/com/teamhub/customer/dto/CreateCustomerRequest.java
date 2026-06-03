@@ -1,18 +1,20 @@
 package com.teamhub.customer.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 
 /**
  * Request body for {@code POST /api/v1/customers} (PRD §11.3).
  *
- * <p>{@code lat} and {@code lon} are the WGS-84 coordinates of the service address. For MVP the
- * client supplies these directly.
+ * <p>Two modes for supplying location data:
  *
- * <p>TO-DO (PRD §11.3): When the Google Maps Geocoding integration lands, derive {@code lat}/{@code
- * lon} from {@code addressLine}/{@code city}/{@code state}/{@code zip} server-side and remove the
- * coordinate fields from this request DTO.
+ * <ol>
+ *   <li><b>Explicit coordinates</b>: supply {@code lat} + {@code lon} directly. {@code addressLine}
+ *       / {@code city} / {@code state} / {@code zip} must also be provided.
+ *   <li><b>Auto-geocode</b>: supply only {@code address} (a free-text string). The server calls
+ *       {@link com.teamhub.integration.geocoding.GeocodingService} to derive lat/lon and
+ *       city/state/zip. {@code addressLine} is required; structured fields are optional.
+ * </ol>
  */
 public record CreateCustomerRequest(
     @NotBlank String name,
@@ -24,8 +26,10 @@ public record CreateCustomerRequest(
     String email,
     String companyName,
     @NotBlank String addressLine,
-    @NotBlank String city,
-    @NotBlank String state,
-    @NotBlank String zip,
-    @NotNull Double lat,
-    @NotNull Double lon) {}
+    String city,
+    String state,
+    String zip,
+    Double lat,
+    Double lon,
+    /** Free-text address for server-side auto-geocoding (PRD §8.1, TASK-038). */
+    String address) {}

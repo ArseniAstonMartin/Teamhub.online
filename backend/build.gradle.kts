@@ -123,6 +123,7 @@ tasks.jacocoTestCoverageVerification {
           "com.teamhub.*MapperImpl",
           "com.teamhub.logging.LoggingConfig",
           "com.teamhub.logging.PiiRedactingMessageProvider",
+          "com.teamhub.integration.geocoding.GeocodingConfig",
         )
       limit {
         counter = "LINE"

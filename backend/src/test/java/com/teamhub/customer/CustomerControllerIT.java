@@ -103,7 +103,8 @@ class CustomerControllerIT {
             "OR",
             "97124",
             HILLSBORO_LAT,
-            HILLSBORO_LON);
+            HILLSBORO_LON,
+            null);
 
     MvcResult r1 =
         mockMvc
@@ -133,7 +134,8 @@ class CustomerControllerIT {
             "OR",
             "97124",
             HILLSBORO_LAT,
-            HILLSBORO_LON);
+            HILLSBORO_LON,
+            null);
 
     mockMvc
         .perform(
@@ -166,7 +168,8 @@ class CustomerControllerIT {
             "OR",
             "97201",
             45.5051,
-            -122.6784);
+            -122.6784,
+            null);
 
     MvcResult r =
         mockMvc
@@ -218,7 +221,8 @@ class CustomerControllerIT {
             "OR",
             "97005",
             HILLSBORO_LAT,
-            HILLSBORO_LON);
+            HILLSBORO_LON,
+            null);
 
     mockMvc
         .perform(
@@ -272,7 +276,8 @@ class CustomerControllerIT {
             "OR",
             "97124",
             HILLSBORO_LAT,
-            HILLSBORO_LON);
+            HILLSBORO_LON,
+            null);
 
     MvcResult r =
         mockMvc
@@ -319,7 +324,8 @@ class CustomerControllerIT {
             "OR",
             "97201",
             45.5051,
-            -122.6784);
+            -122.6784,
+            null);
 
     mockMvc
         .perform(
