@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '@/shared/api/client';
-import type { JobDto, JobsPageResponse, JobsQueryParams } from '../model/types';
+import type { JobDto, JobNoteResponse, JobResponse, JobsPageResponse, JobsQueryParams } from '../model/types';
 
 export function useJobs(params: JobsQueryParams) {
   return useQuery({
@@ -12,6 +12,36 @@ export function useJobs(params: JobsQueryParams) {
       return data;
     },
   });
+}
+
+/** GET /api/v1/jobs/{id} — fetch full job detail. */
+export function useJob(id: string) {
+  return useQuery({
+    queryKey: ['job', id],
+    queryFn: async () => {
+      const { data } = await apiClient.get<JobResponse>(`/api/v1/jobs/${id}`);
+      return data;
+    },
+    enabled: Boolean(id),
+  });
+}
+
+/** GET /api/v1/jobs/{id}/notes — newest-first list of notes. */
+export function useJobNotes(id: string) {
+  return useQuery({
+    queryKey: ['job-notes', id],
+    queryFn: async () => {
+      const { data } = await apiClient.get<JobNoteResponse[]>(`/api/v1/jobs/${id}/notes`);
+      return data;
+    },
+    enabled: Boolean(id),
+  });
+}
+
+/** POST /api/v1/jobs/{id}/notes — create a new job note. */
+export async function createNote(jobId: string, body: string): Promise<JobNoteResponse> {
+  const { data } = await apiClient.post<JobNoteResponse>(`/api/v1/jobs/${jobId}/notes`, { body });
+  return data;
 }
 
 /**

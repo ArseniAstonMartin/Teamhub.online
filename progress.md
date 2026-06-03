@@ -1758,3 +1758,26 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - **Acceptance criteria verified**: 1, 2, 3, 4
 - **Test steps run**: Step 1 (SUBMITTED→CANCELED rejected client-side via ALLOWED_TRANSITIONS), Step 2 (SUBMITTED→COMPLETED rejected client-side; no API call), Step 3 (aria-label on cards tested). 33 new tests; total suite: 146/146 passing.
 - **Open TO-DOs**: Cancel/reopen backend endpoints (marked with TO-DO comment); COMPLETED re-open (Admin-only, awaiting backend support)
+
+---
+
+## TASK-079 — Web Job Detail Page
+
+- **Date**: 2026-06-03
+- **Branch**: UI
+- **Commit**: (see git log)
+- **Files changed**:
+  - `web/src/entities/job/model/types.ts` (added `JobResponse`, `JobNoteResponse`)
+  - `web/src/entities/job/model/transitions.ts` (new — shared FSM data: `ALLOWED_TRANSITIONS`, `TRANSITION_ENDPOINT`, `TRANSITIONS_FROM`, `TransitionAction`)
+  - `web/src/entities/job/api/jobsApi.ts` (added `useJob`, `useJobNotes`, `createNote`)
+  - `web/src/pages/jobs/ui/KanbanView.tsx` (refactored to import shared transitions; re-exports for backward compat)
+  - `web/src/pages/job-detail/ui/JobDetailPage.tsx` (new — full detail page)
+  - `web/src/pages/job-detail/ui/JobDetailPage.test.tsx` (new — 21 tests)
+  - `web/src/app/router.tsx` (added `/jobs/:id` route)
+  - `tasks.json` (TASK-079 status: pending → done)
+- **Summary**: Full job detail page implementing all five acceptance criteria. Header: customer name (with ID fallback) + StatusBadge + role-filtered action buttons (hidden entirely for disallowed role+state combos — AC2). Body: custom fields key-value grid, notes thread with inline composer (AC3), photos placeholder (TO-DO — endpoint unavailable). Sidebar: schedule dates, assignee name, status history placeholder (TO-DO — endpoint unavailable), metadata. Transitions: optimistic `setQueryData` immediately on click, then `fireTransition`; on error rollback via second `setQueryData` + toast.error (AC5). Notes: optimistic prepend before `createNote` resolves; rollback on error (AC3). Role logic: note composer shown to ADMIN, DISPATCHER, or TECHNICIAN with `job.assignedTechnicianId === user.id`. Action buttons computed from `TRANSITIONS_FROM[job.status]` filtered by `user.role` — buttons for disallowed combos are never rendered (AC2). Shared `transitions.ts` module extracted so KanbanView and JobDetailPage stay DRY; KanbanView re-exports for test backward compat.
+- **Acceptance criteria verified**: 1 (layout), 2 (action buttons role+state filtered), 3 (notes composer), 4 (photos placeholder with TO-DO), 5 (optimistic + rollback)
+- **Test steps run**: Step 1 (ADMIN sees all actions; non-assigned TECH sees none on DONE_PENDING_APPROVAL), Step 2 (note submit calls createNote; optimistic prepend tested)
+- **Open TO-DOs**: Photos grid+lightbox when `GET /api/v1/jobs/{id}/photos` ships (PRD §14); full status history when `GET /api/v1/jobs/{id}/status-history` ships; enrich customer/technician names from user service when backend returns nested objects.
+- **Test count**: 21 new (JobDetailPage) + 146 existing = **167 passing** across 9 files
+- **Checks**: typecheck ✓ lint ✓ test ✓ build ✓

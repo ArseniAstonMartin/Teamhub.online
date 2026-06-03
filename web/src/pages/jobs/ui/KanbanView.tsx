@@ -21,6 +21,13 @@ import {
 
 import { useJobs, fireTransition } from '@/entities/job/api/jobsApi';
 import type { JobDto, JobStatus, JobsPageResponse, JobsQueryParams } from '@/entities/job/model/types';
+import {
+  ALLOWED_TRANSITIONS,
+  TRANSITION_ENDPOINT,
+  type TransitionKey,
+} from '@/entities/job/model/transitions';
+// Re-export for backward compatibility — tests import these from KanbanView.
+export { ALLOWED_TRANSITIONS, TRANSITION_ENDPOINT };
 import { cn } from '@/shared/lib/utils';
 
 // ── Column definitions ────────────────────────────────────────────────────────
@@ -39,44 +46,6 @@ export const KANBAN_COLUMNS: Array<{
   { status: 'COMPLETED',             label: 'Completed',        headerClass: 'bg-green-100  text-green-700',  Icon: CheckCircle2 },
   { status: 'CANCELED',              label: 'Canceled',         headerClass: 'bg-red-100    text-red-700',    Icon: XCircle },
 ];
-
-// ── State-machine transition map (mirrors backend FSM) ───────────────────────
-
-type TransitionKey = `${JobStatus}→${JobStatus}`;
-
-/**
- * All transitions the client may attempt.
- * Anything NOT in this set is rejected immediately (AC2).
- */
-export const ALLOWED_TRANSITIONS = new Set<TransitionKey>([
-  'SUBMITTED→ASSIGNED',
-  'ASSIGNED→IN_PROGRESS',
-  'IN_PROGRESS→PENDING',
-  'IN_PROGRESS→DONE_PENDING_APPROVAL',
-  'IN_PROGRESS→COMPLETED',
-  'DONE_PENDING_APPROVAL→COMPLETED',
-  'SUBMITTED→CANCELED',
-  'ASSIGNED→CANCELED',
-  'IN_PROGRESS→CANCELED',
-  'PENDING→CANCELED',
-  'DONE_PENDING_APPROVAL→CANCELED',
-  'CANCELED→SUBMITTED',
-  // COMPLETED→* is Admin-only re-open — TO-DO: add when backend supports it
-]);
-
-/**
- * Maps a transition key to a named backend endpoint.
- * Entries missing from this map are "allowed but not yet wired" (TO-DO).
- */
-export const TRANSITION_ENDPOINT: Partial<Record<TransitionKey, string>> = {
-  'SUBMITTED→ASSIGNED':               'claim',
-  'ASSIGNED→IN_PROGRESS':             'start',
-  'IN_PROGRESS→PENDING':              'pending',
-  'IN_PROGRESS→DONE_PENDING_APPROVAL':'done-pending-approval',
-  'IN_PROGRESS→COMPLETED':            'complete',
-  'DONE_PENDING_APPROVAL→COMPLETED':  'complete',
-  // TO-DO: cancel/reopen endpoints — backend does not expose dedicated routes yet
-};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

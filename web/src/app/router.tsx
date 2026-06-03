@@ -8,6 +8,7 @@ import AcceptInvitePage from '@/pages/accept-invite/ui/AcceptInvitePage';
 import DesignSystemPage from '@/pages/design-system/ui/DesignSystemPage';
 import SchedulePage from '@/pages/schedule/ui/SchedulePage';
 import JobsPage from '@/pages/jobs/ui/JobsPage';
+import JobDetailPage from '@/pages/job-detail/ui/JobDetailPage';
 import CustomersPage from '@/pages/customers/ui/CustomersPage';
 import ReportsPage from '@/pages/reports/ui/ReportsPage';
 import SettingsPage from '@/pages/settings/ui/SettingsPage';
@@ -36,6 +37,7 @@ export const router = createBrowserRouter([
         children: [
           { path: '/schedule', element: <SchedulePage /> },
           { path: '/jobs', element: <JobsPage /> },
+          { path: '/jobs/:id', element: <JobDetailPage /> },
           { path: '/customers', element: <CustomersPage /> },
           { path: '/reports', element: <ReportsPage /> },
           { path: '/settings/*', element: <SettingsPage /> },
