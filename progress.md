@@ -1681,3 +1681,21 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - **Test steps run**: Steps 1–4 covered via unit tests (45 tests total across all auth pages, all passing)
 - **Open TO-DOs**: None
 - **Commits**: see git log
+
+---
+
+## TASK-075 — Accept Invite page
+
+- **Date**: 2026-06-03
+- **Branch**: UI
+- **Status**: done
+- **Files changed**:
+  - `web/src/shared/lib/validations.ts` (updated — added `acceptInviteSchema`)
+  - `web/src/pages/accept-invite/ui/AcceptInvitePage.tsx` (rewritten — JWT decode, email/tenant display, Google OAuth button, disabled Apple button, persistent ExpiredInviteState)
+  - `web/src/pages/accept-invite/ui/AcceptInvitePage.test.tsx` (new — 18 tests)
+  - `tasks.json` (TASK-075 status: pending → done)
+- **Summary**: Audited the original AcceptInvitePage against all 4 acceptance criteria. AC1 (URL token param) and AC3 (setTokens + navigate) were already correct. Three gaps were fixed: AC2 — JWT payload is now decoded client-side (base64, no library) to display invitee email and tenant name in the card header/description, and Google OAuth + disabled Apple buttons were added; AC3 shared schema — extracted `acceptInviteSchema` to `@/shared/lib/validations.ts`; AC4 — replaced ephemeral toast with a persistent `<ExpiredInviteState>` component rendered via `useState` when `INVITE_USED_OR_EXPIRED` or `INVITE_NOT_FOUND` is returned. The Google redirect helper was extracted to a module-level function to satisfy the `react-hooks/immutability` ESLint rule. 18 new unit tests cover all 4 ACs and all test steps.
+- **Acceptance criteria verified**: 1, 2, 3, 4
+- **Test steps run**: All 4 — no token (invalid state), valid token (email+tenant displayed, form present), success flow (setTokens + navigate /schedule), expired/used token (persistent error state, no redirect). Total: 63/63 passing.
+- **Open TO-DOs**: Apple OAuth (TASK-022) not implemented server-side; button remains disabled with "coming soon" text
+- **Commits**: see git log
