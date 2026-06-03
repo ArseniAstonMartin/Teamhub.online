@@ -2190,3 +2190,17 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Acceptance criteria verified: All 5 ACs met; action buttons fully wired; skeleton card with TO-DO stub; banners with TO-DO stub
 - Test steps run: 261 tests pass (11 new billing tests) — typecheck clean, lint clean, build successful
 - Open TO-DOs: wire useBillingStatus to GET /api/v1/billing/status when backend endpoint is added
+
+### 2026-06-03 — TASK-087 — Web Reports page
+
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- Files touched:
+  - `web/src/entities/report/model/types.ts` (new — DayBucket, JobCountsResponse, AvgTimesResponse, TechnicianRateEntry, ReportPeriod)
+  - `web/src/entities/report/api/reportsApi.ts` (new — useJobCounts, useAvgTimes, usePerTechnician hooks; 402 guard returns null for plan gate)
+  - `web/src/pages/reports/ui/ReportsPage.tsx` (full implementation — period tabs, avg-time cards, line chart, bar chart, upgrade card)
+  - `web/src/pages/reports/ui/ReportsPage.test.tsx` (new — 8 tests)
+- Summary: Implemented Admin/Dispatcher Reports page. Date-range period tabs (Day/Week/Month/Year) sync to URL params (?period=&from=&to=). Custom tab rendered disabled with Team+ lock icon. Two avg-time cards show human-readable durations (or "No data" when null). Line chart (recharts LineChart) renders jobs created/completed/cancelled over time with distinct shapes per series (circle/square/triangle) and legend for AC4. Per-technician bar chart (recharts BarChart) renders completion rates with value labels above bars. On 402 from GET /api/v1/reports/per-technician the bar chart is replaced by an upgrade card with a link to /settings/billing. Route /reports was already registered in router.tsx (TASK-085).
+- Acceptance criteria verified: AC1 (all 4 chart types), AC2 (period picker + disabled Custom tab), AC3 (upgrade card on 402), AC4 (shapes + labels supplement color)
+- Test steps run: 269 tests pass (8 new reports tests) — typecheck clean, lint clean, build successful
+- Open TO-DOs: enable Custom date-range pickers for Team+ when plan status endpoint is available
