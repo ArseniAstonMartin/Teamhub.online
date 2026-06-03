@@ -1,5 +1,6 @@
 package com.teamhub.customer;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -10,6 +11,16 @@ import org.springframework.data.repository.query.Param;
 
 /** Spring Data repository for {@link Customer} entities. */
 public interface CustomerRepository extends JpaRepository<Customer, UUID> {
+
+  /** Returns a customer by id and tenantId for tenant-scoped lookups (TASK-071). */
+  Optional<Customer> findByIdAndTenantId(UUID id, UUID tenantId);
+
+  /**
+   * Returns all non-archived customers for the given tenant (TASK-071, PRD §24.5).
+   *
+   * <p>Used by the CCPA data-export feature to bundle {@code customers.json}.
+   */
+  List<Customer> findAllByTenantIdAndArchivedAtIsNull(UUID tenantId);
 
   /**
    * Finds an active (non-archived) customer by phone within the given tenant.

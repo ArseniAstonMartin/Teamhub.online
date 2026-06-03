@@ -1,5 +1,6 @@
 package com.teamhub.auth;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -8,6 +9,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 /** Spring Data repository for {@link User} entities. */
 public interface UserRepository extends JpaRepository<User, UUID> {
+
+  /**
+   * Returns all users for the given tenant (TASK-071, PRD §24.5).
+   *
+   * <p>Used by the CCPA data-export feature to bundle {@code users.json}.
+   */
+  List<User> findAllByTenantId(UUID tenantId);
 
   boolean existsByEmail(String email);
 

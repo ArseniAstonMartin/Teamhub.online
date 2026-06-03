@@ -2223,3 +2223,28 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Completed through TASK-070 (feat/task-069-071-security): 001–005, 007–010, 012–014, 016–021, 023–036, 037, 039–055, 060–066, 067, 068, 069, 070
 
 <!-- Completed through TASK-107 (2026-06-03 rebase sync): 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 020, 021, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 047, 048, 049, 050, 051, 052, 053, 054, 055, 060, 061, 062, 063, 064, 065, 066, 072, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 086, 107 (see tasks.json) -->
+
+### 2026-06-03 — TASK-071 — CCPA data export and customer erasure endpoints
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §24.5 (CCPA data export and erasure)
+- Files touched:
+  - `backend/src/main/resources/db/migration/V29__compliance_permissions.sql` (new — `compliance.export` and `compliance.erase` permissions, ADMIN-only)
+  - `backend/src/main/java/com/teamhub/customer/CustomerNotFoundException.java` (new — HTTP 404, code `CUSTOMER_NOT_FOUND`)
+  - `backend/src/main/java/com/teamhub/audit/AuditLogRepository.java` (added `findAllByTenantId`)
+  - `backend/src/main/java/com/teamhub/auth/UserRepository.java` (added `findAllByTenantId`)
+  - `backend/src/main/java/com/teamhub/customer/CustomerRepository.java` (added `findByIdAndTenantId`, `findAllByTenantIdAndArchivedAtIsNull`)
+  - `backend/src/main/java/com/teamhub/job/JobRepository.java` (added `findAllByTenantIdAndArchivedAtIsNull`)
+  - `backend/src/main/java/com/teamhub/compliance/ComplianceService.java` (new — `exportTenantData`, `eraseCustomer`)
+  - `backend/src/main/java/com/teamhub/compliance/ComplianceController.java` (new — `GET /api/v1/compliance/export`, `POST /api/v1/compliance/erase-customer/{id}`)
+  - `backend/src/test/java/com/teamhub/compliance/ComplianceIT.java` (new — 4 integration tests)
+  - `docs/privacy-policy-stub.md` (new — TO-DO stub referencing CCPA endpoints)
+- Summary: Implemented CCPA-compliant data export and customer erasure endpoints under the `com.teamhub.compliance` package. The export endpoint collects all non-archived users, jobs, customers, and audit log entries for the tenant, serialises them via existing response DTOs (to handle JTS geometry → lat/lon), and streams a ZIP archive. The erase endpoint replaces all PII fields (`name`, `phone`, `email`, `addressLine`, `city`, `state`, `zip`) with `"[REDACTED]"`, overwrites the PostGIS location column with the null-island sentinel point (0°,0°) — the column is NOT NULL so Java null is not permitted — and sets `archivedAt` to soft-delete the record. Both actions are recorded via `AsyncAuditService` with actions `compliance.data_export` and `compliance.customer_erased`. Two permissions (`compliance.export`, `compliance.erase`) are seeded in V29 and granted exclusively to ADMIN.
+- Acceptance criteria verified:
+  1. `GET /api/v1/compliance/export` returns ZIP with `users.json`, `jobs.json`, `customers.json`, `audit_log.json` — VERIFIED (Step 1 IT test)
+  2. `POST /api/v1/compliance/erase-customer/{id}` replaces PII with `[REDACTED]`; linked jobs preserved — VERIFIED (Step 2 IT test)
+  3. Both endpoints Admin-only; every action audited — VERIFIED (Step 3 IT tests: DISPATCHER → 403; audit row queried in Steps 1 and 2)
+  4. TO-DO marker in privacy policy doc references endpoints — VERIFIED (`docs/privacy-policy-stub.md` + comment in `ComplianceController.java`)
+- Test steps run: Step 1 (Admin export → 200, ZIP contains 4 files, audit row exists), Step 2 (Admin erase → 204, PII = `[REDACTED]`, jobs preserved, audit row exists), Step 3 (DISPATCHER export → 403, DISPATCHER erase → 403) — all 4 tests PASS; `./gradlew check` BUILD SUCCESSFUL
+- Open TO-DOs: Privacy policy text at `https://teamhub.online/privacy` must be written referencing the export and erasure endpoints (see `docs/privacy-policy-stub.md`)
+- Completed through TASK-071 (feat/task-069-071-security): 001–005, 007–010, 012–014, 016–021, 023–036, 037, 039–055, 060–066, 067, 068, 069, 070, 071
