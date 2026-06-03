@@ -124,6 +124,47 @@ public class BillingService {
     }
   }
 
+  /**
+   * Creates a Stripe Customer Portal session for the given tenant so the customer can self-serve
+   * plan changes, cancellations, and payment-method updates (PRD §17.2, TASK-062).
+   *
+   * @param tenantId the tenant requesting portal access
+   * @return the Stripe-hosted Customer Portal URL to redirect the browser to
+   * @throws BillingServiceException (502) if the tenant has no Stripe customer yet or if the Stripe
+   *     API call fails
+   */
+  @Transactional
+  public String createPortalSession(UUID tenantId) {
+    Tenant tenant =
+        tenantRepository
+            .findById(tenantId)
+            .orElseThrow(() -> new IllegalStateException("Tenant not found: " + tenantId));
+
+    if (tenant.getStripeCustomerId() == null) {
+      throw new BillingServiceException("No Stripe customer found — complete checkout first");
+    }
+
+    RequestOptions requestOptions =
+        RequestOptions.RequestOptionsBuilder.unsafeSetStripeVersionOverride(
+                RequestOptions.builder(), STRIPE_API_VERSION)
+            .build();
+
+    com.stripe.param.billingportal.SessionCreateParams portalParams =
+        com.stripe.param.billingportal.SessionCreateParams.builder()
+            .setCustomer(tenant.getStripeCustomerId())
+            .setReturnUrl("https://app.teamhub.online/settings/billing")
+            .build();
+
+    try {
+      com.stripe.model.billingportal.Session portalSession =
+          com.stripe.model.billingportal.Session.create(portalParams, requestOptions);
+      return portalSession.getUrl();
+    } catch (StripeException e) {
+      log.error("Failed to create Stripe Customer Portal session for tenant {}", tenantId, e);
+      throw new BillingServiceException("Failed to create Stripe Customer Portal session", e);
+    }
+  }
+
   private String resolvePriceId(String priceKey) {
     return switch (priceKey) {
       case "free" -> stripeProperties.priceFree();

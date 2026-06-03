@@ -40,6 +40,9 @@ public class Tenant {
   @Column(name = "current_period_end")
   private Instant currentPeriodEnd;
 
+  @Column(name = "payment_failed_at")
+  private Instant paymentFailedAt;
+
   @Column(name = "stripe_customer_id")
   private String stripeCustomerId;
 

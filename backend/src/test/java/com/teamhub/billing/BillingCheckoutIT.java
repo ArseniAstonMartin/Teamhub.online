@@ -184,6 +184,67 @@ class BillingCheckoutIT {
         .andExpect(jsonPath("$.error.code").value(InvalidPriceKeyException.CODE));
   }
 
+  // =========================================================================
+  // Portal tests — TASK-062
+  // =========================================================================
+
+  /**
+   * Step 1 (portal): Admin POST /billing/portal with existing Stripe customer → 200 with portal
+   * URL.
+   *
+   * <p>TO-DO: end-to-end portal + webhook test with Stripe test clock (PRD §17.2)
+   */
+  @Test
+  void portalStep1_adminWithCustomer_returnsUrl() throws Exception {
+    tenant.setStripeCustomerId("cus_existing_portal");
+    tenantRepository.saveAndFlush(tenant);
+
+    com.stripe.model.billingportal.Session fakePortalSession =
+        mock(com.stripe.model.billingportal.Session.class);
+    when(fakePortalSession.getUrl()).thenReturn("https://billing.stripe.com/session/bps_test_abc");
+
+    try (MockedStatic<com.stripe.model.billingportal.Session> mockedPortal =
+        mockStatic(com.stripe.model.billingportal.Session.class)) {
+
+      mockedPortal
+          .when(
+              () ->
+                  com.stripe.model.billingportal.Session.create(
+                      any(com.stripe.param.billingportal.SessionCreateParams.class),
+                      any(RequestOptions.class)))
+          .thenReturn(fakePortalSession);
+
+      mockMvc
+          .perform(
+              post("/api/v1/billing/portal").header("Authorization", "Bearer " + mintAdminToken()))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.url").value("https://billing.stripe.com/session/bps_test_abc"));
+    }
+  }
+
+  /** Step 3 (portal): DISPATCHER lacks billing.manage permission → 403. */
+  @Test
+  void portalStep3_dispatcherIsForbidden() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/billing/portal")
+                .header("Authorization", "Bearer " + mintToken("DISPATCHER", adminUserId)))
+        .andExpect(status().isForbidden());
+  }
+
+  /** No Stripe customer on tenant → 502 STRIPE_ERROR. */
+  @Test
+  void portalStep4_noCustomer_returns502() throws Exception {
+    // tenant has no stripeCustomerId (fresh from setUp)
+    assertThat(tenant.getStripeCustomerId()).isNull();
+
+    mockMvc
+        .perform(
+            post("/api/v1/billing/portal").header("Authorization", "Bearer " + mintAdminToken()))
+        .andExpect(status().isBadGateway())
+        .andExpect(jsonPath("$.error.code").value(BillingServiceException.CODE));
+  }
+
   private String mintAdminToken() {
     return mintToken("ADMIN", adminUserId);
   }

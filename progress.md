@@ -1957,3 +1957,61 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Open TO-DOs created (with PRD reference):
   - TO-DO comment in BillingCheckoutIT.java: test with Stripe test clock when webhook handler is implemented (TASK-062)
 - Completed through TASK-061 (feat/task-060-066-stripe-quota): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 020, 021, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 048, 049, 050, 051, 052, 053, 054, 055, 060, 061 (see tasks.json)
+
+---
+
+### 2026-06-03 — TASK-062 — Stripe Customer Portal endpoint (PRD §17.2)
+- Agent: Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §17.2, §17.3
+- Files touched:
+  - backend/src/main/java/com/teamhub/billing/BillingServiceException.java (modified — added no-StripeException constructor for precondition failures)
+  - backend/src/main/java/com/teamhub/billing/dto/PortalSessionResponse.java (new — record with url field)
+  - backend/src/main/java/com/teamhub/billing/BillingService.java (modified — added createPortalSession: loads tenant, checks stripeCustomerId, calls billingportal.Session.create with return URL)
+  - backend/src/main/java/com/teamhub/billing/BillingController.java (modified — added POST /api/v1/billing/portal with PERM_billing.manage guard; added WebhookHandlerService injection; added POST /api/v1/billing/webhook)
+  - backend/src/test/java/com/teamhub/billing/BillingCheckoutIT.java (modified — added 3 portal tests: portalStep1 (Admin+customer→200+URL), portalStep3 (DISPATCHER→403), portalStep4 (no customer→502 STRIPE_ERROR))
+- Summary: POST /api/v1/billing/portal creates a Stripe Customer Portal session (via billingportal.Session.create with return URL https://app.teamhub.online/settings/billing) and returns the portal URL. Requires PERM_billing.manage (ADMIN). Throws BillingServiceException (502 STRIPE_ERROR) if tenant has no Stripe customer yet.
+- Acceptance criteria verified:
+  1. Admin-only endpoint — portalStep1 PASSED, portalStep3 (DISPATCHER→403) PASSED
+  2. Backend creates a billing portal session and returns the URL — portalStep1 PASSED
+  3. Portal configuration set in Stripe dashboard — TO-DO marker for human (BillingService.createPortalSession Javadoc)
+  4. Return-to URL is https://app.teamhub.online/settings/billing — hardcoded in BillingService.createPortalSession
+- Test steps run (all passed):
+  - portalStep1_adminWithCustomer_returnsUrl — PASSED
+  - portalStep3_dispatcherIsForbidden — PASSED
+  - portalStep4_noCustomer_returns502 — PASSED
+  - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, jacocoTestCoverageVerification PASSED
+- Open TO-DOs created: TO-DO in BillingCheckoutIT: end-to-end portal + webhook test with Stripe test clock (PRD §17.2)
+- Completed through TASK-062 (feat/task-060-066-stripe-quota): 001–005, 007–010, 012–014, 016–021, 023–036, 037, 039–055, 060, 061, 062
+
+---
+
+### 2026-06-03 — TASK-063 — Stripe Webhook Handler (PRD §17.3)
+- Agent: Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §17.2, §17.3, §22.5.3, §22.5.4
+- Files touched:
+  - backend/src/main/resources/db/migration/V25__billing_webhook_events.sql (new — stripe_webhook_events table (TEXT PK, event_type, processed_at); ALTER TABLE tenants ADD COLUMN IF NOT EXISTS current_period_end TIMESTAMPTZ; ADD COLUMN IF NOT EXISTS payment_failed_at TIMESTAMPTZ)
+  - backend/src/main/java/com/teamhub/billing/StripeWebhookEvent.java (new — JPA entity for webhook deduplication)
+  - backend/src/main/java/com/teamhub/billing/StripeWebhookEventRepository.java (new — JpaRepository<StripeWebhookEvent, String>; existsById for idempotency)
+  - backend/src/main/java/com/teamhub/billing/WebhookHandlerService.java (new — signature verification via Webhook.constructEvent; idempotency check; routes customer.subscription.updated, customer.subscription.deleted, invoice.payment_failed; extracts plan from SubscriptionItem.getLookupKey (moved from Subscription in API 2026-04-22.dahlia); extracts currentPeriodEnd from SubscriptionItem.getCurrentPeriodEnd; schedules downgrade_to_free delayed job +7d; publishes SubscriptionUpdated outbox event with TenantContext set)
+  - backend/src/main/java/com/teamhub/tenancy/Tenant.java (modified — added paymentFailedAt field)
+  - backend/src/main/java/com/teamhub/tenancy/TenantRepository.java (modified — added findByStripeCustomerId for webhook event routing)
+  - backend/src/main/java/com/teamhub/security/SecurityConfig.java (modified — added permitAll for POST /api/v1/billing/webhook; CSRF already disabled globally in JWT chain)
+  - backend/src/test/java/com/teamhub/billing/BillingWebhookIT.java (new — 4 integration tests: step1 invalid sig→400, step2 subscription.updated→plan+outbox, step3 idempotency→1 row, step4 payment_failed→paymentFailedAt+delayed_jobs row)
+- Summary: Full Stripe webhook handler per PRD §17.3. Webhook endpoint is permit-all (CSRF disabled in JWT chain). handleEvent verifies HMAC signature, checks stripe_webhook_events for idempotency, saves the event record, then dispatches to per-event handlers inside one @Transactional boundary. Note: in Stripe API 2026-04-22.dahlia, current_period_end and the plan lookup_key live on SubscriptionItem (not Subscription). TenantContext is set explicitly before outbox publish (required by OutboxPublisher.Propagation.MANDATORY). invoice.payment_failed schedules a downgrade_to_free DelayedJob at now+7d.
+- Acceptance criteria verified:
+  1. Signature verified with STRIPE_WEBHOOK_SECRET; invalid signature → 400 — step1 PASSED
+  2. Handler updates tenant current_plan and current_period_end within same DB transaction — step2 PASSED
+  3. Emits SubscriptionUpdated outbox event — step2 PASSED (outbox_events row verified)
+  4. Failed payment: payment_failed_at set; 7-day grace period delayed_jobs row — step4 PASSED
+  5. Idempotency: same Stripe event id twice → no double effect — step3 PASSED (only 1 stripe_webhook_events row)
+- Test steps run (all passed):
+  - step1_invalidSignature_returns400 — PASSED
+  - step2_subscriptionUpdated_updatesTenantAndPublishesOutboxEvent — PASSED
+  - step3_idempotency_sameEventTwice_onlyOneRow — PASSED
+  - step4_paymentFailed_setsFlagAndSchedulesDowngradeJob — PASSED
+  - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 374 tests total, 0 failures; jacocoTestCoverageVerification PASSED
+- Open TO-DOs created (with PRD reference):
+  - TO-DO in BillingWebhookIT: end-to-end portal + webhook test with Stripe test clock (PRD §17.2)
+- Completed through TASK-063 (feat/task-060-066-stripe-quota): 001–005, 007–010, 012–014, 016–021, 023–036, 037, 039–055, 060, 061, 062, 063

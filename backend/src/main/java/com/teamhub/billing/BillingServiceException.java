@@ -18,4 +18,9 @@ public class BillingServiceException extends DomainException {
     super(CODE, HttpStatus.BAD_GATEWAY, message);
     initCause(cause);
   }
+
+  /** Thrown when the precondition check fails without an underlying Stripe API call. */
+  public BillingServiceException(String message) {
+    super(CODE, HttpStatus.BAD_GATEWAY, message);
+  }
 }

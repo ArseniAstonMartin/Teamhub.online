@@ -164,6 +164,9 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers("/internal/sentry/**", "/api/v1/internal/sentry/**")
                     .permitAll()
+                    // Stripe calls this server-to-server; authenticity verified by HMAC signature.
+                    .requestMatchers(HttpMethod.POST, "/api/v1/billing/webhook")
+                    .permitAll()
                     .requestMatchers(
                         HttpMethod.GET,
                         "/api/v1/openapi.json",
