@@ -2,7 +2,7 @@
   "agent_instructions": {
     "before_start": [
       "Read this file (tasks.json) and run `git log --oneline -20` to understand recent history",
-      "Choose ONE task with status 'pending' and the highest priority (critical > high > medium > low)",
+      "Choose ONE task with status 'pending' and the highest priority (critical > high > medium > low); skip tasks with status 'deferred' (post-MVP / future versions)",
       "Within the same priority, prefer the lowest TASK-ID (earlier in the critical path)",
       "Check that ALL dependencies of the chosen task have status 'done'; if not, pick another task",
       "Read prd/PRD.md sections referenced by the task description before coding"
@@ -20,14 +20,15 @@
       "Run linters, formatters, and the project's full test suite",
       "Change status to 'done' ONLY after every acceptance_criterion is met and every test_step passes",
       "Append a dated summary entry to progress.md describing what was built, files touched, and any open TO-DOs",
-      "It is FORBIDDEN to delete, rename, or rewrite tasks — only update the `status` field",
+      "It is FORBIDDEN to delete, rename, or rewrite tasks — only update `status` and documented scope fields (`deferred_reason`, `target_release`)",
       "If the task turns out to be too large for one session, leave it 'pending' and add a follow-up note in progress.md instead of partially completing it"
     ],
     "status_values": [
       "pending",
       "in_progress",
       "blocked",
-      "done"
+      "done",
+      "deferred"
     ],
     "priority_order": [
       "critical",
@@ -2559,7 +2560,9 @@
       "id": "TASK-114",
       "category": "ui",
       "priority": "medium",
-      "description": "Add mobile-specific accessibility: dynamic-type / large-text support, VoiceOver/TalkBack labels on the five action buttons, and reduced-motion fallbacks per PRD §24.7",
+      "target_release": "post-MVP",
+      "deferred_reason": "Mobile a11y polish (VoiceOver, Dynamic Type, reduced-motion pass) deferred past v1.0 MVP; TASK-093 still requires basic reduced-motion on shared-pool cards when implemented.",
+      "description": "[Post-MVP] Add mobile-specific accessibility: dynamic-type / large-text support, VoiceOver/TalkBack labels on the five action buttons, and reduced-motion fallbacks per PRD §24.7",
       "acceptance_criteria": [
         "All five primary buttons have `accessibilityLabel` + `accessibilityHint`",
         "VoiceOver reads job status as text + sub-status, not just color",
@@ -2574,7 +2577,7 @@
       "dependencies": [
         "TASK-095"
       ],
-      "status": "pending"
+      "status": "deferred"
     },
     {
       "id": "TASK-115",
@@ -2660,7 +2663,9 @@
       "id": "TASK-119",
       "category": "infrastructure",
       "priority": "low",
-      "description": "Document a clear path for splitting Enterprise tenants onto dedicated databases per PRD §7.4 (forward-compat — not implemented in MVP)",
+      "target_release": "post-MVP",
+      "deferred_reason": "Enterprise dedicated-DB runbook and TenantDataSourceRouter extension deferred past v1.0 MVP; shared multi-tenant DB remains the only production path for MVP.",
+      "description": "[Post-MVP] Document a clear path for splitting Enterprise tenants onto dedicated databases per PRD §7.4 (forward-compat — not implemented in MVP)",
       "acceptance_criteria": [
         "`infra/runbooks/dedicated-db-migration.md` describes the steps: provision dedicated DB, snapshot+restore tenant rows, update repository routing config, switchover plan, rollback plan",
         "Code: the `DataSource` is fetched from a `TenantDataSourceRouter` bean that today returns a single shared DataSource but can be extended to look up per-tenant routing",
@@ -2674,27 +2679,7 @@
       "dependencies": [
         "TASK-018"
       ],
-      "status": "pending"
-    },
-    {
-      "id": "TASK-120",
-      "category": "infrastructure",
-      "priority": "low",
-      "description": "Document the Kafka migration path per PRD §22.5.8 in `infra/runbooks/kafka-migration.md` so the team knows the trigger conditions and step-by-step plan when the time comes",
-      "acceptance_criteria": [
-        "Runbook documents: trigger conditions (sustained > 1000 events/sec or service split), the exact code seams to swap (relay XADD → Kafka producer, consumer clients), event schema invariance, idempotency reuse, rollback plan",
-        "References PRD §22.5.8",
-        "No actual Kafka dependency added"
-      ],
-      "test_steps": [
-        "Step 1: Lead Developer reads the runbook and can describe the migration in their own words",
-        "Step 2: `grep -R 'kafka' backend/build.gradle.kts` returns zero hits (Kafka stays out of MVP)",
-        "Step 3: Runbook references PRD §22.5.8 by section number"
-      ],
-      "dependencies": [
-        "TASK-031"
-      ],
-      "status": "pending"
+      "status": "deferred"
     },
     {
       "id": "TASK-121",
@@ -2727,7 +2712,7 @@
       "priority": "high",
       "description": "Cut the v1.0.0 MVP release tag per PRD §4.2: schema customization, automations, shared-pool claim + escalation, Stripe billing, audit log, push notifications, MinIO-backed photos, internal admin console",
       "acceptance_criteria": [
-        "All MVP-scope tasks have status `done` (i.e., every TASK-XXX above except the explicitly-out-of-MVP placeholders TASK-115/116/119/120)",
+        "All MVP-scope tasks have status `done` (i.e., every TASK-XXX above except post-MVP/deferred items TASK-114, TASK-115, TASK-116, TASK-119 and removed TASK-120)",
         "All six PRD §5.6 authorization tests pass in CI (TASK-070)",
         "PRD §6.6, §8.6, §9.3, §10.4, §11.3, §12.3, §13.4, §14.4, §15.3, §16.4, §17.4, §22.5.9 acceptance criteria — every one — verified by an end-to-end test or human verification (Lead Developer signs off per PRD §25.2)",
         "Tag `v1.0.0` pushed; CHANGELOG.md and PRD updated"

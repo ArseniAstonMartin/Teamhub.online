@@ -2293,3 +2293,14 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Acceptance criteria verified: AC1 (API mocking, no real backend), AC2 (login, create-job, claim, notes journeys), AC3 (nightly cron added to web-ci.yml), AC4 (stable locators, no waitForTimeout)
 - Test steps run: 13/13 e2e tests pass (8.3 s); 269 unit tests pass; typecheck clean; lint clean; build successful
 - Open TO-DOs: none
+
+---
+
+## Backlog scope (human decision)
+
+### 2026-06-01 — Backlog — MVP scope trim (tasks.json)
+- Agent: human + Auto
+- Status changes: TASK-114 pending → deferred; TASK-119 pending → deferred; TASK-120 removed
+- Summary: Post-MVP deferral for mobile a11y (TASK-114) and Enterprise dedicated-DB runbook (TASK-119). TASK-120 (Kafka migration runbook) removed from backlog — Redis Streams + outbox remain the long-term eventing path; no Kafka migration planned. Added `deferred` status to `tasks.json` agent_instructions; TASK-122 MVP acceptance criteria updated accordingly.
+- Files touched: `tasks.json`
+- Open TO-DOs: none
