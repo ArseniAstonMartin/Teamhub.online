@@ -10,6 +10,7 @@ import SchedulePage from '@/pages/schedule/ui/SchedulePage';
 import JobsPage from '@/pages/jobs/ui/JobsPage';
 import JobDetailPage from '@/pages/job-detail/ui/JobDetailPage';
 import CustomersPage from '@/pages/customers/ui/CustomersPage';
+import CustomerDetailPage from '@/pages/customers/ui/CustomerDetailPage';
 import ReportsPage from '@/pages/reports/ui/ReportsPage';
 import SettingsPage from '@/pages/settings/ui/SettingsPage';
 import AuthCallbackPage from '@/pages/auth-callback/ui/AuthCallbackPage';
@@ -42,6 +43,7 @@ export const router = createBrowserRouter([
           { path: '/jobs', element: <JobsPage /> },
           { path: '/jobs/:id', element: <JobDetailPage /> },
           { path: '/customers', element: <CustomersPage /> },
+          { path: '/customers/:id', element: <CustomerDetailPage /> },
           { path: '/reports', element: <ReportsPage /> },
           { path: '/settings/*', element: <SettingsPage /> },
           { path: '/settings/users', element: <SettingsUsersPage /> },

@@ -1849,3 +1849,23 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - Submit: posts to `POST /api/v1/jobs`, on success closes dialog and invalidates `['jobs']` query
 - **Test count**: 16 new (JobCreateDialog) + 201 existing = **217 passing** across 13 files
 - **Checks**: typecheck ✓ lint ✓ test ✓ build ✓
+
+## TASK-081 — Web Customer List + Detail Pages (2026-06-03)
+- **New files**:
+  - `web/src/entities/customer/model/types.ts` — `CustomerResponse`, `CustomersPageResponse`, `CreateCustomerRequest`, `UpdateCustomerRequest`, `CustomersQueryParams` interfaces
+  - `web/src/entities/customer/api/customersApi.ts` — `useCustomers`, `useCustomer`, `useCreateCustomer`, `useUpdateCustomer`, `useArchiveCustomer` TanStack Query hooks
+  - `web/src/pages/customers/ui/CustomerDetailPage.tsx` — detail page with header (name, phone, email, address), Google Maps iframe embed (lat/lon fallback to address text), Jobs/Notes tab strip, Edit dialog (AddressAutocomplete re-geocode), Archive confirm dialog
+  - `web/src/pages/customers/ui/CustomersPage.test.tsx` — 10 tests covering all list ACs
+  - `web/src/pages/customers/ui/CustomerDetailPage.test.tsx` — 10 tests covering all detail ACs
+- **Modified files**:
+  - `web/src/pages/customers/ui/CustomersPage.tsx` — replaced stub with full paginated table, debounced search (300 ms → URL `?q=`), "Show archived" checkbox (URL `?include_archived=true`), Status badge (Active/Archived), archive confirm dialog, role-gated archive button
+  - `web/src/entities/job/model/types.ts` — added `customerId?: string` to `JobsQueryParams`
+  - `web/src/app/router.tsx` — added `{ path: '/customers/:id', element: <CustomerDetailPage /> }` route
+- **Key behaviours**:
+  - Customer list: search debounced 300 ms, synced to URL; include_archived toggle; paginated (20/page); archive via `DELETE /api/v1/customers/{id}` with confirm dialog; row click navigates to detail
+  - Customer detail: header shows name, company, phone, email, address, created date; Google Maps iframe (`q=lat,lon&z=15&output=embed`) when coordinates present, else formatted address text
+  - Edit dialog: all fields pre-filled; phone read-only with note; address uses `<AddressAutocomplete>` → re-geocodes via `POST /api/v1/geocode`; saves via `PATCH /api/v1/customers/{id}`
+  - Jobs tab: `useJobs({ customerId: id })` — lists customer's full job history; Notes tab shows placeholder
+  - Archived badge shown on header; restore button omitted (TO-DO comment for POST restore endpoint)
+- **Test count**: 20 new + 217 existing = **238 passing** across 15 files
+- **Checks**: typecheck ✓ lint ✓ test ✓ build ✓

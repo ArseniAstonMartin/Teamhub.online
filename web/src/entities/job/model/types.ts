@@ -70,6 +70,7 @@ export interface JobNoteResponse {
 
 export interface JobsQueryParams {
   status?: JobStatus;
+  customerId?: string;
   assignedTechnicianId?: string;
   scheduledFrom?: string;
   scheduledTo?: string;
