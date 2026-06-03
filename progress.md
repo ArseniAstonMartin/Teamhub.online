@@ -2125,3 +2125,7 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Test steps run: step1 (drift correction + WARN log), step2 (200-tenant performance), step3 (StripeException isolation) — all passed
 - Open TO-DOs created (with PRD reference): `// TO-DO (Sentry): send Sentry breadcrumb when Sentry integration is available` in `ReconciliationBatchRunner.java` (PRD §28)
 - Completed through TASK-066 (feat/task-060-066-stripe-quota): 001–005, 007–010, 012–014, 016–021, 023–036, 037, 039–055, 060, 061, 062, 063, 064, 065, 066
+
+---
+
+<!-- Completed through TASK-107 (2026-06-03 rebase sync): 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 020, 021, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 047, 048, 049, 050, 051, 052, 053, 054, 055, 060, 061, 062, 063, 064, 065, 066, 072, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 086, 107 (see tasks.json) -->
