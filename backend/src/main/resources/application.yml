@@ -108,6 +108,14 @@ teamhub:
   google:
     # TO-DO: restrict API key in Google Cloud Console — HTTP referrer for web, IP allowlist for server (PRD §8.1)
     maps-api-key: ${GOOGLE_MAPS_API_KEY:}
+  rate-limit:
+    routes:
+      auth-ip:
+        limit: 5
+        window-seconds: 60
+      job-claim-user:
+        limit: 10
+        window-seconds: 60
   # TO-DO: Provision Stripe secrets per PRD §26.2:
   #   STRIPE_SECRET_KEY      — restricted API key (rk_test_... / rk_live_...)
   #   STRIPE_PRICE_FREE      — price_xxx from seed-products script

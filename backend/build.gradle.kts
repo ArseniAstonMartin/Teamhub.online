@@ -36,6 +36,7 @@ val shedlockVersion = "6.6.0"
 val sentryVersion = "7.22.0"
 val logstashVersion = "8.1"
 val awsSdkVersion = "2.34.0"
+val bucket4jVersion = "8.18.0"
 
 dependencies {
   implementation("org.springframework.boot:spring-boot-starter-actuator")
@@ -59,6 +60,8 @@ dependencies {
   implementation("software.amazon.awssdk:s3")
   implementation("software.amazon.awssdk:s3-transfer-manager")
   implementation("com.stripe:stripe-java:$stripeVersion")
+  implementation("com.bucket4j:bucket4j_jdk17-core:$bucket4jVersion")
+  implementation("com.bucket4j:bucket4j_jdk17-lettuce:$bucket4jVersion")
 
   compileOnly("org.projectlombok:lombok")
   annotationProcessor("org.projectlombok:lombok")

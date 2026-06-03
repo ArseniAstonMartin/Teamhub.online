@@ -3,6 +3,7 @@ package com.teamhub.security;
 import com.teamhub.auth.GoogleOAuth2FailureHandler;
 import com.teamhub.auth.GoogleOAuth2SuccessHandler;
 import com.teamhub.logging.MdcLoggingFilter;
+import com.teamhub.ratelimit.RateLimitFilter;
 import com.teamhub.security.rbac.PermissionJwtAuthenticationConverter;
 import com.teamhub.shared.TenantContextFilter;
 import org.springframework.beans.factory.annotation.Value;
@@ -148,7 +149,8 @@ public class SecurityConfig {
       AccessDeniedHandler accessDeniedHandler,
       AuthenticationEntryPoint authenticationEntryPoint,
       CorsConfigurationSource corsConfigurationSource,
-      MdcLoggingFilter mdcLoggingFilter)
+      MdcLoggingFilter mdcLoggingFilter,
+      RateLimitFilter rateLimitFilter)
       throws Exception {
     http.csrf(AbstractHttpConfigurer::disable)
         .httpBasic(AbstractHttpConfigurer::disable)
@@ -186,6 +188,7 @@ public class SecurityConfig {
                 handling
                     .accessDeniedHandler(accessDeniedHandler)
                     .authenticationEntryPoint(authenticationEntryPoint))
+        .addFilterBefore(rateLimitFilter, BearerTokenAuthenticationFilter.class)
         .addFilterAfter(new TenantContextFilter(), BearerTokenAuthenticationFilter.class)
         .addFilterAfter(mdcLoggingFilter, TenantContextFilter.class);
 

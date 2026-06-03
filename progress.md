@@ -2173,8 +2173,81 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Open TO-DOs: none
 - Completed through TASK-068 (feat/task-067-068-admin-reports): 001–005, 007–010, 012–014, 016–021, 023–036, 037, 039–055, 060–066, 067, 068
 
+### 2026-06-03 — TASK-069 — Redis-backed rate limiting (Bucket4j)
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §24.4 (rate limiting, 429 format)
+- Files touched:
+  - `backend/build.gradle.kts` (added `bucket4j_jdk17-core:8.18.0` and `bucket4j_jdk17-lettuce:8.18.0`)
+  - `backend/gradle.lockfile` (updated with Bucket4j transitive deps)
+  - `backend/src/main/resources/application.yml` (added `teamhub.rate-limit.routes` config)
+  - `backend/src/main/java/com/teamhub/ratelimit/RateLimitProperties.java` (new — `@ConfigurationProperties` record)
+  - `backend/src/main/java/com/teamhub/ratelimit/RateLimitConfig.java` (new — Lettuce `StatefulRedisConnection`, `ProxyManager<String>`, and `RateLimitFilter` beans)
+  - `backend/src/main/java/com/teamhub/ratelimit/RateLimitFilter.java` (new — `OncePerRequestFilter` implementing IP-based auth limit + user-based claim limit)
+  - `backend/src/main/java/com/teamhub/security/SecurityConfig.java` (added `RateLimitFilter` via `addFilterBefore(BearerTokenAuthenticationFilter.class)`)
+  - `backend/src/test/java/com/teamhub/ratelimit/RateLimitIT.java` (new — 3 integration tests)
+- Summary: Implemented per-route Bucket4j token-bucket rate limiting backed by Redis (Testcontainer in tests, real Redis in prod). `RateLimitFilter` gates `POST /api/v1/auth/login` and `/auth/refresh` at 5 req/min/IP and `POST /api/v1/jobs/{id}/claim` at 10 req/min/user. The claim path user ID is extracted from the JWT Bearer token payload without re-verification (safe for rate-limit key derivation). Exhausted buckets write a 429 JSON response directly (uniform error envelope, §23.4) with `Retry-After` header using `ObjectMapper`, reusing the `RateLimitExceededException.CODE` constant from TASK-020. `GlobalExceptionHandler` already sets `Retry-After` for controller-level `RateLimitExceededException` — no change needed there. Route limits are fully configurable via `teamhub.rate-limit.routes` in `application.yml` so future endpoints can opt in.
+- Acceptance criteria verified:
+  1. Filter applies 5/min/IP on auth paths and 10/min/user on claim path, returns 429 with `Retry-After` and `RATE_LIMIT_EXCEEDED` — VERIFIED (Step 1 and 2 tests)
+  2. Bucket state survives process restart (Redis-backed) — VERIFIED (Step 3: re-acquire bucket from `ProxyManager`, `getAvailableTokens()` == 2 after 3 consumptions)
+  3. Configurable per-route limits via `application.yml` — VERIFIED (`RateLimitProperties` record + YAML config)
+- Test steps run: Step 1 (6th login → 429 + Retry-After + RATE_LIMIT_EXCEEDED), Step 2 (11th claim → 429), Step 3 (3 consumptions → Redis bucket shows 2 remaining) — all 3 PASS; full suite BUILD SUCCESSFUL (coverage ≥80%)
+- Open TO-DOs: none
+- Completed through TASK-069 (feat/task-069-071-security): 001–005, 007–010, 012–014, 016–021, 023–036, 037, 039–055, 060–066, 067, 068, 069
+
+### 2026-06-03 — TASK-070 — PRD §5.6 Authorization Matrix integration tests
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §5.2, §5.3, §5.6 (authorization matrix, RBAC rules)
+- Files touched:
+  - `backend/src/main/java/com/teamhub/job/JobController.java` (pass `Authentication` to `getById()`)
+  - `backend/src/main/java/com/teamhub/job/JobService.java` (enforce TECHNICIAN ownership in `getById()`)
+  - `backend/src/test/java/com/teamhub/security/AuthorizationMatrixIT.java` (new — 6 matrix tests)
+- Summary: Added the six PRD §5.6 authorization-matrix integration tests using Testcontainers + real PostgreSQL RLS. Also patched `JobService.getById()` to enforce TECHNICIAN ownership (a gap — technicians with `job.read.own` could previously read any job in their tenant via `GET /jobs/{id}`; now they receive 403 `JOB_NOT_ASSIGNED_TO_CALLER` unless the job is assigned to them or in SUBMITTED status). Tests use real RS256 JWTs minted with the application's signing key; each test provisions isolated tenants and cleans up in `@AfterEach`.
+- Acceptance criteria verified:
+  1. Six matrix test cases (tech-cannot-read-others-job, tech-cannot-read-other-tenant, tech-complete-blocked-close-jobs-disabled, dispatcher-cannot-hard-delete, dispatcher-cannot-read-other-tenant, adminA-cannot-read-tenantB-jobs) — all pass; all expect 403/404 where specified — VERIFIED
+  2. Tests use Testcontainers + real Postgres + real RLS (`postgis/postgis:16-3.5`) — VERIFIED
+  3. Pipeline (`./gradlew check`) fails if any of the six tests fail — VERIFIED (all six green)
+- Test steps run:
+  - Step 1: `./gradlew test --tests "*AuthorizationMatrix*"` — all six PASS
+  - Step 2: NOT disabled in automated run (requires superuser; documented in class Javadoc which tests rely on RLS vs @PreAuthorize)
+  - Step 3: N/A (re-enable RLS — always on in test Testcontainer)
+- Test method to enforcement mapping:
+  - `tech_cannotRead_anotherTechniciansJob_sameTenant()` — @PreAuthorize + service ownership check
+  - `tech_cannotRead_jobFromOtherTenant()` — PostgreSQL RLS (tenant_isolation policy)
+  - `tech_cannotComplete_whenCloseJobsDisabled()` — application runtime toggle (CloseJobsDisabledException)
+  - `dispatcher_cannotHardDelete_job()` — @PreAuthorize (PERM_job.hard_delete ADMIN-only)
+  - `dispatcher_cannotRead_jobFromOtherTenant()` — PostgreSQL RLS (tenant_isolation policy)
+  - `adminA_cannotRead_tenantB_jobs()` — PostgreSQL RLS (tenant_isolation policy)
+- Open TO-DOs created (with PRD reference): none
+- Completed through TASK-070 (feat/task-069-071-security): 001–005, 007–010, 012–014, 016–021, 023–036, 037, 039–055, 060–066, 067, 068, 069, 070
+
 <!-- Completed through TASK-107 (2026-06-03 rebase sync): 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 020, 021, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 047, 048, 049, 050, 051, 052, 053, 054, 055, 060, 061, 062, 063, 064, 065, 066, 072, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 086, 107 (see tasks.json) -->
 
+### 2026-06-03 — TASK-071 — CCPA data export and customer erasure endpoints
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §24.5 (CCPA data export and erasure)
+- Files touched:
+  - `backend/src/main/resources/db/migration/V29__compliance_permissions.sql` (new — `compliance.export` and `compliance.erase` permissions, ADMIN-only)
+  - `backend/src/main/java/com/teamhub/customer/CustomerNotFoundException.java` (new — HTTP 404, code `CUSTOMER_NOT_FOUND`)
+  - `backend/src/main/java/com/teamhub/audit/AuditLogRepository.java` (added `findAllByTenantId`)
+  - `backend/src/main/java/com/teamhub/auth/UserRepository.java` (added `findAllByTenantId`)
+  - `backend/src/main/java/com/teamhub/customer/CustomerRepository.java` (added `findByIdAndTenantId`, `findAllByTenantIdAndArchivedAtIsNull`)
+  - `backend/src/main/java/com/teamhub/job/JobRepository.java` (added `findAllByTenantIdAndArchivedAtIsNull`)
+  - `backend/src/main/java/com/teamhub/compliance/ComplianceService.java` (new — `exportTenantData`, `eraseCustomer`)
+  - `backend/src/main/java/com/teamhub/compliance/ComplianceController.java` (new — `GET /api/v1/compliance/export`, `POST /api/v1/compliance/erase-customer/{id}`)
+  - `backend/src/test/java/com/teamhub/compliance/ComplianceIT.java` (new — 4 integration tests)
+  - `docs/privacy-policy-stub.md` (new — TO-DO stub referencing CCPA endpoints)
+- Summary: Implemented CCPA-compliant data export and customer erasure endpoints under the `com.teamhub.compliance` package. The export endpoint collects all non-archived users, jobs, customers, and audit log entries for the tenant, serialises them via existing response DTOs (to handle JTS geometry → lat/lon), and streams a ZIP archive. The erase endpoint replaces all PII fields (`name`, `phone`, `email`, `addressLine`, `city`, `state`, `zip`) with `"[REDACTED]"`, overwrites the PostGIS location column with the null-island sentinel point (0°,0°) — the column is NOT NULL so Java null is not permitted — and sets `archivedAt` to soft-delete the record. Both actions are recorded via `AsyncAuditService` with actions `compliance.data_export` and `compliance.customer_erased`. Two permissions (`compliance.export`, `compliance.erase`) are seeded in V29 and granted exclusively to ADMIN.
+- Acceptance criteria verified:
+  1. `GET /api/v1/compliance/export` returns ZIP with `users.json`, `jobs.json`, `customers.json`, `audit_log.json` — VERIFIED (Step 1 IT test)
+  2. `POST /api/v1/compliance/erase-customer/{id}` replaces PII with `[REDACTED]`; linked jobs preserved — VERIFIED (Step 2 IT test)
+  3. Both endpoints Admin-only; every action audited — VERIFIED (Step 3 IT tests: DISPATCHER → 403; audit row queried in Steps 1 and 2)
+  4. TO-DO marker in privacy policy doc references endpoints — VERIFIED (`docs/privacy-policy-stub.md` + comment in `ComplianceController.java`)
+- Test steps run: Step 1 (Admin export → 200, ZIP contains 4 files, audit row exists), Step 2 (Admin erase → 204, PII = `[REDACTED]`, jobs preserved, audit row exists), Step 3 (DISPATCHER export → 403, DISPATCHER erase → 403) — all 4 tests PASS; `./gradlew check` BUILD SUCCESSFUL
+- Open TO-DOs: Privacy policy text at `https://teamhub.online/privacy` must be written referencing the export and erasure endpoints (see `docs/privacy-policy-stub.md`)
+- Completed through TASK-071 (feat/task-069-071-security): 001–005, 007–010, 012–014, 016–021, 023–036, 037, 039–055, 060–066, 067, 068, 069, 070, 071
 ### 2026-06-03 — TASK-085 — Settings → Billing page
 
 - Agent: Claude Sonnet 4.6

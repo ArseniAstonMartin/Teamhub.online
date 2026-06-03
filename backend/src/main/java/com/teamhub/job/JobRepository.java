@@ -1,6 +1,7 @@
 package com.teamhub.job;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,6 +12,13 @@ import org.springframework.data.repository.query.Param;
 
 /** Spring Data JPA repository for {@link Job} (PRD §9, §22, TASK-042, TASK-044). */
 public interface JobRepository extends JpaRepository<Job, UUID>, JpaSpecificationExecutor<Job> {
+
+  /**
+   * Returns all non-archived jobs for the given tenant (TASK-071, PRD §24.5).
+   *
+   * <p>Used by the CCPA data-export feature to bundle {@code jobs.json}.
+   */
+  List<Job> findAllByTenantIdAndArchivedAtIsNull(UUID tenantId);
 
   /**
    * Returns an active (non-archived) job for the given tenant and id.
