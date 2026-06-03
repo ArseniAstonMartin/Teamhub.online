@@ -2204,3 +2204,19 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Acceptance criteria verified: AC1 (all 4 chart types), AC2 (period picker + disabled Custom tab), AC3 (upgrade card on 402), AC4 (shapes + labels supplement color)
 - Test steps run: 269 tests pass (8 new reports tests) — typecheck clean, lint clean, build successful
 - Open TO-DOs: enable Custom date-range pickers for Team+ when plan status endpoint is available
+
+### 2026-06-03 — TASK-089 — Web Playwright E2E Critical Journey Tests
+
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- Files touched:
+  - `web/e2e/helpers/auth.ts` (new — setupAuth, loginAs, makeToken helpers)
+  - `web/e2e/helpers/fixtures.ts` (new — makeJobDto, makeJobResponse, makeJobsPage, makeSchema, makeNote factories)
+  - `web/e2e/auth.spec.ts` (new — 3 login journey tests)
+  - `web/e2e/jobs.spec.ts` (new — 4 jobs list + create-job tests)
+  - `web/e2e/job-detail.spec.ts` (new — 4 job-detail + transition + notes tests)
+  - `.github/workflows/web-ci.yml` (added schedule: cron '0 2 * * *' nightly trigger)
+- Summary: Added 11 Playwright e2e tests (plus 2 pre-existing = 13 total) covering 4 critical journeys via page.route() API mocking: (1) Login — renders form, successful redirect to /schedule, error toast on bad credentials; (2) Jobs list — heading/button render, empty state, create-job dialog opens, new job appears in list after POST; (3) Job detail + FSM transition — status badge shows Submitted, clicking Claim optimistically updates badge to Assigned; (4) Notes — empty "No notes yet" state, adding note appears in thread. Auth bootstrap uses localStorage refresh-token injection + 401→refresh interceptor flow for Zustand user population (ADMIN role) without needing a real backend. All locators use getByRole/getByLabel/getByTestId — no CSS class selectors.
+- Acceptance criteria verified: AC1 (API mocking, no real backend), AC2 (login, create-job, claim, notes journeys), AC3 (nightly cron added to web-ci.yml), AC4 (stable locators, no waitForTimeout)
+- Test steps run: 13/13 e2e tests pass (8.3 s); 269 unit tests pass; typecheck clean; lint clean; build successful
+- Open TO-DOs: none
