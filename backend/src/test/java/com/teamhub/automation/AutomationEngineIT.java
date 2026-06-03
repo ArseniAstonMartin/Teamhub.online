@@ -14,7 +14,9 @@ import com.teamhub.config.TestcontainersConfiguration;
 import com.teamhub.schemas.FieldDefinition;
 import com.teamhub.schemas.dto.PublishSchemaRequest;
 import com.teamhub.tenancy.InternalTenantService;
+import com.teamhub.tenancy.Plan;
 import com.teamhub.tenancy.Tenant;
+import com.teamhub.tenancy.TenantRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -100,6 +102,8 @@ class AutomationEngineIT {
 
   @Autowired private JdbcTemplate jdbc;
 
+  @Autowired private TenantRepository tenantRepository;
+
   private Tenant tenant;
 
   private String adminToken;
@@ -110,6 +114,8 @@ class AutomationEngineIT {
   void setUp() {
     String ownerEmail = "engine+" + UUID.randomUUID() + "@test.com";
     tenant = tenantService.provision("Engine Co " + UUID.randomUUID(), ownerEmail);
+    tenant.setPlan(Plan.STARTER);
+    tenantRepository.save(tenant);
     UUID adminUserId = userRepository.findByEmail(ownerEmail).orElseThrow().getId();
     adminToken = mintToken(tenant.getId(), UserRole.ADMIN.name(), adminUserId);
     dispatcherToken = mintToken(tenant.getId(), UserRole.DISPATCHER.name(), UUID.randomUUID());

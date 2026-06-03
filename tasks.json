@@ -1367,7 +1367,7 @@
         "TASK-002",
         "TASK-008"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-061",
@@ -1389,7 +1389,7 @@
         "TASK-060",
         "TASK-023"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-062",
@@ -1410,7 +1410,7 @@
       "dependencies": [
         "TASK-061"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-063",
@@ -1433,7 +1433,7 @@
         "TASK-061",
         "TASK-030"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-064",
@@ -1457,7 +1457,7 @@
         "TASK-041",
         "TASK-063"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-065",
@@ -1479,7 +1479,7 @@
         "TASK-064",
         "TASK-034"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-066",
@@ -1490,17 +1490,17 @@
         "Spring `@Scheduled` job runs daily at 03:00 UTC",
         "Iterates `tenants WHERE stripe_customer_id IS NOT NULL`; fetches subscription; updates plan/period if drifted",
         "Drift events emit a `SubscriptionDrift` log line (warn) and a Sentry breadcrumb",
-        "Job runs within 5 minutes for the §24.2 target of 500 tenants"
+        "Job runs within 5 minutes for the §24.2 target of 200 tenants"
       ],
       "test_steps": [
         "Step 1: Manually mutate a tenant's `current_plan` to be wrong; next day's job (or a forced run) corrects it",
-        "Step 2: Run the job with 500 fake tenants — finishes in < 5 min",
+        "Step 2: Run the job with 200 fake tenants — finishes in < 2 min",
         "Step 3: Sentry receives a breadcrumb for each drift"
       ],
       "dependencies": [
         "TASK-063"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-067",

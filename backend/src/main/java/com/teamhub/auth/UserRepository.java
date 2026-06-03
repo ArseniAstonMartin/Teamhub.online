@@ -23,4 +23,11 @@ public interface UserRepository extends JpaRepository<User, UUID> {
    * Counts active (non-deactivated) Admins in the tenant. Used by the last-admin protection guard.
    */
   long countByTenantIdAndRoleAndDeactivatedAtIsNull(UUID tenantId, UserRole role);
+
+  /**
+   * Counts all active (non-deactivated) users in the tenant regardless of role (TASK-064).
+   *
+   * <p>Used by {@code QuotaEnforcementService} to enforce seat limits before a new invite is sent.
+   */
+  long countByTenantIdAndDeactivatedAtIsNull(UUID tenantId);
 }

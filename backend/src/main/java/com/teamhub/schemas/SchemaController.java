@@ -2,6 +2,7 @@ package com.teamhub.schemas;
 
 import com.teamhub.audit.AuditLog;
 import com.teamhub.audit.AuditLogService;
+import com.teamhub.billing.QuotaEnforcementService;
 import com.teamhub.schemas.dto.PublishSchemaRequest;
 import com.teamhub.schemas.dto.SchemaResponse;
 import com.teamhub.shared.TenantContext;
@@ -47,9 +48,15 @@ public class SchemaController {
 
   private final AuditLogService auditLogService;
 
-  public SchemaController(SchemaService schemaService, AuditLogService auditLogService) {
+  private final QuotaEnforcementService quotaEnforcementService;
+
+  public SchemaController(
+      SchemaService schemaService,
+      AuditLogService auditLogService,
+      QuotaEnforcementService quotaEnforcementService) {
     this.schemaService = schemaService;
     this.auditLogService = auditLogService;
+    this.quotaEnforcementService = quotaEnforcementService;
   }
 
   /**
@@ -85,6 +92,7 @@ public class SchemaController {
   public ResponseEntity<SchemaResponse> publish(
       @Valid @RequestBody PublishSchemaRequest request, Authentication authentication) {
     UUID tenantId = TenantContext.get();
+    quotaEnforcementService.checkSchemaEditorAccess(tenantId);
     AppointmentSchema schema =
         schemaService.publishNewVersion(tenantId, request.name(), request.fieldDefinitions());
 
@@ -116,6 +124,7 @@ public class SchemaController {
       description = "Sets is_active=false; the row is preserved for historical job validation.")
   public SchemaResponse deactivate(@PathVariable UUID id, Authentication authentication) {
     UUID tenantId = TenantContext.get();
+    quotaEnforcementService.checkSchemaEditorAccess(tenantId);
     AppointmentSchema schema = schemaService.deactivateById(tenantId, id);
 
     auditLogService.record(

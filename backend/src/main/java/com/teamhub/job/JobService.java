@@ -1,5 +1,6 @@
 package com.teamhub.job;
 
+import com.teamhub.billing.QuotaEnforcementService;
 import com.teamhub.customer.Customer;
 import com.teamhub.customer.CustomerRepository;
 import com.teamhub.eventing.OutboxPublisher;
@@ -57,19 +58,23 @@ public class JobService {
 
   private final JobStateMachineService jobStateMachineService;
 
+  private final QuotaEnforcementService quotaEnforcementService;
+
   public JobService(
       JobRepository jobRepository,
       CustomerRepository customerRepository,
       JobCustomFieldValidator customFieldValidator,
       OutboxPublisher outboxPublisher,
       JobMetrics jobMetrics,
-      JobStateMachineService jobStateMachineService) {
+      JobStateMachineService jobStateMachineService,
+      QuotaEnforcementService quotaEnforcementService) {
     this.jobRepository = jobRepository;
     this.customerRepository = customerRepository;
     this.customFieldValidator = customFieldValidator;
     this.outboxPublisher = outboxPublisher;
     this.jobMetrics = jobMetrics;
     this.jobStateMachineService = jobStateMachineService;
+    this.quotaEnforcementService = quotaEnforcementService;
   }
 
   /**
@@ -159,6 +164,8 @@ public class JobService {
    * @return the persisted job as a response DTO
    */
   public JobResponse create(UUID tenantId, CreateJobRequest req, UUID actorUserId) {
+    quotaEnforcementService.checkJobQuota(tenantId);
+
     if (req.appointmentSchemaId() != null) {
       customFieldValidator.validate(tenantId, req.appointmentSchemaId(), req.customFields());
     }

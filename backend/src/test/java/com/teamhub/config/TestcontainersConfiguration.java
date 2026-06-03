@@ -57,6 +57,18 @@ public class TestcontainersConfiguration {
   }
 
   @Bean
+  DynamicPropertyRegistrar stripeTestPropertyRegistrar() {
+    return registry -> {
+      registry.add("teamhub.stripe.secret-key", () -> "rk_test_placeholder");
+      registry.add("teamhub.stripe.price-free", () -> "price_test_free");
+      registry.add("teamhub.stripe.price-starter", () -> "price_test_starter");
+      registry.add("teamhub.stripe.price-team", () -> "price_test_team");
+      registry.add("teamhub.stripe.price-enterprise", () -> "price_test_enterprise");
+      registry.add("teamhub.stripe.webhook-secret", () -> "whsec_test_placeholder");
+    };
+  }
+
+  @Bean
   ApplicationRunner minioInitializer(S3Client s3Client, ObjectStorageProperties storageProperties) {
     return args -> {
       try {

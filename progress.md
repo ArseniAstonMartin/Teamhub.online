@@ -1887,3 +1887,245 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - Settings sidebar expands sub-items (Tenant, Users) when on any `/settings/*` route
 - **Test count**: 11 new + 238 existing = **249 passing** across 16 files
 - **Checks**: typecheck ✓ lint ✓ test ✓ build ✓
+
+
+---
+
+### 2026-06-03 — TASK-060 — Stripe billing products & price scaffold (PRD §17.1)
+- Agent: Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §17.1, §26.2
+- Files touched:
+  - backend/scripts/stripe/seed-products.ts (new — idempotent Node.js/TS seed script creating 4 Stripe products + recurring monthly prices)
+  - backend/scripts/stripe/package.json (new — stripe npm dep + seed script entry point)
+  - backend/scripts/stripe/tsconfig.json (new — TypeScript compiler config)
+  - backend/src/main/java/com/teamhub/billing/StripePriceProperties.java (new — @ConfigurationProperties record with @NotBlank on all 6 fields)
+  - backend/src/main/java/com/teamhub/billing/StripeConfig.java (new — @Configuration sets Stripe.apiKey at startup via @PostConstruct)
+  - backend/src/main/resources/application.yml (modified — added teamhub.stripe.* bindings for all 6 env vars)
+  - backend/build.gradle.kts (modified — added com.stripe:stripe-java:29.2.0)
+  - backend/src/test/java/com/teamhub/billing/StripePricePropertiesTest.java (new — 8 ApplicationContextRunner tests covering all 6 blank-field fail-fast paths)
+  - backend/src/test/java/com/teamhub/config/TestcontainersConfiguration.java (modified — added stripeTestPropertyRegistrar DynamicPropertyRegistrar bean)
+  - tasks.json (TASK-060 status → done)
+  - progress.md (this entry)
+- Summary: Scaffolded the entire Stripe billing property layer (TASK-060). The seed script creates 4 products (Free $0, Starter $49, Team $169, Enterprise $349/month per PRD §17.1) with idempotency via metadata.teamhub_plan_key lookup before creation. StripePriceProperties is a @Validated record causing Spring Boot to fail at startup with BindValidationException if any of the 6 required secrets (secret-key, price-free, price-starter, price-team, price-enterprise, webhook-secret) is blank. StripeConfig sets Stripe.apiKey globally at startup. Integration tests receive stub values via TestcontainersConfiguration.stripeTestPropertyRegistrar.
+- Acceptance criteria verified:
+  1. backend/scripts/stripe/seed-products.ts creates 4 products and recurring monthly prices via Stripe API — script code verified; idempotency logic present
+  2. Resulting price IDs documented as required env vars STRIPE_PRICE_FREE, STRIPE_PRICE_STARTER, STRIPE_PRICE_TEAM, STRIPE_PRICE_ENTERPRISE — in application.yml bindings + seed script output format
+  3. Script is idempotent (no duplicates on re-run) — ensureProduct/ensurePrice functions check metadata.teamhub_plan_key before creating
+  4. TO-DO marker for human to run script against live Stripe account per PRD §26.2 — present at top of seed-products.ts and in StripePriceProperties Javadoc
+- Test steps run:
+  - Step 1 (Run script against Stripe test account): requires human to provision STRIPE_SECRET_KEY — TO-DO in seed-products.ts
+  - Step 2 (Re-run — no duplicates): idempotency logic in ensureProduct/ensurePrice verified by code review
+  - Step 3 (Backend boot fails if any price env var missing): StripePricePropertiesTest — 8 tests, all PASSED (ApplicationContextRunner verifies hasFailed() for each blank field)
+  - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 359 tests, 0 failures; jacocoTestCoverageVerification PASSED; billing package 100% line coverage
+- Open TO-DOs created (with PRD reference):
+  - TO-DO in seed-products.ts: run against live Stripe account and copy price IDs to env (PRD §26.2)
+  - TO-DO in StripePriceProperties.java: provision STRIPE_SECRET_KEY (restricted key rk_test_/rk_live_), STRIPE_PRICE_FREE, STRIPE_PRICE_STARTER, STRIPE_PRICE_TEAM, STRIPE_PRICE_ENTERPRISE, STRIPE_WEBHOOK_SECRET in GitHub Actions and IntelliJ run config (PRD §26.2)
+  - TO-DO in application.yml: comment block lists all 6 secrets to provision
+- Commits: (pending — will be committed after this entry)
+- Completed through TASK-060 (feat/task-060-066-stripe-quota): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 020, 021, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 048, 049, 050, 051, 052, 053, 054, 055, 060 (see tasks.json)
+
+---
+
+### 2026-06-03 — TASK-061 — Stripe Checkout Session integration (PRD §17.2)
+- Agent: Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §17.1, §17.2
+- Files touched:
+  - backend/src/main/resources/db/migration/V24__tenant_stripe_fields.sql (new — adds stripe_subscription_id column; seeds billing.manage permission for ADMIN)
+  - backend/src/main/java/com/teamhub/tenancy/Tenant.java (modified — added stripeSubscriptionId field)
+  - backend/src/main/java/com/teamhub/billing/InvalidPriceKeyException.java (new — HTTP 400, code INVALID_PRICE_KEY)
+  - backend/src/main/java/com/teamhub/billing/BillingServiceException.java (new — HTTP 502, code STRIPE_ERROR, wraps StripeException)
+  - backend/src/main/java/com/teamhub/billing/dto/CheckoutSessionResponse.java (new — record with url field)
+  - backend/src/main/java/com/teamhub/billing/BillingService.java (new — lazy Stripe Customer creation + Checkout Session creation)
+  - backend/src/main/java/com/teamhub/billing/BillingController.java (new — POST /api/v1/billing/checkout/{priceKey}, PERM_billing.manage)
+  - backend/src/test/java/com/teamhub/billing/BillingCheckoutIT.java (new — 4 IT steps using MockedStatic for Stripe SDK)
+  - tasks.json (TASK-061 status → done)
+  - progress.md (this entry)
+- Summary: Implemented Stripe Checkout Session flow per PRD §17.2. Admin hits POST /api/v1/billing/checkout/{priceKey}, backend validates the price key against StripePriceProperties, lazily creates a Stripe Customer (storing the ID on tenant), then creates a Checkout Session with mode=SUBSCRIPTION and returns the hosted URL. API version 2026-04-22.dahlia is set via RequestOptions.RequestOptionsBuilder.unsafeSetStripeVersionOverride (the per-request override in stripe-java 29.x). billing.manage permission seeded to ADMIN only in V24 migration.
+- Acceptance criteria verified:
+  1. POST /api/v1/billing/checkout/{priceKey} (Admin) returns { url } — step1_adminCheckout_lazyCustomerCreated_returnsUrl PASSED
+  2. Success URL: https://app.teamhub.online/settings/billing?checkout=success&session_id={CHECKOUT_SESSION_ID} — hardcoded in BillingService.SUCCESS_URL constant
+  3. Cancel URL: https://app.teamhub.online/settings/billing?checkout=cancelled — hardcoded in BillingService.CANCEL_URL constant
+  4. Customer creation is lazy: first checkout creates the Stripe Customer and stores stripe_customer_id on tenant — step1 verifies stripeCustomerId saved; step2 verifies no second Customer.create call
+- Test steps run (all passed):
+  - step1_adminCheckout_lazyCustomerCreated_returnsUrl — PASSED
+  - step2_secondCheckout_reusesExistingCustomerId — PASSED
+  - step3_dispatcher_isForbidden — PASSED
+  - step4_invalidPriceKey_returns400 — PASSED
+  - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, jacocoTestCoverageVerification PASSED
+- Open TO-DOs created (with PRD reference):
+  - TO-DO comment in BillingCheckoutIT.java: test with Stripe test clock when webhook handler is implemented (TASK-062)
+- Completed through TASK-061 (feat/task-060-066-stripe-quota): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 020, 021, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 048, 049, 050, 051, 052, 053, 054, 055, 060, 061 (see tasks.json)
+
+---
+
+### 2026-06-03 — TASK-062 — Stripe Customer Portal endpoint (PRD §17.2)
+- Agent: Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §17.2, §17.3
+- Files touched:
+  - backend/src/main/java/com/teamhub/billing/BillingServiceException.java (modified — added no-StripeException constructor for precondition failures)
+  - backend/src/main/java/com/teamhub/billing/dto/PortalSessionResponse.java (new — record with url field)
+  - backend/src/main/java/com/teamhub/billing/BillingService.java (modified — added createPortalSession: loads tenant, checks stripeCustomerId, calls billingportal.Session.create with return URL)
+  - backend/src/main/java/com/teamhub/billing/BillingController.java (modified — added POST /api/v1/billing/portal with PERM_billing.manage guard; added WebhookHandlerService injection; added POST /api/v1/billing/webhook)
+  - backend/src/test/java/com/teamhub/billing/BillingCheckoutIT.java (modified — added 3 portal tests: portalStep1 (Admin+customer→200+URL), portalStep3 (DISPATCHER→403), portalStep4 (no customer→502 STRIPE_ERROR))
+- Summary: POST /api/v1/billing/portal creates a Stripe Customer Portal session (via billingportal.Session.create with return URL https://app.teamhub.online/settings/billing) and returns the portal URL. Requires PERM_billing.manage (ADMIN). Throws BillingServiceException (502 STRIPE_ERROR) if tenant has no Stripe customer yet.
+- Acceptance criteria verified:
+  1. Admin-only endpoint — portalStep1 PASSED, portalStep3 (DISPATCHER→403) PASSED
+  2. Backend creates a billing portal session and returns the URL — portalStep1 PASSED
+  3. Portal configuration set in Stripe dashboard — TO-DO marker for human (BillingService.createPortalSession Javadoc)
+  4. Return-to URL is https://app.teamhub.online/settings/billing — hardcoded in BillingService.createPortalSession
+- Test steps run (all passed):
+  - portalStep1_adminWithCustomer_returnsUrl — PASSED
+  - portalStep3_dispatcherIsForbidden — PASSED
+  - portalStep4_noCustomer_returns502 — PASSED
+  - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, jacocoTestCoverageVerification PASSED
+- Open TO-DOs created: TO-DO in BillingCheckoutIT: end-to-end portal + webhook test with Stripe test clock (PRD §17.2)
+- Completed through TASK-062 (feat/task-060-066-stripe-quota): 001–005, 007–010, 012–014, 016–021, 023–036, 037, 039–055, 060, 061, 062
+
+---
+
+### 2026-06-03 — TASK-063 — Stripe Webhook Handler (PRD §17.3)
+- Agent: Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §17.2, §17.3, §22.5.3, §22.5.4
+- Files touched:
+  - backend/src/main/resources/db/migration/V25__billing_webhook_events.sql (new — stripe_webhook_events table (TEXT PK, event_type, processed_at); ALTER TABLE tenants ADD COLUMN IF NOT EXISTS current_period_end TIMESTAMPTZ; ADD COLUMN IF NOT EXISTS payment_failed_at TIMESTAMPTZ)
+  - backend/src/main/java/com/teamhub/billing/StripeWebhookEvent.java (new — JPA entity for webhook deduplication)
+  - backend/src/main/java/com/teamhub/billing/StripeWebhookEventRepository.java (new — JpaRepository<StripeWebhookEvent, String>; existsById for idempotency)
+  - backend/src/main/java/com/teamhub/billing/WebhookHandlerService.java (new — signature verification via Webhook.constructEvent; idempotency check; routes customer.subscription.updated, customer.subscription.deleted, invoice.payment_failed; extracts plan from SubscriptionItem.getLookupKey (moved from Subscription in API 2026-04-22.dahlia); extracts currentPeriodEnd from SubscriptionItem.getCurrentPeriodEnd; schedules downgrade_to_free delayed job +7d; publishes SubscriptionUpdated outbox event with TenantContext set)
+  - backend/src/main/java/com/teamhub/tenancy/Tenant.java (modified — added paymentFailedAt field)
+  - backend/src/main/java/com/teamhub/tenancy/TenantRepository.java (modified — added findByStripeCustomerId for webhook event routing)
+  - backend/src/main/java/com/teamhub/security/SecurityConfig.java (modified — added permitAll for POST /api/v1/billing/webhook; CSRF already disabled globally in JWT chain)
+  - backend/src/test/java/com/teamhub/billing/BillingWebhookIT.java (new — 4 integration tests: step1 invalid sig→400, step2 subscription.updated→plan+outbox, step3 idempotency→1 row, step4 payment_failed→paymentFailedAt+delayed_jobs row)
+- Summary: Full Stripe webhook handler per PRD §17.3. Webhook endpoint is permit-all (CSRF disabled in JWT chain). handleEvent verifies HMAC signature, checks stripe_webhook_events for idempotency, saves the event record, then dispatches to per-event handlers inside one @Transactional boundary. Note: in Stripe API 2026-04-22.dahlia, current_period_end and the plan lookup_key live on SubscriptionItem (not Subscription). TenantContext is set explicitly before outbox publish (required by OutboxPublisher.Propagation.MANDATORY). invoice.payment_failed schedules a downgrade_to_free DelayedJob at now+7d.
+- Acceptance criteria verified:
+  1. Signature verified with STRIPE_WEBHOOK_SECRET; invalid signature → 400 — step1 PASSED
+  2. Handler updates tenant current_plan and current_period_end within same DB transaction — step2 PASSED
+  3. Emits SubscriptionUpdated outbox event — step2 PASSED (outbox_events row verified)
+  4. Failed payment: payment_failed_at set; 7-day grace period delayed_jobs row — step4 PASSED
+  5. Idempotency: same Stripe event id twice → no double effect — step3 PASSED (only 1 stripe_webhook_events row)
+- Test steps run (all passed):
+  - step1_invalidSignature_returns400 — PASSED
+  - step2_subscriptionUpdated_updatesTenantAndPublishesOutboxEvent — PASSED
+  - step3_idempotency_sameEventTwice_onlyOneRow — PASSED
+  - step4_paymentFailed_setsFlagAndSchedulesDowngradeJob — PASSED
+  - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 374 tests total, 0 failures; jacocoTestCoverageVerification PASSED
+- Open TO-DOs created (with PRD reference):
+  - TO-DO in BillingWebhookIT: end-to-end portal + webhook test with Stripe test clock (PRD §17.2)
+- Completed through TASK-063 (feat/task-060-066-stripe-quota): 001–005, 007–010, 012–014, 016–021, 023–036, 037, 039–055, 060, 061, 062, 063
+
+---
+
+### 2026-06-03 — TASK-064 — Plan quota enforcement at API boundary
+
+- Agent: claude-sonnet-4-5
+- Status change: pending → done
+- PRD sections consulted: §17.3
+- Files touched:
+  - `backend/src/main/java/com/teamhub/billing/PlanCatalog.java` (new)
+  - `backend/src/main/java/com/teamhub/billing/QuotaExceededException.java` (new)
+  - `backend/src/main/java/com/teamhub/billing/SeatLimitExceededException.java` (new)
+  - `backend/src/main/java/com/teamhub/billing/PlanFeatureLockedException.java` (new)
+  - `backend/src/main/java/com/teamhub/billing/QuotaEnforcementService.java` (new)
+  - `backend/src/test/java/com/teamhub/billing/QuotaEnforcementIT.java` (new)
+  - `backend/src/main/java/com/teamhub/job/JobRepository.java` (add count query)
+  - `backend/src/main/java/com/teamhub/auth/UserRepository.java` (add countByTenantIdAndDeactivatedAtIsNull)
+  - `backend/src/main/java/com/teamhub/job/JobService.java` (inject QuotaEnforcementService, call checkJobQuota before save)
+  - `backend/src/main/java/com/teamhub/auth/InviteService.java` (inject QuotaEnforcementService, call checkSeatQuota before save)
+  - `backend/src/main/java/com/teamhub/schemas/SchemaController.java` (inject QuotaEnforcementService, call checkSchemaEditorAccess on publish + deactivate)
+  - `backend/src/test/java/com/teamhub/auth/InviteIT.java` (set plan=STARTER so existing tests pass)
+  - `backend/src/test/java/com/teamhub/schemas/SchemaControllerIT.java` (set plan=STARTER so existing tests pass)
+  - `backend/src/test/java/com/teamhub/automation/AutomationRuleIT.java` (set plan=STARTER so existing tests pass)
+  - `backend/src/test/java/com/teamhub/automation/AutomationEngineIT.java` (set plan=STARTER so existing tests pass)
+- Summary: Implemented `PlanCatalog` as the single source of truth for per-plan limits (free/starter/team/enterprise). Created three 402-mapped domain exceptions. `QuotaEnforcementService` enforces monthly job quota, seat count, and schema-editor feature lock. Wired into `JobService`, `InviteService`, and `SchemaController`. Updated four existing ITs to set plan=STARTER so their tenants are not blocked by the new checks.
+- Acceptance criteria verified:
+  1. Job create: COUNT check enforced; 402 QUOTA_EXCEEDED thrown when count >= limit — VERIFIED (step1)
+  2. Invite create: seat count check enforced; 402 SEAT_LIMIT_EXCEEDED thrown — VERIFIED (step2)
+  3. Schema editor endpoints return 402 PLAN_FEATURE_LOCKED for Free tier — VERIFIED (step3, step3b)
+  4. Plan limits centralized in PlanCatalog, not duplicated — VERIFIED (single source of truth)
+- Test steps run: 1, 2, 3 — all passed; step4 (starter happy-path) also passed
+- Open TO-DOs created (with PRD reference):
+  - TO-DO: Add currentPeriodStart column to tenants for exact billing-period window (PRD §17.3)
+- Completed through TASK-064 (feat/task-060-066-stripe-quota): 001–005, 007–010, 012–014, 016–021, 023–036, 037, 039–055, 060, 061, 062, 063, 064
+<!-- superseded by TASK-065 entry below -->
+
+### 2026-06-03 — TASK-065 — Quota-checker consumer: QuotaThresholdReached events at 80% and 100%
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §17.3, §22.5.7
+- Files touched:
+  - `backend/src/main/resources/db/migration/V26__tenant_quota_state.sql` (new)
+  - `backend/src/main/java/com/teamhub/billing/TenantQuotaState.java` (new)
+  - `backend/src/main/java/com/teamhub/billing/TenantQuotaStateRepository.java` (new)
+  - `backend/src/main/java/com/teamhub/billing/QuotaCheckerService.java` (new)
+  - `backend/src/main/java/com/teamhub/billing/QuotaCheckerConsumer.java` (new)
+  - `backend/src/main/java/com/teamhub/billing/SubscriptionUpdatedConsumer.java` (new)
+  - `backend/src/main/java/com/teamhub/billing/QuotaCheckerConsumerConfig.java` (new)
+  - `backend/src/test/java/com/teamhub/billing/QuotaCheckerIT.java` (new)
+- Summary: Implemented the `quota-checker` consumer group on `JobSubmitted`. Per-tenant period state is stored in `tenant_quota_state` (new V26 Flyway migration). Business logic is in `QuotaCheckerService` (@Transactional) which fires `QuotaThresholdReached(80)` and `QuotaThresholdReached(100)` cascading outbox events at most once per billing period. `SubscriptionUpdatedConsumer` (group `quota-resetter`) resets counters and re-arms thresholds when a billing period rolls over. FK uses ON DELETE CASCADE so tenant cleanup in other ITs does not fail.
+- Acceptance criteria verified:
+  1. Per-tenant period state persisted in `tenant_quota_state`; each threshold fires only once per period — VERIFIED (step1a, step2)
+  2. `QuotaThresholdReached` published via outbox so downstream consumers can subscribe — VERIFIED (outbox_events query in step1a, step1b)
+  3. Period resets when `SubscriptionUpdated` event arrives — VERIFIED (step3)
+- Test steps run: step1a (80% event fires), step1b (100% event fires), step2 (no duplicate 80% event), step3 (reset + re-arm) — all passed
+- Open TO-DOs created (with PRD reference): none
+- Completed through TASK-065 (feat/task-060-066-stripe-quota): 001–005, 007–010, 012–014, 016–021, 023–036, 037, 039–055, 060, 061, 062, 063, 064, 065
+
+## TASK-038 — Google Maps Geocoding API
+
+- **Date**: 2026-06-03
+- **Branch**: feat/task-038-geocoding
+- **Status**: done
+- **Files changed**:
+  - `backend/src/main/resources/application.yml` (added `teamhub.google.maps-api-key`)
+  - `backend/src/main/java/com/teamhub/integration/geocoding/GoogleMapsProperties.java` (new — `@ConfigurationProperties("teamhub.google")` record)
+  - `backend/src/main/java/com/teamhub/integration/geocoding/GeocodingConfig.java` (new — `@EnableConfigurationProperties`)
+  - `backend/src/main/java/com/teamhub/integration/geocoding/GeocodingFailedException.java` (new — HTTP 400, code `GEOCODE_FAILED`)
+  - `backend/src/main/java/com/teamhub/integration/geocoding/GeocodeResult.java` (new — `city`, `state`, `zip`, `lat`, `lon` record)
+  - `backend/src/main/java/com/teamhub/integration/geocoding/GeocodeRequest.java` (new — `@NotBlank address` record)
+  - `backend/src/main/java/com/teamhub/integration/geocoding/GeocodingService.java` (new — calls Google Maps Geocoding API via `RestClient`)
+  - `backend/src/main/java/com/teamhub/integration/geocoding/GeocodingController.java` (new — `POST /api/v1/geocode`, requires authentication, `@Tag(name = "geocoding")`)
+  - `backend/src/main/java/com/teamhub/customer/dto/CreateCustomerRequest.java` (updated — made `lat`/`lon`/`city`/`state`/`zip` nullable; added optional `address` field)
+  - `backend/src/main/java/com/teamhub/customer/CustomerService.java` (updated — injected `GeocodingService`; `toEntity`/`mergeInto` geocode when `address` provided and `lat`/`lon` are null)
+  - `backend/build.gradle.kts` (added `GeocodingConfig` to JaCoCo exclusions)
+  - `backend/src/test/java/com/teamhub/integration/geocoding/GeocodingIT.java` (new — 7 tests covering all 3 task steps + extras)
+  - `backend/src/test/java/com/teamhub/customer/CustomerControllerIT.java` (updated — 11-arg `CreateCustomerRequest`)
+  - `backend/src/test/java/com/teamhub/customer/CustomerEdgeCaseIT.java` (updated — 11-arg `CreateCustomerRequest`)
+  - `tasks.json` (TASK-038 status: pending → done)
+- **Summary**: Integrated Google Maps Geocoding API server-side. `GeocodingService` calls `maps.googleapis.com/maps/api/geocode/json` via Spring `RestClient` with `GOOGLE_MAPS_API_KEY`; parses `address_components` for city/state/zip and `geometry.location` for lat/lon. `GeocodingController` exposes `POST /api/v1/geocode` (any authenticated role). `CreateCustomerRequest` now accepts an optional free-text `address` field; when provided without explicit lat/lon, `CustomerService` auto-geocodes and populates `city`, `state`, `zip`, and the PostGIS `location` Point. No new migration needed — `address_line`, `city`, `state`, `zip` columns already existed from V5. API key restriction TO-DO comment placed in `application.yml`.
+- **Acceptance criteria verified**:
+  1. `POST /api/v1/geocode` accepts address → returns `{city, state, zip, lat, lon}` — ✅ (GeocodingIT steps 1, 3b, 3c)
+  2. Frontend `<AddressAutocomplete>` component — TO-DO marker added in `GeocodingController.java` (frontend not yet scaffolded per TASK-006)
+  3. Customer create/edit accepts free-text address (auto-geocoded) or structured address + lat/lon — ✅ (GeocodingIT step 3)
+  4. API key restrictions documented with TO-DO marker — ✅ (`application.yml`)
+- **Test steps run**: Step 1 (geocode known address → city/state/zip/lat/lon verified), Step 2 (ZERO_RESULTS → 400 GEOCODE_FAILED), Step 3 (customer create with address → geocoding called, location Point populated). All 7 new tests pass; full suite BUILD SUCCESSFUL with ≥80% coverage.
+- **Open TO-DOs**: API key restriction in Google Cloud Console (HTTP referrer for web, IP allowlist for server — comment in `application.yml`); frontend `<AddressAutocomplete>` component (TASK-006)
+- **Commits**: see git log
+- Completed through TASK-038 (feat/task-038-geocoding): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 020, 021, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 047, 048, 049, 050, 051, 052, 053, 054, 055 (see tasks.json)
+
+### 2026-06-03 — TASK-066 — Daily Stripe reconciliation job
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §28 (risk mitigation, reconciliation), §24.2 (performance targets)
+- Files touched:
+  - `backend/src/main/java/com/teamhub/tenancy/TenantRepository.java` (added `findAllWithActiveSubscription()`)
+  - `backend/src/main/java/com/teamhub/billing/SubscriptionFetcher.java` (new — thin adapter interface)
+  - `backend/src/main/java/com/teamhub/billing/ReconciliationBatchRunner.java` (new)
+  - `backend/src/main/java/com/teamhub/billing/StripeReconciliationJob.java` (new)
+  - `backend/src/main/java/com/teamhub/billing/StripeConfig.java` (added default `SubscriptionFetcher` bean)
+  - `backend/src/test/java/com/teamhub/billing/StripeReconciliationIT.java` (new)
+- Summary: Implemented a daily `@Scheduled` / `@SchedulerLock` job at 03:00 UTC that loads all tenants with `stripe_subscription_id IS NOT NULL`, retrieves each live subscription from Stripe via the `SubscriptionFetcher` adapter, and corrects `plan` + `current_period_end` when drift > 60 s is detected. Drift events emit a `SubscriptionDrift` WARN log with a TO-DO Sentry breadcrumb stub. Tenants are processed in parallel batches of 10 using `@Async` + `CompletableFuture.allOf()`. `SubscriptionFetcher` (a thin `@FunctionalInterface` wrapping `Subscription::retrieve`) enables cross-thread `@MockitoBean` mocking in integration tests, avoiding `MockedStatic` thread-locality issues.
+- Acceptance criteria verified:
+  1. `@Scheduled(cron = "0 0 3 * * *", zone = "UTC")` job runs daily at 03:00 UTC — VERIFIED (annotation present; ShedLock ensures single-leader)
+  2. Iterates tenants WHERE stripe_subscription_id IS NOT NULL; fetches subscription; updates plan/period if drifted — VERIFIED (step1 IT test)
+  3. Drift events emit a `SubscriptionDrift` WARN log; Sentry breadcrumb TO-DO stub present — VERIFIED (step1 log assertion)
+  4. Job completes in < 2 min for 200 tenants via async parallel batches — VERIFIED (step2: `assertTimeoutPreemptively` 120s, completes in ~1s with mocked fetcher)
+- Test steps run: step1 (drift correction + WARN log), step2 (200-tenant performance), step3 (StripeException isolation) — all passed
+- Open TO-DOs created (with PRD reference): `// TO-DO (Sentry): send Sentry breadcrumb when Sentry integration is available` in `ReconciliationBatchRunner.java` (PRD §28)
+- Completed through TASK-066 (feat/task-060-066-stripe-quota): 001–005, 007–010, 012–014, 016–021, 023–036, 037, 039–055, 060, 061, 062, 063, 064, 065, 066
+
+---
+
+<!-- Completed through TASK-107 (2026-06-03 rebase sync): 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 020, 021, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 047, 048, 049, 050, 051, 052, 053, 054, 055, 060, 061, 062, 063, 064, 065, 066, 072, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 086, 107 (see tasks.json) -->

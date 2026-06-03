@@ -108,3 +108,17 @@ teamhub:
   google:
     # TO-DO: restrict API key in Google Cloud Console — HTTP referrer for web, IP allowlist for server (PRD §8.1)
     maps-api-key: ${GOOGLE_MAPS_API_KEY:}
+  # TO-DO: Provision Stripe secrets per PRD §26.2:
+  #   STRIPE_SECRET_KEY      — restricted API key (rk_test_... / rk_live_...)
+  #   STRIPE_PRICE_FREE      — price_xxx from seed-products script
+  #   STRIPE_PRICE_STARTER   — price_xxx from seed-products script
+  #   STRIPE_PRICE_TEAM      — price_xxx from seed-products script
+  #   STRIPE_PRICE_ENTERPRISE— price_xxx from seed-products script
+  #   STRIPE_WEBHOOK_SECRET  — whsec_... from Stripe Dashboard webhook endpoint
+  stripe:
+    secret-key: ${STRIPE_SECRET_KEY:}
+    price-free: ${STRIPE_PRICE_FREE:}
+    price-starter: ${STRIPE_PRICE_STARTER:}
+    price-team: ${STRIPE_PRICE_TEAM:}
+    price-enterprise: ${STRIPE_PRICE_ENTERPRISE:}
+    webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
