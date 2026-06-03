@@ -4,7 +4,7 @@
   "description": "One-shot seed script to create Stripe products and prices per PRD §17.1",
   "private": true,
   "scripts": {
-    "seed": "ts-node --esm seed-products.ts"
+    "seed": "ts-node seed-products.ts"
   },
   "dependencies": {
     "stripe": "^17.7.0"
