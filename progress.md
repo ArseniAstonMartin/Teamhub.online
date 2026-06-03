@@ -1644,3 +1644,20 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Token storage: access in Zustand memory, refresh in localStorage (httpOnly requires server CORS config not yet wired — see comment in authStore.ts)
 - All page routes are placeholders; TASK-073 fills /login, subsequent tasks fill the rest
 - The React Router v7_startTransition future flag warning is non-blocking; can be opted into when ready to upgrade
+
+---
+
+## TASK-073 — Web Login Page
+
+- **Date**: 2026-06-03
+- **Branch**: UI
+- **Status**: done
+- **Files changed**:
+  - `web/src/pages/login/ui/LoginPage.tsx` (already complete — no changes needed)
+  - `web/src/pages/login/ui/LoginPage.test.tsx` (expanded from 2 → 20 tests covering all ACs)
+  - `tasks.json` (TASK-073 status: pending → done)
+- **Summary**: A previous agent had already built the LoginPage with all required features: React Hook Form + Zod validation, `POST /api/v1/auth/login` submit with token storage via `useAuthStore`, Google OAuth redirect via `window.location.href`, disabled Apple "coming soon" placeholder, Sonner toast error handling, and full accessibility attributes (htmlFor labels, aria-describedby, autoComplete). The only gap was test coverage (2 tests). Expanded the test suite to 20 tests covering all 5 acceptance criteria: client-side validation, success flow (API call + token store + navigate), error toast, Google button redirect, Apple button accessibility, autoComplete attributes, aria-describedby linkage, keyboard Enter submit, and Tab order.
+- **Acceptance criteria verified**: 1, 2, 3, 4, 5
+- **Test steps run**: All 3 — covered by unit tests: valid credentials → navigate to /schedule, wrong password → toast with server error.message, keyboard Tab order + Enter submit
+- **Open TO-DOs**: Apple OAuth (TASK-022) not implemented server-side yet; button remains disabled with "coming soon" text per spec
+- **Commits**: see git log
