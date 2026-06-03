@@ -1699,3 +1699,22 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - **Test steps run**: All 4 — no token (invalid state), valid token (email+tenant displayed, form present), success flow (setTokens + navigate /schedule), expired/used token (persistent error state, no redirect). Total: 63/63 passing.
 - **Open TO-DOs**: Apple OAuth (TASK-022) not implemented server-side; button remains disabled with "coming soon" text
 - **Commits**: see git log
+
+---
+
+## TASK-076 — Web Job List Page
+
+- **Date**: 2026-06-03
+- **Branch**: UI
+- **Status**: done
+- **Files changed**:
+  - `web/src/entities/job/model/types.ts` (new — `JobDto`, `JobsPageResponse`, `JobsQueryParams`, `JobStatus`)
+  - `web/src/entities/job/api/jobsApi.ts` (new — `useJobs(params)` TanStack Query hook)
+  - `web/src/pages/jobs/ui/JobsPage.tsx` (replaced placeholder — full implementation)
+  - `web/src/pages/jobs/ui/JobsPage.test.tsx` (new — 33 tests)
+  - `tasks.json` (TASK-076 status: pending → done)
+- **Summary**: Built the complete Job List page from scratch, replacing the placeholder. Implements all 5 acceptance criteria: (1) filter bar with search (Enter-to-submit form), status select (Radix), sort select, and date-range date inputs — all URL-synced via `useSearchParams`; (2) sort by scheduledStart/createdAt/status with URL param; (3) server-side pagination with Spring Pageable params (`page`, `size`, `sort`), Previous/Next buttons, page X of Y display with `aria-live`, all URL-synced; (4) loading skeletons (`animate-pulse` rows, `data-testid="skeleton-row"`), empty state with SearchX icon, error state with Try-again button; (5) `StatusBadge` component maps each of 7 statuses to color class + Lucide icon + `aria-label` + `role="status"` so color is never the only signal. The search input uses an uncontrolled pattern with `key={q}` to reset on URL changes, avoiding the `react-hooks/set-state-in-effect` lint rule.
+- **Acceptance criteria verified**: 1, 2, 3, 4, 5
+- **Test steps run**: Step 1 (combines 3 URL filters → useJobs called with all params), Step 2 (pagination Next/Previous, skeleton rows, disabled states), Step 3 (all 7 status aria-labels verified). 33 new tests; total suite: 96/96 passing.
+- **Open TO-DOs**: Assignee filter (uses GET /api/v1/users?role=TECHNICIAN — deferred to TASK-055 integration); bulk-selection scaffolding deferred
+- **Commits**: see git log
