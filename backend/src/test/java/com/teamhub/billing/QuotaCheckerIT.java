@@ -101,6 +101,7 @@ class QuotaCheckerIT {
     TenantContext.clear();
     jdbc.update("DELETE FROM processed_events WHERE tenant_id = ?", tenant.getId());
     jdbc.update("DELETE FROM outbox_events WHERE tenant_id = ?", tenant.getId());
+    jdbc.update("DELETE FROM audit_log WHERE tenant_id = ?", tenant.getId());
     jdbc.update("DELETE FROM tenant_quota_state WHERE tenant_id = ?", tenant.getId());
     jdbc.update("DELETE FROM refresh_tokens WHERE tenant_id = ?", tenant.getId());
     jdbc.update("DELETE FROM users WHERE tenant_id = ?", tenant.getId());

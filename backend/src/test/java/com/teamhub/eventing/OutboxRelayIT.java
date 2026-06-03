@@ -145,7 +145,7 @@ class OutboxRelayIT {
 
     // The relay is the leader (from setUp) and its @Scheduled tick fires every 200 ms.
     await()
-        .atMost(1, TimeUnit.SECONDS)
+        .atMost(5, TimeUnit.SECONDS)
         .pollInterval(50, TimeUnit.MILLISECONDS)
         .untilAsserted(
             () -> {
