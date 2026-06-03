@@ -1830,3 +1830,22 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - Reactivate: confirm dialog → POST /api/v1/users/{id}/reactivate
 - **Test count**: 10 new (SettingsUsersPage) + 191 existing = **201 passing** across 12 files
 - **Checks**: typecheck ✓ lint ✓ test ✓ build ✓
+
+## TASK-080 — Web Job Create Dialog (2026-06-03)
+- **New files**:
+  - `web/src/shared/ui/AddressAutocomplete.tsx` — Google Maps ECL `gmpx-place-picker` integration with backend geocoding; plain `<input>` fallback when `VITE_GOOGLE_MAPS_API_KEY` is absent
+  - `web/src/pages/jobs/ui/JobCreateDialog.tsx` — dialog with dynamic schema-driven form, dependent dropdowns, automation auto-fill badges with undo
+  - `web/src/pages/jobs/ui/JobCreateDialog.test.tsx` — 16 tests covering all ACs
+- **Modified files**:
+  - `web/src/entities/job/api/jobsApi.ts` — added `CreateJobRequest` type, `JOBS_QUERY_KEY` constant, `useCreateJob` mutation
+  - `web/src/pages/jobs/ui/JobsPage.tsx` — added "New Job" button that conditionally mounts `<JobCreateDialog>`
+  - `web/src/vite-env.d.ts` — added JSX namespace declarations for `gmpx-api-loader` / `gmpx-place-picker` custom elements
+  - `web/src/test-setup.ts` — added `hasPointerCapture` / `scrollIntoView` polyfills for Radix UI in jsdom
+- **Key behaviours**:
+  - Form fields rendered from active schema's `fieldDefinitions` sorted by `order` — text, number, date/time/datetime, boolean, dropdown, list, file placeholders
+  - Dependent dropdowns: disabled until parent set; `options_by_parent[parentValue]` filtered; value cleared on parent change
+  - Address fields (`address` / `address_line` keys) render `<AddressAutocomplete>` → calls `POST /api/v1/geocode` to extract city/state/zip/lat/lon → auto-populates sibling fields
+  - Automation evaluate: debounced 300 ms on form change; `auto_filled_fields` rendered as amber badges "Auto-filled by [rule_name]" with × undo
+  - Submit: posts to `POST /api/v1/jobs`, on success closes dialog and invalidates `['jobs']` query
+- **Test count**: 16 new (JobCreateDialog) + 201 existing = **217 passing** across 13 files
+- **Checks**: typecheck ✓ lint ✓ test ✓ build ✓

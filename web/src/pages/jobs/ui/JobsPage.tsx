@@ -1,4 +1,4 @@
-import { useRef, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Clock,
@@ -14,9 +14,11 @@ import {
   SearchX,
   List,
   Columns,
+  Plus,
 } from 'lucide-react';
 
 import KanbanView from './KanbanView';
+import { JobCreateDialog } from './JobCreateDialog';
 
 import { useJobs } from '@/entities/job/api/jobsApi';
 import type { JobDto, JobStatus } from '@/entities/job/model/types';
@@ -175,6 +177,7 @@ const SORT_OPTIONS = [
 
 export default function JobsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [createOpen, setCreateOpen] = useState(false);
 
   // View mode: 'list' | 'kanban' — URL-synced
   const viewMode = searchParams.get('view') ?? 'list';
@@ -254,6 +257,17 @@ export default function JobsPage() {
           {isFetching && !isLoading && (
             <span className="text-xs text-brand-muted animate-pulse">Refreshing…</span>
           )}
+
+          {/* New Job button */}
+          <Button
+            size="sm"
+            onClick={() => setCreateOpen(true)}
+            data-testid="new-job-btn"
+            aria-label="Create new job"
+          >
+            <Plus className="size-4 mr-1" aria-hidden="true" />
+            New Job
+          </Button>
 
           {/* List / Kanban toggle */}
           <div className="flex gap-1" role="group" aria-label="View mode">
@@ -370,6 +384,9 @@ export default function JobsPage() {
           </Button>
         )}
       </div>
+
+      {/* ── Create dialog — only mounted when open to avoid hook calls while closed ── */}
+      {createOpen && <JobCreateDialog open={true} onClose={() => setCreateOpen(false)} />}
 
       {/* ── Kanban view ── */}
       {viewMode === 'kanban' && <KanbanView />}
