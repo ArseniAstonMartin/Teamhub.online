@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.nimbusds.jose.jwk.RSAKey;
+import com.stripe.exception.ApiConnectionException;
 import com.stripe.model.Customer;
 import com.stripe.model.checkout.Session;
 import com.stripe.net.RequestOptions;
@@ -230,6 +231,165 @@ class BillingCheckoutIT {
             post("/api/v1/billing/portal")
                 .header("Authorization", "Bearer " + mintToken("DISPATCHER", adminUserId)))
         .andExpect(status().isForbidden());
+  }
+
+  // =========================================================================
+  // StripeException error paths
+  // =========================================================================
+
+  /**
+   * Customer.create throws a StripeException → BillingServiceException wraps it → 502 STRIPE_ERROR.
+   */
+  @Test
+  void checkoutStep5_stripeExceptionOnCustomerCreate_returns502() throws Exception {
+    try (MockedStatic<Customer> mockedCustomer = mockStatic(Customer.class)) {
+      mockedCustomer
+          .when(() -> Customer.create(any(CustomerCreateParams.class), any(RequestOptions.class)))
+          .thenThrow(new ApiConnectionException("Stripe unreachable"));
+
+      mockMvc
+          .perform(
+              post("/api/v1/billing/checkout/team")
+                  .header("Authorization", "Bearer " + mintAdminToken()))
+          .andExpect(status().isBadGateway())
+          .andExpect(jsonPath("$.error.code").value(BillingServiceException.CODE));
+    }
+  }
+
+  /**
+   * Session.create throws a StripeException (customer already exists) → BillingServiceException →
+   * 502 STRIPE_ERROR.
+   */
+  @Test
+  void checkoutStep6_stripeExceptionOnSessionCreate_returns502() throws Exception {
+    tenant.setStripeCustomerId("cus_existing_for_session_err");
+    tenantRepository.saveAndFlush(tenant);
+
+    try (MockedStatic<Session> mockedSession = mockStatic(Session.class)) {
+      mockedSession
+          .when(() -> Session.create(any(SessionCreateParams.class), any(RequestOptions.class)))
+          .thenThrow(new ApiConnectionException("Stripe unreachable"));
+
+      mockMvc
+          .perform(
+              post("/api/v1/billing/checkout/team")
+                  .header("Authorization", "Bearer " + mintAdminToken()))
+          .andExpect(status().isBadGateway())
+          .andExpect(jsonPath("$.error.code").value(BillingServiceException.CODE));
+    }
+  }
+
+  /**
+   * Portal Session.create throws a StripeException → BillingServiceException → 502 STRIPE_ERROR.
+   */
+  @Test
+  void portalStep5_stripeExceptionOnPortalCreate_returns502() throws Exception {
+    tenant.setStripeCustomerId("cus_existing_for_portal_err");
+    tenantRepository.saveAndFlush(tenant);
+
+    try (MockedStatic<com.stripe.model.billingportal.Session> mockedPortal =
+        mockStatic(com.stripe.model.billingportal.Session.class)) {
+      mockedPortal
+          .when(
+              () ->
+                  com.stripe.model.billingportal.Session.create(
+                      any(com.stripe.param.billingportal.SessionCreateParams.class),
+                      any(RequestOptions.class)))
+          .thenThrow(new ApiConnectionException("Stripe unreachable"));
+
+      mockMvc
+          .perform(
+              post("/api/v1/billing/portal").header("Authorization", "Bearer " + mintAdminToken()))
+          .andExpect(status().isBadGateway())
+          .andExpect(jsonPath("$.error.code").value(BillingServiceException.CODE));
+    }
+  }
+
+  // =========================================================================
+  // Price key coverage — free / starter / enterprise
+  // =========================================================================
+
+  /** Checkout with "free" price key resolves the correct price ID and returns a session URL. */
+  @Test
+  void checkoutStep7_freePriceKey_returnsUrl() throws Exception {
+    Customer fakeCustomer = mock(Customer.class);
+    when(fakeCustomer.getId()).thenReturn("cus_free_test");
+
+    Session fakeSession = mock(Session.class);
+    when(fakeSession.getUrl()).thenReturn(FAKE_SESSION_URL);
+
+    try (MockedStatic<Customer> mockedCustomer = mockStatic(Customer.class);
+        MockedStatic<Session> mockedSession = mockStatic(Session.class)) {
+      mockedCustomer
+          .when(() -> Customer.create(any(CustomerCreateParams.class), any(RequestOptions.class)))
+          .thenReturn(fakeCustomer);
+      mockedSession
+          .when(() -> Session.create(any(SessionCreateParams.class), any(RequestOptions.class)))
+          .thenReturn(fakeSession);
+
+      mockMvc
+          .perform(
+              post("/api/v1/billing/checkout/free")
+                  .header("Authorization", "Bearer " + mintAdminToken()))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.url").value(FAKE_SESSION_URL));
+    }
+  }
+
+  /** Checkout with "starter" price key resolves the correct price ID and returns a session URL. */
+  @Test
+  void checkoutStep8_starterPriceKey_returnsUrl() throws Exception {
+    Customer fakeCustomer = mock(Customer.class);
+    when(fakeCustomer.getId()).thenReturn("cus_starter_test");
+
+    Session fakeSession = mock(Session.class);
+    when(fakeSession.getUrl()).thenReturn(FAKE_SESSION_URL);
+
+    try (MockedStatic<Customer> mockedCustomer = mockStatic(Customer.class);
+        MockedStatic<Session> mockedSession = mockStatic(Session.class)) {
+      mockedCustomer
+          .when(() -> Customer.create(any(CustomerCreateParams.class), any(RequestOptions.class)))
+          .thenReturn(fakeCustomer);
+      mockedSession
+          .when(() -> Session.create(any(SessionCreateParams.class), any(RequestOptions.class)))
+          .thenReturn(fakeSession);
+
+      mockMvc
+          .perform(
+              post("/api/v1/billing/checkout/starter")
+                  .header("Authorization", "Bearer " + mintAdminToken()))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.url").value(FAKE_SESSION_URL));
+    }
+  }
+
+  /**
+   * Checkout with "enterprise" price key resolves the correct price ID and returns a session URL.
+   */
+  @Test
+  void checkoutStep9_enterprisePriceKey_returnsUrl() throws Exception {
+    Customer fakeCustomer = mock(Customer.class);
+    when(fakeCustomer.getId()).thenReturn("cus_enterprise_test");
+
+    Session fakeSession = mock(Session.class);
+    when(fakeSession.getUrl()).thenReturn(FAKE_SESSION_URL);
+
+    try (MockedStatic<Customer> mockedCustomer = mockStatic(Customer.class);
+        MockedStatic<Session> mockedSession = mockStatic(Session.class)) {
+      mockedCustomer
+          .when(() -> Customer.create(any(CustomerCreateParams.class), any(RequestOptions.class)))
+          .thenReturn(fakeCustomer);
+      mockedSession
+          .when(() -> Session.create(any(SessionCreateParams.class), any(RequestOptions.class)))
+          .thenReturn(fakeSession);
+
+      mockMvc
+          .perform(
+              post("/api/v1/billing/checkout/enterprise")
+                  .header("Authorization", "Bearer " + mintAdminToken()))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.url").value(FAKE_SESSION_URL));
+    }
   }
 
   /** No Stripe customer on tenant → 502 STRIPE_ERROR. */

@@ -226,8 +226,314 @@ class StripeReconciliationIT {
   }
 
   // ---------------------------------------------------------------------------
+  // Additional coverage tests for ReconciliationBatchRunner branches
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Step 4: Subscription price ID is not in the configured set → extractPlan returns empty → WARN
+   * logged and tenant skipped (unknown-price-ID path).
+   */
+  @Test
+  void step4_unknownPriceId_warnAndSkip() throws Exception {
+    Tenant tenant = new Tenant("Unknown Price Corp");
+    tenant.setPlan(Plan.STARTER);
+    tenant.setStripeCustomerId("cus_unknown_price");
+    tenant.setStripeSubscriptionId("sub_unknown_price");
+    tenantRepository.save(tenant);
+    createdTenantIds.add(tenant.getId());
+
+    long periodEnd = Instant.now().plusSeconds(30 * 24 * 3600L).getEpochSecond();
+    Subscription mockSub =
+        buildMockSubscription("sub_unknown_price", "price_completely_unknown", periodEnd);
+
+    when(subscriptionFetcher.fetch(eq("sub_unknown_price"), any(RequestOptions.class)))
+        .thenReturn(mockSub);
+
+    reconciliationJob.runReconciliation();
+
+    Tenant unchanged = tenantRepository.findById(tenant.getId()).orElseThrow();
+    assertThat(unchanged.getPlan())
+        .as("Plan must not change when price ID is unrecognised")
+        .isEqualTo(Plan.STARTER);
+  }
+
+  /**
+   * Step 5: extractPlan gets empty items list → resolves to empty Optional → tenant skipped; also
+   * covers extractCurrentPeriodEnd empty-items branch via resolvePeriodEnd=null →
+   * isPeriodDrifted(null) → return false.
+   */
+  @Test
+  void step5_emptyItems_tenantSkipped() throws Exception {
+    Tenant tenant = new Tenant("Empty Items Corp");
+    tenant.setPlan(Plan.TEAM);
+    tenant.setStripeCustomerId("cus_empty_items");
+    tenant.setStripeSubscriptionId("sub_empty_items");
+    tenantRepository.save(tenant);
+    createdTenantIds.add(tenant.getId());
+
+    Subscription mockSub = buildMockSubscriptionWithEmptyItems("sub_empty_items");
+
+    when(subscriptionFetcher.fetch(eq("sub_empty_items"), any(RequestOptions.class)))
+        .thenReturn(mockSub);
+
+    reconciliationJob.runReconciliation();
+
+    Tenant unchanged = tenantRepository.findById(tenant.getId()).orElseThrow();
+    assertThat(unchanged.getPlan()).isEqualTo(Plan.TEAM);
+  }
+
+  /** Step 6: Price object is null → extractPlan returns empty → tenant skipped. */
+  @Test
+  void step6_priceNull_tenantSkipped() throws Exception {
+    Tenant tenant = new Tenant("Null Price Corp");
+    tenant.setPlan(Plan.TEAM);
+    tenant.setStripeCustomerId("cus_null_price");
+    tenant.setStripeSubscriptionId("sub_null_price");
+    tenantRepository.save(tenant);
+    createdTenantIds.add(tenant.getId());
+
+    SubscriptionItem mockItem = mock(SubscriptionItem.class);
+    when(mockItem.getPrice()).thenReturn(null);
+
+    SubscriptionItemCollection mockItems = mock(SubscriptionItemCollection.class);
+    when(mockItems.getData()).thenReturn(List.of(mockItem));
+
+    Subscription mockSub = mock(Subscription.class);
+    when(mockSub.getId()).thenReturn("sub_null_price");
+    when(mockSub.getItems()).thenReturn(mockItems);
+
+    when(subscriptionFetcher.fetch(eq("sub_null_price"), any(RequestOptions.class)))
+        .thenReturn(mockSub);
+
+    reconciliationJob.runReconciliation();
+
+    Tenant unchanged = tenantRepository.findById(tenant.getId()).orElseThrow();
+    assertThat(unchanged.getPlan()).isEqualTo(Plan.TEAM);
+  }
+
+  /**
+   * Step 7: Price ID is null → resolvePlanFromPriceId null-branch → extractPlan returns empty →
+   * tenant skipped.
+   */
+  @Test
+  void step7_nullPriceId_tenantSkipped() throws Exception {
+    Tenant tenant = new Tenant("Null PriceId Corp");
+    tenant.setPlan(Plan.TEAM);
+    tenant.setStripeCustomerId("cus_null_priceid");
+    tenant.setStripeSubscriptionId("sub_null_priceid");
+    tenantRepository.save(tenant);
+    createdTenantIds.add(tenant.getId());
+
+    Price mockPrice = mock(Price.class);
+    when(mockPrice.getId()).thenReturn(null);
+
+    SubscriptionItem mockItem = mock(SubscriptionItem.class);
+    when(mockItem.getPrice()).thenReturn(mockPrice);
+
+    SubscriptionItemCollection mockItems = mock(SubscriptionItemCollection.class);
+    when(mockItems.getData()).thenReturn(List.of(mockItem));
+
+    Subscription mockSub = mock(Subscription.class);
+    when(mockSub.getId()).thenReturn("sub_null_priceid");
+    when(mockSub.getItems()).thenReturn(mockItems);
+
+    when(subscriptionFetcher.fetch(eq("sub_null_priceid"), any(RequestOptions.class)))
+        .thenReturn(mockSub);
+
+    reconciliationJob.runReconciliation();
+
+    Tenant unchanged = tenantRepository.findById(tenant.getId()).orElseThrow();
+    assertThat(unchanged.getPlan()).isEqualTo(Plan.TEAM);
+  }
+
+  /**
+   * Step 8: subscription.getItems() throws during extractPlan → exception catch branch hit →
+   * extractPlan returns empty → tenant skipped.
+   */
+  @Test
+  void step8_extractPlanException_tenantSkipped() throws Exception {
+    Tenant tenant = new Tenant("Extract Plan Exception Corp");
+    tenant.setPlan(Plan.TEAM);
+    tenant.setStripeCustomerId("cus_plan_ex");
+    tenant.setStripeSubscriptionId("sub_plan_ex");
+    tenantRepository.save(tenant);
+    createdTenantIds.add(tenant.getId());
+
+    Subscription mockSub = mock(Subscription.class);
+    when(mockSub.getId()).thenReturn("sub_plan_ex");
+    when(mockSub.getItems()).thenThrow(new RuntimeException("SDK error during extractPlan"));
+
+    when(subscriptionFetcher.fetch(eq("sub_plan_ex"), any(RequestOptions.class)))
+        .thenReturn(mockSub);
+
+    reconciliationJob.runReconciliation();
+
+    Tenant unchanged = tenantRepository.findById(tenant.getId()).orElseThrow();
+    assertThat(unchanged.getPlan()).isEqualTo(Plan.TEAM);
+  }
+
+  /**
+   * Step 9: extractPlan succeeds but subscription.getItems() throws on the second call (inside
+   * extractCurrentPeriodEnd) → exception catch branch in extractCurrentPeriodEnd hit → period end
+   * treated as absent, but plan drift is still corrected.
+   */
+  @Test
+  void step9_extractCurrentPeriodEndException_planCorrectedPeriodEndUnchanged() throws Exception {
+    Tenant tenant = new Tenant("Period End Exception Corp");
+    tenant.setPlan(Plan.FREE);
+    tenant.setStripeCustomerId("cus_period_ex");
+    tenant.setStripeSubscriptionId("sub_period_ex");
+    tenantRepository.save(tenant);
+    createdTenantIds.add(tenant.getId());
+
+    Price mockPrice = mock(Price.class);
+    when(mockPrice.getId()).thenReturn(PRICE_STARTER);
+
+    SubscriptionItem mockItem = mock(SubscriptionItem.class);
+    when(mockItem.getPrice()).thenReturn(mockPrice);
+
+    SubscriptionItemCollection mockItems = mock(SubscriptionItemCollection.class);
+    when(mockItems.getData())
+        .thenReturn(List.of(mockItem)) // first call: extractPlan succeeds
+        .thenThrow(new RuntimeException("SDK error during extractCurrentPeriodEnd"));
+
+    Subscription mockSub = mock(Subscription.class);
+    when(mockSub.getId()).thenReturn("sub_period_ex");
+    when(mockSub.getItems()).thenReturn(mockItems);
+
+    when(subscriptionFetcher.fetch(eq("sub_period_ex"), any(RequestOptions.class)))
+        .thenReturn(mockSub);
+
+    reconciliationJob.runReconciliation();
+
+    Tenant updated = tenantRepository.findById(tenant.getId()).orElseThrow();
+    assertThat(updated.getPlan())
+        .as("Plan drift must be corrected even when period end extraction throws")
+        .isEqualTo(Plan.STARTER);
+  }
+
+  /** Step 10: Subscription has FREE price ID → tenant corrected to FREE plan. */
+  @Test
+  void step10_freePriceId_planCorrectedToFree() throws Exception {
+    Tenant tenant = new Tenant("Free Price Corp");
+    tenant.setPlan(Plan.STARTER);
+    tenant.setStripeCustomerId("cus_free_recon");
+    tenant.setStripeSubscriptionId("sub_free_recon");
+    tenantRepository.save(tenant);
+    createdTenantIds.add(tenant.getId());
+
+    long periodEnd = Instant.now().plusSeconds(30 * 24 * 3600L).getEpochSecond();
+    Subscription mockSub = buildMockSubscription("sub_free_recon", "price_test_free", periodEnd);
+
+    when(subscriptionFetcher.fetch(eq("sub_free_recon"), any(RequestOptions.class)))
+        .thenReturn(mockSub);
+
+    reconciliationJob.runReconciliation();
+
+    Tenant updated = tenantRepository.findById(tenant.getId()).orElseThrow();
+    assertThat(updated.getPlan()).isEqualTo(Plan.FREE);
+  }
+
+  /** Step 11: Subscription has TEAM price ID → tenant corrected to TEAM plan. */
+  @Test
+  void step11_teamPriceId_planCorrectedToTeam() throws Exception {
+    Tenant tenant = new Tenant("Team Price Corp");
+    tenant.setPlan(Plan.FREE);
+    tenant.setStripeCustomerId("cus_team_recon");
+    tenant.setStripeSubscriptionId("sub_team_recon");
+    tenantRepository.save(tenant);
+    createdTenantIds.add(tenant.getId());
+
+    long periodEnd = Instant.now().plusSeconds(30 * 24 * 3600L).getEpochSecond();
+    Subscription mockSub = buildMockSubscription("sub_team_recon", "price_test_team", periodEnd);
+
+    when(subscriptionFetcher.fetch(eq("sub_team_recon"), any(RequestOptions.class)))
+        .thenReturn(mockSub);
+
+    reconciliationJob.runReconciliation();
+
+    Tenant updated = tenantRepository.findById(tenant.getId()).orElseThrow();
+    assertThat(updated.getPlan()).isEqualTo(Plan.TEAM);
+  }
+
+  /** Step 12: Subscription has ENTERPRISE price ID → tenant corrected to ENTERPRISE plan. */
+  @Test
+  void step12_enterprisePriceId_planCorrectedToEnterprise() throws Exception {
+    Tenant tenant = new Tenant("Enterprise Price Corp");
+    tenant.setPlan(Plan.FREE);
+    tenant.setStripeCustomerId("cus_enterprise_recon");
+    tenant.setStripeSubscriptionId("sub_enterprise_recon");
+    tenantRepository.save(tenant);
+    createdTenantIds.add(tenant.getId());
+
+    long periodEnd = Instant.now().plusSeconds(30 * 24 * 3600L).getEpochSecond();
+    Subscription mockSub =
+        buildMockSubscription("sub_enterprise_recon", "price_test_enterprise", periodEnd);
+
+    when(subscriptionFetcher.fetch(eq("sub_enterprise_recon"), any(RequestOptions.class)))
+        .thenReturn(mockSub);
+
+    reconciliationJob.runReconciliation();
+
+    Tenant updated = tenantRepository.findById(tenant.getId()).orElseThrow();
+    assertThat(updated.getPlan()).isEqualTo(Plan.ENTERPRISE);
+  }
+
+  /**
+   * Step 13: resolvedPeriodEnd is null (items empty in extractCurrentPeriodEnd) and plan matches →
+   * isPeriodDrifted(tenantPeriodEnd, null) returns false → no update.
+   */
+  @Test
+  void step13_resolvedPeriodEndNull_noDrift_noUpdate() throws Exception {
+    long existingPeriodEnd = Instant.now().plusSeconds(30 * 24 * 3600L).getEpochSecond();
+
+    Tenant tenant = new Tenant("No Period End Corp");
+    tenant.setPlan(Plan.STARTER);
+    tenant.setCurrentPeriodEnd(Instant.ofEpochSecond(existingPeriodEnd));
+    tenant.setStripeCustomerId("cus_no_period");
+    tenant.setStripeSubscriptionId("sub_no_period");
+    tenantRepository.save(tenant);
+    createdTenantIds.add(tenant.getId());
+
+    // extractPlan returns STARTER (plan matches) but extractCurrentPeriodEnd returns empty →
+    // resolvedPeriodEnd = null → isPeriodDrifted(existing, null) = false
+    Price mockPrice = mock(Price.class);
+    when(mockPrice.getId()).thenReturn(PRICE_STARTER);
+
+    SubscriptionItem mockItem = mock(SubscriptionItem.class);
+    when(mockItem.getPrice()).thenReturn(mockPrice);
+    when(mockItem.getCurrentPeriodEnd()).thenReturn(null);
+
+    SubscriptionItemCollection mockItems = mock(SubscriptionItemCollection.class);
+    when(mockItems.getData()).thenReturn(List.of(mockItem));
+
+    Subscription mockSub = mock(Subscription.class);
+    when(mockSub.getId()).thenReturn("sub_no_period");
+    when(mockSub.getItems()).thenReturn(mockItems);
+
+    when(subscriptionFetcher.fetch(eq("sub_no_period"), any(RequestOptions.class)))
+        .thenReturn(mockSub);
+
+    reconciliationJob.runReconciliation();
+
+    Tenant unchanged = tenantRepository.findById(tenant.getId()).orElseThrow();
+    assertThat(unchanged.getPlan()).isEqualTo(Plan.STARTER);
+    assertThat(unchanged.getCurrentPeriodEnd().getEpochSecond()).isEqualTo(existingPeriodEnd);
+  }
+
+  // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
+
+  private Subscription buildMockSubscriptionWithEmptyItems(String subscriptionId) {
+    SubscriptionItemCollection mockItems = mock(SubscriptionItemCollection.class);
+    when(mockItems.getData()).thenReturn(List.of());
+
+    Subscription mockSub = mock(Subscription.class);
+    when(mockSub.getId()).thenReturn(subscriptionId);
+    when(mockSub.getItems()).thenReturn(mockItems);
+    return mockSub;
+  }
 
   private Subscription buildMockSubscription(
       String subscriptionId, String priceId, long periodEndEpoch) {

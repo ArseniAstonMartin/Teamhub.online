@@ -24,6 +24,7 @@ import com.teamhub.tenancy.TenantRepository;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -220,8 +221,323 @@ class BillingWebhookIT {
   }
 
   // =========================================================================
+  // Additional coverage tests
+  // =========================================================================
+
+  /**
+   * Step 5: {@code customer.subscription.deleted} → tenant plan reset to FREE and subscription ID
+   * cleared.
+   */
+  @Test
+  void step5_subscriptionDeleted_downgradesTenantToFree() throws Exception {
+    tenant.setPlan(Plan.TEAM);
+    tenant.setStripeSubscriptionId(FAKE_SUBSCRIPTION_ID);
+    tenantRepository.saveAndFlush(tenant);
+
+    com.stripe.model.Event mockEvent = buildSubscriptionDeletedEvent("evt_sub_deleted_001");
+
+    try (MockedStatic<Webhook> webhookMock = mockStatic(Webhook.class)) {
+      webhookMock.when(() -> Webhook.constructEvent(any(), any(), any())).thenReturn(mockEvent);
+
+      mockMvc
+          .perform(
+              post(WEBHOOK_URL)
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .header("Stripe-Signature", DUMMY_SIG)
+                  .content(DUMMY_PAYLOAD))
+          .andExpect(status().isOk());
+    }
+
+    entityManager.flush();
+
+    Tenant updated = tenantRepository.findById(tenant.getId()).orElseThrow();
+    assertThat(updated.getPlan()).isEqualTo(Plan.FREE);
+    assertThat(updated.getStripeSubscriptionId()).isNull();
+  }
+
+  /** Step 6: Unrecognised event type → 200 OK, no tenant mutation (default switch branch). */
+  @Test
+  void step6_unknownEventType_isIgnoredWithOkResponse() throws Exception {
+    com.stripe.model.Event mockEvent =
+        wrapInEvent("evt_unknown_001", "some.future.event.type", mock(Invoice.class));
+
+    try (MockedStatic<Webhook> webhookMock = mockStatic(Webhook.class)) {
+      webhookMock.when(() -> Webhook.constructEvent(any(), any(), any())).thenReturn(mockEvent);
+
+      mockMvc
+          .perform(
+              post(WEBHOOK_URL)
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .header("Stripe-Signature", DUMMY_SIG)
+                  .content(DUMMY_PAYLOAD))
+          .andExpect(status().isOk());
+    }
+
+    Tenant unchanged = tenantRepository.findById(tenant.getId()).orElseThrow();
+    assertThat(unchanged.getPlan()).isEqualTo(Plan.FREE);
+  }
+
+  /** Step 7: Deserializer returns empty Optional → orElseThrow fires → 500 internal error. */
+  @Test
+  void step7_emptyDeserializerObject_returns500() throws Exception {
+    EventDataObjectDeserializer emptyDeserializer = mock(EventDataObjectDeserializer.class);
+    when(emptyDeserializer.getObject()).thenReturn(Optional.empty());
+
+    com.stripe.model.Event mockEvent = mock(com.stripe.model.Event.class);
+    when(mockEvent.getId()).thenReturn("evt_empty_obj_001");
+    when(mockEvent.getType()).thenReturn("customer.subscription.updated");
+    when(mockEvent.getDataObjectDeserializer()).thenReturn(emptyDeserializer);
+
+    try (MockedStatic<Webhook> webhookMock = mockStatic(Webhook.class)) {
+      webhookMock.when(() -> Webhook.constructEvent(any(), any(), any())).thenReturn(mockEvent);
+
+      mockMvc
+          .perform(
+              post(WEBHOOK_URL)
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .header("Stripe-Signature", DUMMY_SIG)
+                  .content(DUMMY_PAYLOAD))
+          .andExpect(status().isInternalServerError());
+    }
+  }
+
+  /** Step 8: Event references a customer ID that matches no tenant → 500 internal error. */
+  @Test
+  void step8_missingTenantForCustomerId_returns500() throws Exception {
+    com.stripe.model.Event mockEvent =
+        buildSubscriptionUpdatedEventWithCustomer("evt_no_tenant_001", "cus_does_not_exist");
+
+    try (MockedStatic<Webhook> webhookMock = mockStatic(Webhook.class)) {
+      webhookMock.when(() -> Webhook.constructEvent(any(), any(), any())).thenReturn(mockEvent);
+
+      mockMvc
+          .perform(
+              post(WEBHOOK_URL)
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .header("Stripe-Signature", DUMMY_SIG)
+                  .content(DUMMY_PAYLOAD))
+          .andExpect(status().isInternalServerError());
+    }
+  }
+
+  /**
+   * Step 9: {@code customer.subscription.updated} with empty item list → extractPlan returns FREE
+   * and extractCurrentPeriodEnd returns empty (both empty-items branches covered).
+   */
+  @Test
+  void step9_subscriptionUpdated_withEmptyItems_planBecomeFree() throws Exception {
+    SubscriptionItemCollection mockItems = mock(SubscriptionItemCollection.class);
+    when(mockItems.getData()).thenReturn(List.of());
+
+    Subscription mockSub = mock(Subscription.class);
+    when(mockSub.getId()).thenReturn(FAKE_SUBSCRIPTION_ID);
+    when(mockSub.getCustomer()).thenReturn(FAKE_CUSTOMER_ID);
+    when(mockSub.getItems()).thenReturn(mockItems);
+
+    com.stripe.model.Event mockEvent =
+        wrapInEvent("evt_empty_items_001", "customer.subscription.updated", mockSub);
+
+    try (MockedStatic<Webhook> webhookMock = mockStatic(Webhook.class)) {
+      webhookMock.when(() -> Webhook.constructEvent(any(), any(), any())).thenReturn(mockEvent);
+
+      mockMvc
+          .perform(
+              post(WEBHOOK_URL)
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .header("Stripe-Signature", DUMMY_SIG)
+                  .content(DUMMY_PAYLOAD))
+          .andExpect(status().isOk());
+    }
+
+    entityManager.flush();
+    Tenant updated = tenantRepository.findById(tenant.getId()).orElseThrow();
+    assertThat(updated.getPlan()).isEqualTo(Plan.FREE);
+  }
+
+  /** Step 10: First subscription item has a null price → extractPlan returns FREE. */
+  @Test
+  void step10_subscriptionUpdated_withPriceNull_planBecomeFree() throws Exception {
+    SubscriptionItem mockItem = mock(SubscriptionItem.class);
+    when(mockItem.getPrice()).thenReturn(null);
+    when(mockItem.getCurrentPeriodEnd())
+        .thenReturn(Instant.now().plusSeconds(30L * 24 * 3600).getEpochSecond());
+
+    SubscriptionItemCollection mockItems = mock(SubscriptionItemCollection.class);
+    when(mockItems.getData()).thenReturn(List.of(mockItem));
+
+    Subscription mockSub = mock(Subscription.class);
+    when(mockSub.getId()).thenReturn(FAKE_SUBSCRIPTION_ID);
+    when(mockSub.getCustomer()).thenReturn(FAKE_CUSTOMER_ID);
+    when(mockSub.getItems()).thenReturn(mockItems);
+
+    com.stripe.model.Event mockEvent =
+        wrapInEvent("evt_price_null_001", "customer.subscription.updated", mockSub);
+
+    try (MockedStatic<Webhook> webhookMock = mockStatic(Webhook.class)) {
+      webhookMock.when(() -> Webhook.constructEvent(any(), any(), any())).thenReturn(mockEvent);
+
+      mockMvc
+          .perform(
+              post(WEBHOOK_URL)
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .header("Stripe-Signature", DUMMY_SIG)
+                  .content(DUMMY_PAYLOAD))
+          .andExpect(status().isOk());
+    }
+
+    entityManager.flush();
+    Tenant updated = tenantRepository.findById(tenant.getId()).orElseThrow();
+    assertThat(updated.getPlan()).isEqualTo(Plan.FREE);
+  }
+
+  /**
+   * Step 11: lookup_key is unrecognised, but {@code teamhub_plan_key} metadata carries a valid plan
+   * → plan resolved from metadata.
+   */
+  @Test
+  void step11_subscriptionUpdated_withMetadataFallback_planResolvedFromMeta() throws Exception {
+    Price mockPrice = mock(Price.class);
+    when(mockPrice.getLookupKey()).thenReturn("teamhub_unrecognised_plan");
+    when(mockPrice.getMetadata()).thenReturn(Map.of("teamhub_plan_key", "TEAM"));
+
+    SubscriptionItem mockItem = mock(SubscriptionItem.class);
+    when(mockItem.getPrice()).thenReturn(mockPrice);
+    when(mockItem.getCurrentPeriodEnd())
+        .thenReturn(Instant.now().plusSeconds(30L * 24 * 3600).getEpochSecond());
+
+    SubscriptionItemCollection mockItems = mock(SubscriptionItemCollection.class);
+    when(mockItems.getData()).thenReturn(List.of(mockItem));
+
+    Subscription mockSub = mock(Subscription.class);
+    when(mockSub.getId()).thenReturn(FAKE_SUBSCRIPTION_ID);
+    when(mockSub.getCustomer()).thenReturn(FAKE_CUSTOMER_ID);
+    when(mockSub.getItems()).thenReturn(mockItems);
+
+    com.stripe.model.Event mockEvent =
+        wrapInEvent("evt_meta_ok_001", "customer.subscription.updated", mockSub);
+
+    try (MockedStatic<Webhook> webhookMock = mockStatic(Webhook.class)) {
+      webhookMock.when(() -> Webhook.constructEvent(any(), any(), any())).thenReturn(mockEvent);
+
+      mockMvc
+          .perform(
+              post(WEBHOOK_URL)
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .header("Stripe-Signature", DUMMY_SIG)
+                  .content(DUMMY_PAYLOAD))
+          .andExpect(status().isOk());
+    }
+
+    entityManager.flush();
+    Tenant updated = tenantRepository.findById(tenant.getId()).orElseThrow();
+    assertThat(updated.getPlan()).isEqualTo(Plan.TEAM);
+  }
+
+  /**
+   * Step 12: lookup_key unrecognised and metadata plan key is also invalid → both IAE catch blocks
+   * hit, plan falls back to FREE.
+   */
+  @Test
+  void step12_subscriptionUpdated_withBadMetadata_planFallsToFree() throws Exception {
+    Price mockPrice = mock(Price.class);
+    when(mockPrice.getLookupKey()).thenReturn("teamhub_unrecognised_plan");
+    when(mockPrice.getMetadata()).thenReturn(Map.of("teamhub_plan_key", "GARBAGE_PLAN_NAME"));
+
+    SubscriptionItem mockItem = mock(SubscriptionItem.class);
+    when(mockItem.getPrice()).thenReturn(mockPrice);
+    when(mockItem.getCurrentPeriodEnd())
+        .thenReturn(Instant.now().plusSeconds(30L * 24 * 3600).getEpochSecond());
+
+    SubscriptionItemCollection mockItems = mock(SubscriptionItemCollection.class);
+    when(mockItems.getData()).thenReturn(List.of(mockItem));
+
+    Subscription mockSub = mock(Subscription.class);
+    when(mockSub.getId()).thenReturn(FAKE_SUBSCRIPTION_ID);
+    when(mockSub.getCustomer()).thenReturn(FAKE_CUSTOMER_ID);
+    when(mockSub.getItems()).thenReturn(mockItems);
+
+    com.stripe.model.Event mockEvent =
+        wrapInEvent("evt_meta_bad_001", "customer.subscription.updated", mockSub);
+
+    try (MockedStatic<Webhook> webhookMock = mockStatic(Webhook.class)) {
+      webhookMock.when(() -> Webhook.constructEvent(any(), any(), any())).thenReturn(mockEvent);
+
+      mockMvc
+          .perform(
+              post(WEBHOOK_URL)
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .header("Stripe-Signature", DUMMY_SIG)
+                  .content(DUMMY_PAYLOAD))
+          .andExpect(status().isOk());
+    }
+
+    entityManager.flush();
+    Tenant updated = tenantRepository.findById(tenant.getId()).orElseThrow();
+    assertThat(updated.getPlan()).isEqualTo(Plan.FREE);
+  }
+
+  /**
+   * Step 13: {@code subscription.getItems()} throws a runtime exception → both extractPlan and
+   * extractCurrentPeriodEnd exception-catch blocks are reached; plan defaults to FREE.
+   */
+  @Test
+  void step13_subscriptionUpdated_withGetItemsException_planFallsToFree() throws Exception {
+    Subscription mockSub = mock(Subscription.class);
+    when(mockSub.getId()).thenReturn(FAKE_SUBSCRIPTION_ID);
+    when(mockSub.getCustomer()).thenReturn(FAKE_CUSTOMER_ID);
+    when(mockSub.getItems()).thenThrow(new RuntimeException("simulated SDK error"));
+
+    com.stripe.model.Event mockEvent =
+        wrapInEvent("evt_items_ex_001", "customer.subscription.updated", mockSub);
+
+    try (MockedStatic<Webhook> webhookMock = mockStatic(Webhook.class)) {
+      webhookMock.when(() -> Webhook.constructEvent(any(), any(), any())).thenReturn(mockEvent);
+
+      mockMvc
+          .perform(
+              post(WEBHOOK_URL)
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .header("Stripe-Signature", DUMMY_SIG)
+                  .content(DUMMY_PAYLOAD))
+          .andExpect(status().isOk());
+    }
+
+    entityManager.flush();
+    Tenant updated = tenantRepository.findById(tenant.getId()).orElseThrow();
+    assertThat(updated.getPlan()).isEqualTo(Plan.FREE);
+  }
+
+  // =========================================================================
   // Mock event builders
   // =========================================================================
+
+  private com.stripe.model.Event buildSubscriptionDeletedEvent(String eventId) {
+    Subscription mockSub = mock(Subscription.class);
+    when(mockSub.getId()).thenReturn(FAKE_SUBSCRIPTION_ID);
+    when(mockSub.getCustomer()).thenReturn(FAKE_CUSTOMER_ID);
+    return wrapInEvent(eventId, "customer.subscription.deleted", mockSub);
+  }
+
+  private com.stripe.model.Event buildSubscriptionUpdatedEventWithCustomer(
+      String eventId, String customerId) {
+    Price mockPrice = mock(Price.class);
+    when(mockPrice.getLookupKey()).thenReturn("teamhub_team");
+
+    SubscriptionItem mockItem = mock(SubscriptionItem.class);
+    when(mockItem.getPrice()).thenReturn(mockPrice);
+    when(mockItem.getCurrentPeriodEnd())
+        .thenReturn(Instant.now().plusSeconds(30L * 24 * 3600).getEpochSecond());
+
+    SubscriptionItemCollection mockItems = mock(SubscriptionItemCollection.class);
+    when(mockItems.getData()).thenReturn(List.of(mockItem));
+
+    Subscription mockSub = mock(Subscription.class);
+    when(mockSub.getId()).thenReturn(FAKE_SUBSCRIPTION_ID);
+    when(mockSub.getCustomer()).thenReturn(customerId);
+    when(mockSub.getItems()).thenReturn(mockItems);
+
+    return wrapInEvent(eventId, "customer.subscription.updated", mockSub);
+  }
 
   private com.stripe.model.Event buildSubscriptionUpdatedEvent(String eventId, String planKey) {
     Price mockPrice = mock(Price.class);
