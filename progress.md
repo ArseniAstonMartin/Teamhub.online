@@ -2049,3 +2049,26 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Open TO-DOs created (with PRD reference):
   - TO-DO: Add currentPeriodStart column to tenants for exact billing-period window (PRD §17.3)
 - Completed through TASK-064 (feat/task-060-066-stripe-quota): 001–005, 007–010, 012–014, 016–021, 023–036, 037, 039–055, 060, 061, 062, 063, 064
+<!-- superseded by TASK-065 entry below -->
+
+### 2026-06-03 — TASK-065 — Quota-checker consumer: QuotaThresholdReached events at 80% and 100%
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §17.3, §22.5.7
+- Files touched:
+  - `backend/src/main/resources/db/migration/V26__tenant_quota_state.sql` (new)
+  - `backend/src/main/java/com/teamhub/billing/TenantQuotaState.java` (new)
+  - `backend/src/main/java/com/teamhub/billing/TenantQuotaStateRepository.java` (new)
+  - `backend/src/main/java/com/teamhub/billing/QuotaCheckerService.java` (new)
+  - `backend/src/main/java/com/teamhub/billing/QuotaCheckerConsumer.java` (new)
+  - `backend/src/main/java/com/teamhub/billing/SubscriptionUpdatedConsumer.java` (new)
+  - `backend/src/main/java/com/teamhub/billing/QuotaCheckerConsumerConfig.java` (new)
+  - `backend/src/test/java/com/teamhub/billing/QuotaCheckerIT.java` (new)
+- Summary: Implemented the `quota-checker` consumer group on `JobSubmitted`. Per-tenant period state is stored in `tenant_quota_state` (new V26 Flyway migration). Business logic is in `QuotaCheckerService` (@Transactional) which fires `QuotaThresholdReached(80)` and `QuotaThresholdReached(100)` cascading outbox events at most once per billing period. `SubscriptionUpdatedConsumer` (group `quota-resetter`) resets counters and re-arms thresholds when a billing period rolls over. FK uses ON DELETE CASCADE so tenant cleanup in other ITs does not fail.
+- Acceptance criteria verified:
+  1. Per-tenant period state persisted in `tenant_quota_state`; each threshold fires only once per period — VERIFIED (step1a, step2)
+  2. `QuotaThresholdReached` published via outbox so downstream consumers can subscribe — VERIFIED (outbox_events query in step1a, step1b)
+  3. Period resets when `SubscriptionUpdated` event arrives — VERIFIED (step3)
+- Test steps run: step1a (80% event fires), step1b (100% event fires), step2 (no duplicate 80% event), step3 (reset + re-arm) — all passed
+- Open TO-DOs created (with PRD reference): none
+- Completed through TASK-065 (feat/task-060-066-stripe-quota): 001–005, 007–010, 012–014, 016–021, 023–036, 037, 039–055, 060, 061, 062, 063, 064, 065
