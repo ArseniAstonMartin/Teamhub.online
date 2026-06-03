@@ -1631,7 +1631,7 @@
       "dependencies": [
         "TASK-006"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-073",
@@ -1655,7 +1655,7 @@
         "TASK-021",
         "TASK-022"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-074",
@@ -1677,7 +1677,7 @@
         "TASK-073",
         "TASK-020"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-075",
@@ -1699,7 +1699,7 @@
         "TASK-073",
         "TASK-054"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-076",
@@ -1722,7 +1722,7 @@
         "TASK-072",
         "TASK-044"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-077",
@@ -1744,7 +1744,7 @@
       "dependencies": [
         "TASK-076"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-078",
@@ -1766,7 +1766,7 @@
         "TASK-076",
         "TASK-043"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-079",
@@ -1791,7 +1791,7 @@
         "TASK-048",
         "TASK-049"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-080",
@@ -1817,7 +1817,7 @@
         "TASK-040",
         "TASK-052"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-081",
@@ -1840,7 +1840,7 @@
         "TASK-037",
         "TASK-038"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-082",
@@ -1863,7 +1863,7 @@
         "TASK-072",
         "TASK-041"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-083",
@@ -1885,7 +1885,7 @@
         "TASK-082",
         "TASK-051"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-084",
@@ -1908,7 +1908,7 @@
         "TASK-054",
         "TASK-055"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-085",
@@ -1954,7 +1954,7 @@
         "TASK-072",
         "TASK-053"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-087",

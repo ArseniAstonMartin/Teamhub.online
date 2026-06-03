@@ -1,0 +1,476 @@
+import { useState, useMemo, type FormEvent } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import type { AxiosError } from 'axios';
+import {
+  ChevronLeft,
+  Clock,
+  UserCheck,
+  Wrench,
+  PauseCircle,
+  CheckCircle,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  ImageIcon,
+  History,
+} from 'lucide-react';
+
+import { useJob, useJobNotes, createNote, fireTransition } from '@/entities/job/api/jobsApi';
+import type { JobNoteResponse, JobResponse, JobStatus } from '@/entities/job/model/types';
+import { TRANSITIONS_FROM, type TransitionAction } from '@/entities/job/model/transitions';
+import { useAuthStore } from '@/entities/user/model/authStore';
+import { Button } from '@/shared/ui/button';
+import { cn } from '@/shared/lib/utils';
+
+// ── Status config ─────────────────────────────────────────────────────────────
+
+const STATUS_CONFIG: Record<JobStatus, { label: string; Icon: React.ElementType; className: string }> = {
+  SUBMITTED:             { label: 'Submitted',              Icon: Clock,         className: 'bg-gray-100   text-gray-700   border-gray-200' },
+  ASSIGNED:              { label: 'Assigned',               Icon: UserCheck,     className: 'bg-blue-100   text-blue-700   border-blue-200' },
+  IN_PROGRESS:           { label: 'In Progress',            Icon: Wrench,        className: 'bg-amber-100  text-amber-700  border-amber-200' },
+  PENDING:               { label: 'Pending',                Icon: PauseCircle,   className: 'bg-orange-100 text-orange-700 border-orange-200' },
+  DONE_PENDING_APPROVAL: { label: 'Done — Pending Approval',Icon: CheckCircle,   className: 'bg-purple-100 text-purple-700 border-purple-200' },
+  COMPLETED:             { label: 'Completed',              Icon: CheckCircle2,  className: 'bg-green-100  text-green-700  border-green-200' },
+  CANCELED:              { label: 'Canceled',               Icon: XCircle,       className: 'bg-red-100    text-red-700    border-red-200' },
+};
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: JobStatus }) {
+  const { label, Icon, className } = STATUS_CONFIG[status] ?? STATUS_CONFIG.SUBMITTED;
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-semibold',
+        className,
+      )}
+      aria-label={label}
+      role="status"
+    >
+      <Icon className="size-3 shrink-0" aria-hidden="true" />
+      <span>{status === 'DONE_PENDING_APPROVAL' ? 'Done — Approval' : label}</span>
+    </span>
+  );
+}
+
+function DetailSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse" data-testid="job-loading-skeleton" aria-busy="true">
+      <div className="h-8 w-64 rounded bg-gray-200" />
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
+        <div className="space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-5 rounded bg-gray-200" />
+          ))}
+        </div>
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-5 rounded bg-gray-200" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function formatDt(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function formatNoteTime(iso: string): string {
+  return new Date(iso).toLocaleString('en-US', {
+    month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
+export default function JobDetailPage() {
+  const { id = '' } = useParams<{ id: string }>();
+  const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+
+  const [noteText, setNoteText] = useState('');
+  const [isSubmittingNote, setIsSubmittingNote] = useState(false);
+  const [pendingTransition, setPendingTransition] = useState<string | null>(null);
+
+  const { data: job, isLoading: jobLoading, isError: jobError } = useJob(id);
+  const { data: notes = [], isLoading: notesLoading } = useJobNotes(id);
+
+  // ── Action buttons — only allowed role+state combos (AC2) ────────────────
+
+  const availableActions = useMemo<TransitionAction[]>(() => {
+    if (!job || !user) return [];
+    return (TRANSITIONS_FROM[job.status] ?? []).filter((a) =>
+      a.roles.includes(user.role),
+    );
+  }, [job, user]);
+
+  // ── Note composer visibility (AC3) ─────────────────────────────────────
+
+  const canAddNote =
+    user && job && (
+      user.role === 'ADMIN' ||
+      user.role === 'DISPATCHER' ||
+      (user.role === 'TECHNICIAN' && job.assignedTechnicianId === user.id)
+    );
+
+  // ── Handlers ─────────────────────────────────────────────────────────────
+
+  async function handleTransition(action: TransitionAction) {
+    if (!job) return;
+
+    if (!action.endpoint) {
+      toast.info('This action is not yet available. Please contact your administrator.');
+      return;
+    }
+
+    const originalStatus = job.status;
+    setPendingTransition(action.label);
+
+    // Optimistic status update (AC5)
+    queryClient.setQueryData(['job', id], (old: JobResponse | undefined) => {
+      if (!old) return old;
+      return { ...old, status: action.toStatus };
+    });
+
+    try {
+      await fireTransition(job.id, action.endpoint);
+      await queryClient.invalidateQueries({ queryKey: ['job', id] });
+    } catch (err) {
+      // Rollback on error — handles 409 conflicts (AC5)
+      queryClient.setQueryData(['job', id], (old: JobResponse | undefined) => {
+        if (!old) return old;
+        return { ...old, status: originalStatus };
+      });
+      const axiosErr = err as AxiosError<{ error: { message: string } }>;
+      toast.error(
+        axiosErr.response?.data?.error?.message ??
+        'Transition failed. The status has been restored.',
+      );
+    } finally {
+      setPendingTransition(null);
+    }
+  }
+
+  async function handleNoteSubmit(e: FormEvent) {
+    e.preventDefault();
+    const body = noteText.trim();
+    if (!body || !user || !job || isSubmittingNote) return;
+
+    // Optimistic note prepend (AC3) — notes are newest-first
+    const optimisticNote: JobNoteResponse = {
+      id: `temp-${Date.now()}`,
+      jobId: job.id,
+      authorUserId: user.id,
+      body,
+      createdAt: new Date().toISOString(),
+    };
+
+    queryClient.setQueryData(
+      ['job-notes', id],
+      (old: JobNoteResponse[] | undefined) => [optimisticNote, ...(old ?? [])],
+    );
+    setNoteText('');
+    setIsSubmittingNote(true);
+
+    try {
+      await createNote(job.id, body);
+      await queryClient.invalidateQueries({ queryKey: ['job-notes', id] });
+    } catch {
+      // Rollback optimistic note
+      queryClient.setQueryData(
+        ['job-notes', id],
+        (old: JobNoteResponse[] | undefined) =>
+          (old ?? []).filter((n) => n.id !== optimisticNote.id),
+      );
+      setNoteText(body);
+      toast.error('Failed to save note. Please try again.');
+    } finally {
+      setIsSubmittingNote(false);
+    }
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  if (jobLoading) return (
+    <div className="space-y-4 font-sans p-2">
+      <Link to="/jobs" className="inline-flex items-center gap-1 text-sm text-brand-muted hover:text-brand-navy">
+        <ChevronLeft className="size-4" aria-hidden="true" /> Back to Jobs
+      </Link>
+      <DetailSkeleton />
+    </div>
+  );
+
+  if (jobError || !job) return (
+    <div className="space-y-4 font-sans p-2">
+      <Link to="/jobs" className="inline-flex items-center gap-1 text-sm text-brand-muted hover:text-brand-navy">
+        <ChevronLeft className="size-4" aria-hidden="true" /> Back to Jobs
+      </Link>
+      <div className="flex flex-col items-center gap-3 py-20 text-destructive" role="alert">
+        <AlertCircle className="size-10 opacity-60" aria-hidden="true" />
+        <p className="text-sm font-medium">Failed to load job details.</p>
+        <Button variant="outline" size="sm" asChild>
+          <Link to="/jobs">Back to Jobs</Link>
+        </Button>
+      </div>
+    </div>
+  );
+
+  const customerName =
+    job.customer?.name ??
+    (job.customerId ? `Customer #${job.customerId.slice(0, 8)}` : 'No customer');
+  // TO-DO: fetch assignee name from user service when backend returns only IDs
+  const technicianName =
+    job.assignedTechnician?.name ??
+    (job.assignedTechnicianId ? `Tech #${job.assignedTechnicianId.slice(0, 8)}` : 'Unassigned');
+
+  return (
+    <div className="space-y-5 font-sans">
+      {/* ── Back link ── */}
+      <Link
+        to="/jobs"
+        className="inline-flex items-center gap-1 text-sm text-brand-muted hover:text-brand-navy transition-colors"
+      >
+        <ChevronLeft className="size-4" aria-hidden="true" />
+        Back to Jobs
+      </Link>
+
+      {/* ── Header (AC1) ── */}
+      <div
+        className="flex flex-wrap items-start justify-between gap-4 rounded-lg border border-border bg-brand-surface p-5"
+        data-testid="job-header"
+      >
+        <div className="space-y-1.5">
+          <h1 className="text-xl font-bold text-brand-navy">{customerName}</h1>
+          <StatusBadge status={job.status} />
+          {job.pendingReason && (
+            <p className="text-xs text-brand-muted">
+              Pending reason: <span className="font-medium">{job.pendingReason}</span>
+            </p>
+          )}
+          {job.cancellationReason && (
+            <p className="text-xs text-destructive">
+              Cancelled: <span className="font-medium">{job.cancellationReason}</span>
+            </p>
+          )}
+        </div>
+
+        {/* Action buttons — hidden (not rendered) for disallowed role+state combos (AC2) */}
+        {availableActions.length > 0 && (
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Job actions">
+            {availableActions.map((action) => (
+              <Button
+                key={action.toStatus}
+                size="sm"
+                variant={action.endpoint ? 'default' : 'outline'}
+                disabled={pendingTransition !== null}
+                aria-busy={pendingTransition === action.label}
+                data-testid={`action-${action.toStatus}`}
+                onClick={() => { void handleTransition(action); }}
+              >
+                {pendingTransition === action.label ? 'Working…' : action.label}
+              </Button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Body + Sidebar grid (AC1) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-5">
+
+        {/* ── MAIN BODY ── */}
+        <div className="space-y-5">
+
+          {/* Custom fields */}
+          {Object.keys(job.customFields ?? {}).length > 0 && (
+            <section
+              className="rounded-lg border border-border bg-brand-surface p-4 space-y-2"
+              aria-label="Custom fields"
+            >
+              <h2 className="text-sm font-semibold text-brand-navy">Custom Fields</h2>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+                {Object.entries(job.customFields).map(([key, value]) => (
+                  <>
+                    <dt key={`dt-${key}`} className="text-brand-muted">{key}</dt>
+                    <dd key={`dd-${key}`} className="text-brand-navy font-medium">{String(value)}</dd>
+                  </>
+                ))}
+              </dl>
+            </section>
+          )}
+
+          {/* Notes (AC3) */}
+          <section
+            className="rounded-lg border border-border bg-brand-surface p-4 space-y-4"
+            aria-label="Notes"
+          >
+            <h2 className="text-sm font-semibold text-brand-navy">Notes</h2>
+
+            {/* Note composer — only for ADMIN, DISPATCHER, or assigned TECHNICIAN */}
+            {canAddNote && (
+              <form onSubmit={(e) => { void handleNoteSubmit(e); }} className="space-y-2" data-testid="note-composer">
+                <label htmlFor="note-input" className="sr-only">Add a note</label>
+                <textarea
+                  id="note-input"
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  placeholder="Write a note…"
+                  rows={3}
+                  className={cn(
+                    'w-full rounded-md border border-input bg-background px-3 py-2 text-sm',
+                    'placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+                    'resize-none',
+                  )}
+                  aria-label="Note text"
+                />
+                <div className="flex justify-end">
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={!noteText.trim() || isSubmittingNote}
+                    aria-busy={isSubmittingNote}
+                  >
+                    {isSubmittingNote ? 'Saving…' : 'Add Note'}
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {/* Notes list */}
+            {notesLoading && (
+              <div className="space-y-2 animate-pulse">
+                {[1, 2].map((i) => <div key={i} className="h-10 rounded bg-gray-100" />)}
+              </div>
+            )}
+            {!notesLoading && notes.length === 0 && (
+              <p className="text-sm text-brand-muted">No notes yet.</p>
+            )}
+            {!notesLoading && notes.length > 0 && (
+              <ul className="space-y-3" aria-label="Notes list">
+                {notes.map((note) => (
+                  <li
+                    key={note.id}
+                    className="rounded-md bg-gray-50 border border-border px-3 py-2.5 space-y-1"
+                    data-testid={`note-${note.id}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-brand-navy truncate">
+                        {note.authorUserId.slice(0, 8)}
+                      </span>
+                      <time className="text-xs text-brand-muted whitespace-nowrap" dateTime={note.createdAt}>
+                        {formatNoteTime(note.createdAt)}
+                      </time>
+                    </div>
+                    <p className="text-sm text-brand-navy">{note.body}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          {/* Photos placeholder — TO-DO when GET /api/v1/jobs/{id}/photos is available (PRD §14) */}
+          <section
+            className="rounded-lg border border-border border-dashed bg-brand-surface p-6 text-center space-y-2"
+            aria-label="Photos"
+            data-testid="photos-placeholder"
+          >
+            <ImageIcon className="mx-auto size-8 text-gray-300" aria-hidden="true" />
+            <p className="text-sm text-brand-muted font-medium">Photos</p>
+            <p className="text-xs text-brand-muted">
+              {/* TO-DO: implement thumbnail grid + lightbox when GET /api/v1/jobs/{id}/photos is available */}
+              Photos will appear here once the photos endpoint is available.
+            </p>
+          </section>
+        </div>
+
+        {/* ── SIDEBAR ── */}
+        <aside className="space-y-4" aria-label="Job details sidebar">
+
+          {/* Schedule */}
+          <section className="rounded-lg border border-border bg-brand-surface p-4 space-y-2.5">
+            <h2 className="text-sm font-semibold text-brand-navy">Schedule</h2>
+            <dl className="text-sm space-y-1.5">
+              <div className="flex justify-between gap-2">
+                <dt className="text-brand-muted">Start</dt>
+                <dd className="text-brand-navy font-medium text-right">{formatDt(job.scheduledStart)}</dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt className="text-brand-muted">End</dt>
+                <dd className="text-brand-navy font-medium text-right">{formatDt(job.scheduledEnd)}</dd>
+              </div>
+              {job.actualStart && (
+                <div className="flex justify-between gap-2">
+                  <dt className="text-brand-muted">Actual start</dt>
+                  <dd className="text-brand-navy font-medium text-right">{formatDt(job.actualStart)}</dd>
+                </div>
+              )}
+              {job.actualEnd && (
+                <div className="flex justify-between gap-2">
+                  <dt className="text-brand-muted">Actual end</dt>
+                  <dd className="text-brand-navy font-medium text-right">{formatDt(job.actualEnd)}</dd>
+                </div>
+              )}
+            </dl>
+          </section>
+
+          {/* Assignee */}
+          <section className="rounded-lg border border-border bg-brand-surface p-4 space-y-2">
+            <h2 className="text-sm font-semibold text-brand-navy">Assignee</h2>
+            <p className="text-sm text-brand-navy">{technicianName}</p>
+            {job.customerPhone && (
+              <p className="text-sm text-brand-muted">
+                Customer phone:{' '}
+                <a href={`tel:${job.customerPhone}`} className="text-brand-blue hover:underline">
+                  {job.customerPhone}
+                </a>
+              </p>
+            )}
+          </section>
+
+          {/* Status history placeholder — TO-DO when GET /api/v1/jobs/{id}/status-history is available */}
+          <section
+            className="rounded-lg border border-border bg-brand-surface p-4 space-y-2"
+            data-testid="status-history"
+          >
+            <div className="flex items-center gap-1.5">
+              <History className="size-3.5 text-brand-muted" aria-hidden="true" />
+              <h2 className="text-sm font-semibold text-brand-navy">Status History</h2>
+            </div>
+            {/* TO-DO: implement full audit trail when GET /api/v1/jobs/{id}/status-history is available */}
+            <div className="text-sm text-brand-muted space-y-1">
+              <p>Current status: <StatusBadge status={job.status} /></p>
+              <p className="text-xs opacity-60">Full history coming soon.</p>
+            </div>
+          </section>
+
+          {/* Metadata */}
+          <section className="rounded-lg border border-border bg-brand-surface p-4 space-y-1.5">
+            <h2 className="text-sm font-semibold text-brand-navy">Metadata</h2>
+            <dl className="text-xs text-brand-muted space-y-1">
+              <div className="flex justify-between">
+                <dt>Created</dt>
+                <dd>{formatDt(job.createdAt)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt>Updated</dt>
+                <dd>{formatDt(job.updatedAt)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt>Job ID</dt>
+                <dd className="font-mono">{job.id.slice(0, 8)}</dd>
+              </div>
+            </dl>
+          </section>
+        </aside>
+      </div>
+    </div>
+  );
+}

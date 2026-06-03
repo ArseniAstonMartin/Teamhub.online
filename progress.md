@@ -1761,34 +1761,129 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 ---
 
-## TASK-038 — Google Maps Geocoding API
+## TASK-079 — Web Job Detail Page
 
 - **Date**: 2026-06-03
-- **Branch**: feat/task-038-geocoding
-- **Status**: done
+- **Branch**: UI
+- **Commit**: (see git log)
 - **Files changed**:
-  - `backend/src/main/resources/application.yml` (added `teamhub.google.maps-api-key`)
-  - `backend/src/main/java/com/teamhub/integration/geocoding/GoogleMapsProperties.java` (new — `@ConfigurationProperties("teamhub.google")` record)
-  - `backend/src/main/java/com/teamhub/integration/geocoding/GeocodingConfig.java` (new — `@EnableConfigurationProperties`)
-  - `backend/src/main/java/com/teamhub/integration/geocoding/GeocodingFailedException.java` (new — HTTP 400, code `GEOCODE_FAILED`)
-  - `backend/src/main/java/com/teamhub/integration/geocoding/GeocodeResult.java` (new — `city`, `state`, `zip`, `lat`, `lon` record)
-  - `backend/src/main/java/com/teamhub/integration/geocoding/GeocodeRequest.java` (new — `@NotBlank address` record)
-  - `backend/src/main/java/com/teamhub/integration/geocoding/GeocodingService.java` (new — calls Google Maps Geocoding API via `RestClient`)
-  - `backend/src/main/java/com/teamhub/integration/geocoding/GeocodingController.java` (new — `POST /api/v1/geocode`, requires authentication, `@Tag(name = "geocoding")`)
-  - `backend/src/main/java/com/teamhub/customer/dto/CreateCustomerRequest.java` (updated — made `lat`/`lon`/`city`/`state`/`zip` nullable; added optional `address` field)
-  - `backend/src/main/java/com/teamhub/customer/CustomerService.java` (updated — injected `GeocodingService`; `toEntity`/`mergeInto` geocode when `address` provided and `lat`/`lon` are null)
-  - `backend/build.gradle.kts` (added `GeocodingConfig` to JaCoCo exclusions)
-  - `backend/src/test/java/com/teamhub/integration/geocoding/GeocodingIT.java` (new — 7 tests covering all 3 task steps + extras)
-  - `backend/src/test/java/com/teamhub/customer/CustomerControllerIT.java` (updated — 11-arg `CreateCustomerRequest`)
-  - `backend/src/test/java/com/teamhub/customer/CustomerEdgeCaseIT.java` (updated — 11-arg `CreateCustomerRequest`)
-  - `tasks.json` (TASK-038 status: pending → done)
-- **Summary**: Integrated Google Maps Geocoding API server-side. `GeocodingService` calls `maps.googleapis.com/maps/api/geocode/json` via Spring `RestClient` with `GOOGLE_MAPS_API_KEY`; parses `address_components` for city/state/zip and `geometry.location` for lat/lon. `GeocodingController` exposes `POST /api/v1/geocode` (any authenticated role). `CreateCustomerRequest` now accepts an optional free-text `address` field; when provided without explicit lat/lon, `CustomerService` auto-geocodes and populates `city`, `state`, `zip`, and the PostGIS `location` Point. No new migration needed — `address_line`, `city`, `state`, `zip` columns already existed from V5. API key restriction TO-DO comment placed in `application.yml`.
-- **Acceptance criteria verified**:
-  1. `POST /api/v1/geocode` accepts address → returns `{city, state, zip, lat, lon}` — ✅ (GeocodingIT steps 1, 3b, 3c)
-  2. Frontend `<AddressAutocomplete>` component — TO-DO marker added in `GeocodingController.java` (frontend not yet scaffolded per TASK-006)
-  3. Customer create/edit accepts free-text address (auto-geocoded) or structured address + lat/lon — ✅ (GeocodingIT step 3)
-  4. API key restrictions documented with TO-DO marker — ✅ (`application.yml`)
-- **Test steps run**: Step 1 (geocode known address → city/state/zip/lat/lon verified), Step 2 (ZERO_RESULTS → 400 GEOCODE_FAILED), Step 3 (customer create with address → geocoding called, location Point populated). All 7 new tests pass; full suite BUILD SUCCESSFUL with ≥80% coverage.
-- **Open TO-DOs**: API key restriction in Google Cloud Console (HTTP referrer for web, IP allowlist for server — comment in `application.yml`); frontend `<AddressAutocomplete>` component (TASK-006)
-- **Commits**: see git log
-- Completed through TASK-038 (feat/task-038-geocoding): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 020, 021, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 047, 048, 049, 050, 051, 052, 053, 054, 055 (see tasks.json)
+  - `web/src/entities/job/model/types.ts` (added `JobResponse`, `JobNoteResponse`)
+  - `web/src/entities/job/model/transitions.ts` (new — shared FSM data: `ALLOWED_TRANSITIONS`, `TRANSITION_ENDPOINT`, `TRANSITIONS_FROM`, `TransitionAction`)
+  - `web/src/entities/job/api/jobsApi.ts` (added `useJob`, `useJobNotes`, `createNote`)
+  - `web/src/pages/jobs/ui/KanbanView.tsx` (refactored to import shared transitions; re-exports for backward compat)
+  - `web/src/pages/job-detail/ui/JobDetailPage.tsx` (new — full detail page)
+  - `web/src/pages/job-detail/ui/JobDetailPage.test.tsx` (new — 21 tests)
+  - `web/src/app/router.tsx` (added `/jobs/:id` route)
+  - `tasks.json` (TASK-079 status: pending → done)
+- **Summary**: Full job detail page implementing all five acceptance criteria. Header: customer name (with ID fallback) + StatusBadge + role-filtered action buttons (hidden entirely for disallowed role+state combos — AC2). Body: custom fields key-value grid, notes thread with inline composer (AC3), photos placeholder (TO-DO — endpoint unavailable). Sidebar: schedule dates, assignee name, status history placeholder (TO-DO — endpoint unavailable), metadata. Transitions: optimistic `setQueryData` immediately on click, then `fireTransition`; on error rollback via second `setQueryData` + toast.error (AC5). Notes: optimistic prepend before `createNote` resolves; rollback on error (AC3). Role logic: note composer shown to ADMIN, DISPATCHER, or TECHNICIAN with `job.assignedTechnicianId === user.id`. Action buttons computed from `TRANSITIONS_FROM[job.status]` filtered by `user.role` — buttons for disallowed combos are never rendered (AC2). Shared `transitions.ts` module extracted so KanbanView and JobDetailPage stay DRY; KanbanView re-exports for test backward compat.
+- **Acceptance criteria verified**: 1 (layout), 2 (action buttons role+state filtered), 3 (notes composer), 4 (photos placeholder with TO-DO), 5 (optimistic + rollback)
+- **Test steps run**: Step 1 (ADMIN sees all actions; non-assigned TECH sees none on DONE_PENDING_APPROVAL), Step 2 (note submit calls createNote; optimistic prepend tested)
+- **Open TO-DOs**: Photos grid+lightbox when `GET /api/v1/jobs/{id}/photos` ships (PRD §14); full status history when `GET /api/v1/jobs/{id}/status-history` ships; enrich customer/technician names from user service when backend returns nested objects.
+- **Test count**: 21 new (JobDetailPage) + 146 existing = **167 passing** across 9 files
+- **Checks**: typecheck ✓ lint ✓ test ✓ build ✓
+
+---
+
+## TASK-082 — Schema Editor Page (2026-06-03)
+
+- **Files created**:
+  - `web/src/entities/schema/model/types.ts` — `FieldDefinition`, `SchemaResponse`, `PublishSchemaRequest` TS interfaces
+  - `web/src/entities/schema/api/schemasApi.ts` — `useSchemas`, `usePublishSchema`, `useDeactivateSchema` TanStack Query hooks
+  - `web/src/pages/schema-editor/ui/SchemaEditorPage.tsx` — full Schema Editor page
+  - `web/src/pages/schema-editor/ui/SchemaEditorPage.test.tsx` — 12 tests
+- **Route added**: `/schema-editor` inside the protected + AppLayout block in `router.tsx`
+- **Features implemented**: schema selector with version loading, drag-and-drop field reordering (`@hello-pangea/dnd`), Add/Edit/Delete field dialog (key, label, type, required, options, validation, depends_on, options_by_parent), live preview pane, "Save as new version" (POST /api/v1/schemas), collapsible version history with Deactivate, ADMIN-only role guard (non-admin → redirect)
+- **Test count**: 12 new (SchemaEditorPage) + 167 existing = **179 passing** across 10 files
+- **Checks**: typecheck ✓ lint ✓ test ✓ build ✓
+
+---
+
+## TASK-083 — Automation Rules Page (2026-06-03)
+
+- **Files created**:
+  - `web/src/entities/automation/model/types.ts` — `AutomationRuleResponse`, `CreateAutomationRuleRequest`, `UpdateAutomationRuleRequest`, `EvaluateAutomationsRequest/Response`, `MatchRule` variants
+  - `web/src/entities/automation/api/automationsApi.ts` — `useAutomations`, `useCreateAutomation`, `useUpdateAutomation`, `useDeleteAutomation`, `useEvaluateAutomations` TanStack Query hooks
+  - `web/src/pages/automations/ui/AutomationsPage.tsx` — full Automation Rules page
+  - `web/src/pages/automations/ui/AutomationsPage.test.tsx` — 12 tests
+- **Route added**: `/automations` inside the protected + AppLayout block in `router.tsx`
+- **Features implemented**:
+  - Rule list: draggable rows (`@hello-pangea/dnd`) with priority number, name, trigger fields, actions summary, active toggle (PATCH `{ active: !current }`), edit/delete buttons
+  - Priority drag-and-drop: renumbers 1…N on drop and issues PATCH for each changed rule
+  - Rule editor dialog: name input, trigger field multi-select chips (from active schema), per-field match conditions (op: eq/in/range with appropriate value inputs), dynamic action rows (field key select + value), active checkbox; key-prop reset pattern for fresh form state
+  - Test pane: collapsible, key/value draft fields, POST /evaluate, renders auto-filled fields table with rule_name badges
+  - ADMIN-only role guard (non-admin → redirect to /schedule)
+- **Test count**: 12 new (AutomationsPage) + 179 existing = **191 passing** across 11 files
+- **Checks**: typecheck ✓ lint ✓ test ✓ build ✓
+
+## TASK-084 — Settings → Users Page (2026-06-03)
+- **Route**: `/settings/users` (ADMIN only, redirect to `/schedule` for other roles)
+- **New files**:
+  - `web/src/entities/user/model/userTypes.ts` — `UserResponse`, `UsersPageResponse`, `InviteResponse`, `InviteRequest`, `ChangeRoleRequest`
+  - `web/src/entities/user/api/usersApi.ts` — `useUsers`, `useInviteUser`, `useChangeRole`, `useDeactivateUser`, `useReactivateUser`, optimistic cache helper
+  - `web/src/pages/settings-users/ui/SettingsUsersPage.tsx` — full page with table, invite dialog, change-role dialog, deactivate/reactivate confirm dialogs
+  - `web/src/pages/settings-users/ui/SettingsUsersPage.test.tsx` — 10 new tests
+- **Key behaviours**:
+  - Table: email, role badge (ADMIN=blue, DISPATCHER=indigo, TECHNICIAN=cyan), status badge (Active/Deactivated), Joined date (createdAt — TO-DO: replace with lastSeen when backend adds field)
+  - Invite dialog: email + role select → POST /api/v1/invites → toast "Invite sent to {email}"
+  - Change role: optimistic cache update, rollback on error
+  - Deactivate: 422 LAST_ADMIN_PROTECTED → toast "Cannot deactivate the last Admin." without UI state change
+  - Reactivate: confirm dialog → POST /api/v1/users/{id}/reactivate
+- **Test count**: 10 new (SettingsUsersPage) + 191 existing = **201 passing** across 12 files
+- **Checks**: typecheck ✓ lint ✓ test ✓ build ✓
+
+## TASK-080 — Web Job Create Dialog (2026-06-03)
+- **New files**:
+  - `web/src/shared/ui/AddressAutocomplete.tsx` — Google Maps ECL `gmpx-place-picker` integration with backend geocoding; plain `<input>` fallback when `VITE_GOOGLE_MAPS_API_KEY` is absent
+  - `web/src/pages/jobs/ui/JobCreateDialog.tsx` — dialog with dynamic schema-driven form, dependent dropdowns, automation auto-fill badges with undo
+  - `web/src/pages/jobs/ui/JobCreateDialog.test.tsx` — 16 tests covering all ACs
+- **Modified files**:
+  - `web/src/entities/job/api/jobsApi.ts` — added `CreateJobRequest` type, `JOBS_QUERY_KEY` constant, `useCreateJob` mutation
+  - `web/src/pages/jobs/ui/JobsPage.tsx` — added "New Job" button that conditionally mounts `<JobCreateDialog>`
+  - `web/src/vite-env.d.ts` — added JSX namespace declarations for `gmpx-api-loader` / `gmpx-place-picker` custom elements
+  - `web/src/test-setup.ts` — added `hasPointerCapture` / `scrollIntoView` polyfills for Radix UI in jsdom
+- **Key behaviours**:
+  - Form fields rendered from active schema's `fieldDefinitions` sorted by `order` — text, number, date/time/datetime, boolean, dropdown, list, file placeholders
+  - Dependent dropdowns: disabled until parent set; `options_by_parent[parentValue]` filtered; value cleared on parent change
+  - Address fields (`address` / `address_line` keys) render `<AddressAutocomplete>` → calls `POST /api/v1/geocode` to extract city/state/zip/lat/lon → auto-populates sibling fields
+  - Automation evaluate: debounced 300 ms on form change; `auto_filled_fields` rendered as amber badges "Auto-filled by [rule_name]" with × undo
+  - Submit: posts to `POST /api/v1/jobs`, on success closes dialog and invalidates `['jobs']` query
+- **Test count**: 16 new (JobCreateDialog) + 201 existing = **217 passing** across 13 files
+- **Checks**: typecheck ✓ lint ✓ test ✓ build ✓
+
+## TASK-081 — Web Customer List + Detail Pages (2026-06-03)
+- **New files**:
+  - `web/src/entities/customer/model/types.ts` — `CustomerResponse`, `CustomersPageResponse`, `CreateCustomerRequest`, `UpdateCustomerRequest`, `CustomersQueryParams` interfaces
+  - `web/src/entities/customer/api/customersApi.ts` — `useCustomers`, `useCustomer`, `useCreateCustomer`, `useUpdateCustomer`, `useArchiveCustomer` TanStack Query hooks
+  - `web/src/pages/customers/ui/CustomerDetailPage.tsx` — detail page with header (name, phone, email, address), Google Maps iframe embed (lat/lon fallback to address text), Jobs/Notes tab strip, Edit dialog (AddressAutocomplete re-geocode), Archive confirm dialog
+  - `web/src/pages/customers/ui/CustomersPage.test.tsx` — 10 tests covering all list ACs
+  - `web/src/pages/customers/ui/CustomerDetailPage.test.tsx` — 10 tests covering all detail ACs
+- **Modified files**:
+  - `web/src/pages/customers/ui/CustomersPage.tsx` — replaced stub with full paginated table, debounced search (300 ms → URL `?q=`), "Show archived" checkbox (URL `?include_archived=true`), Status badge (Active/Archived), archive confirm dialog, role-gated archive button
+  - `web/src/entities/job/model/types.ts` — added `customerId?: string` to `JobsQueryParams`
+  - `web/src/app/router.tsx` — added `{ path: '/customers/:id', element: <CustomerDetailPage /> }` route
+- **Key behaviours**:
+  - Customer list: search debounced 300 ms, synced to URL; include_archived toggle; paginated (20/page); archive via `DELETE /api/v1/customers/{id}` with confirm dialog; row click navigates to detail
+  - Customer detail: header shows name, company, phone, email, address, created date; Google Maps iframe (`q=lat,lon&z=15&output=embed`) when coordinates present, else formatted address text
+  - Edit dialog: all fields pre-filled; phone read-only with note; address uses `<AddressAutocomplete>` → re-geocodes via `POST /api/v1/geocode`; saves via `PATCH /api/v1/customers/{id}`
+  - Jobs tab: `useJobs({ customerId: id })` — lists customer's full job history; Notes tab shows placeholder
+  - Archived badge shown on header; restore button omitted (TO-DO comment for POST restore endpoint)
+- **Test count**: 20 new + 217 existing = **238 passing** across 15 files
+- **Checks**: typecheck ✓ lint ✓ test ✓ build ✓
+
+## TASK-086 — Web Settings → Tenant Page (2026-06-03)
+- **New files**:
+  - `web/src/entities/tenant/model/types.ts` — `TenantSettingsResponse`, `UpdateTenantSettingsRequest` interfaces
+  - `web/src/entities/tenant/api/tenantApi.ts` — `useTenantSettings`, `useUpdateTenantSettings` TanStack Query hooks
+  - `web/src/pages/settings-tenant/ui/SettingsTenantPage.tsx` — Admin-only page with Jobs Settings and Workspace sections
+  - `web/src/pages/settings-tenant/ui/SettingsTenantPage.test.tsx` — 11 tests covering all ACs
+- **Modified files**:
+  - `web/src/app/router.tsx` — added `{ path: '/settings/tenant', element: <SettingsTenantPage /> }` route
+  - `web/src/widgets/app-layout/ui/AppLayout.tsx` — added Settings sub-nav (Tenant, Users) with `useMatch('/settings/*')` expansion
+- **Key behaviours**:
+  - Close Jobs toggle: fetches `GET /api/v1/tenant/settings`, optimistic update on change → `PATCH /api/v1/tenant/settings { closeJobsEnabled }`, rollback + `toast.error` on failure; loading spinner during mutation
+  - Team display name: `<Input>` rendered but disabled; Save button disabled with "Coming soon" title; `// TO-DO: wire to PATCH /api/v1/tenant endpoint when available`
+  - Default time zone: `<Select>` with 7 US time zones rendered but disabled; Save button disabled; `// TO-DO: wire to PATCH /api/v1/tenant/settings when timezone field added`
+  - Non-Admin users redirected to `/schedule` (consistent with SettingsUsersPage)
+  - Settings sidebar expands sub-items (Tenant, Users) when on any `/settings/*` route
+- **Test count**: 11 new + 238 existing = **249 passing** across 16 files
+- **Checks**: typecheck ✓ lint ✓ test ✓ build ✓
