@@ -51,6 +51,10 @@ public class ReportRepository {
    * @param from inclusive start date (UTC)
    * @param to inclusive end date (UTC)
    */
+  // The `period` value is interpolated into the SQL string because PostgreSQL's date_trunc()
+  // function does not accept a bind parameter for the truncation unit. Injection is prevented by
+  // the explicit allowlist check immediately below (S2077).
+  @SuppressWarnings("java:S2077")
   public List<DayBucket> getJobCountsByPeriod(
       UUID tenantId, String period, LocalDate from, LocalDate to) {
 

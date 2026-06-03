@@ -62,6 +62,10 @@ public class MaterializedViewRefreshJob {
    * Refreshes all six materialized views concurrently. Exposed as a public method so that
    * integration tests can trigger a refresh without waiting for the scheduler.
    */
+  // View names are concatenated rather than bound because PostgreSQL does not accept bind
+  // parameters in DDL-style statements. All values come from the hardcoded VIEWS constant above —
+  // no user input is ever involved (S2077).
+  @SuppressWarnings("java:S2077")
   public void refreshAll() {
     log.info("MaterializedViewRefreshJob: starting refresh of {} views", VIEWS.size());
     long jobStart = System.currentTimeMillis();
