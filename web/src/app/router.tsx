@@ -11,6 +11,8 @@ import JobsPage from '@/pages/jobs/ui/JobsPage';
 import CustomersPage from '@/pages/customers/ui/CustomersPage';
 import ReportsPage from '@/pages/reports/ui/ReportsPage';
 import SettingsPage from '@/pages/settings/ui/SettingsPage';
+import AuthCallbackPage from '@/pages/auth-callback/ui/AuthCallbackPage';
+import AuthErrorPage from '@/pages/auth-error/ui/AuthErrorPage';
 
 export const router = createBrowserRouter([
   // ── Public routes ───────────────────────────────────────────────────
@@ -19,6 +21,8 @@ export const router = createBrowserRouter([
   { path: '/reset-password', element: <ResetPasswordPage /> },
   { path: '/accept-invite', element: <AcceptInvitePage /> },
   { path: '/design-system', element: <DesignSystemPage /> },
+  { path: '/auth/callback', element: <AuthCallbackPage /> },
+  { path: '/auth/error', element: <AuthErrorPage /> },
 
   // ── Protected routes ────────────────────────────────────────────────
   {
