@@ -2174,3 +2174,19 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Completed through TASK-068 (feat/task-067-068-admin-reports): 001–005, 007–010, 012–014, 016–021, 023–036, 037, 039–055, 060–066, 067, 068
 
 <!-- Completed through TASK-107 (2026-06-03 rebase sync): 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 020, 021, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 047, 048, 049, 050, 051, 052, 053, 054, 055, 060, 061, 062, 063, 064, 065, 066, 072, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 086, 107 (see tasks.json) -->
+
+### 2026-06-03 — TASK-085 — Settings → Billing page
+
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- Files touched:
+  - `web/src/entities/billing/model/types.ts` (new — BillingStatus interface, PLAN_LIMITS, PLAN_PRICES, PriceKey)
+  - `web/src/entities/billing/api/billingApi.ts` (new — useBillingStatus stub, useCreateCheckout, useCreatePortal mutations)
+  - `web/src/pages/settings-billing/ui/SettingsBillingPage.tsx` (new — full billing page with skeleton card, banners, upgrade dropdown, manage billing button)
+  - `web/src/pages/settings-billing/ui/SettingsBillingPage.test.tsx` (new — 11 tests)
+  - `web/src/app/router.tsx` (added /settings/billing route)
+  - `web/src/widgets/app-layout/ui/AppLayout.tsx` (added Billing sub-item to Settings sidebar)
+- Summary: Implemented Admin-only Settings → Billing page. Upgrade button opens dropdown with STARTER/TEAM/ENTERPRISE tiers, calls POST /api/v1/billing/checkout/{priceKey} and redirects to Stripe Checkout URL. Manage Billing button calls POST /api/v1/billing/portal and redirects to Stripe Customer Portal. On mount, checks ?checkout=success query param and shows success toast. Plan card renders skeleton/placeholder with TO-DO comment for wiring to future GET /api/v1/billing/status endpoint. Quota banners (80%/100%) and payment failed banner gated on billingStatus (null for now) with TO-DO comment.
+- Acceptance criteria verified: All 5 ACs met; action buttons fully wired; skeleton card with TO-DO stub; banners with TO-DO stub
+- Test steps run: 261 tests pass (11 new billing tests) — typecheck clean, lint clean, build successful
+- Open TO-DOs: wire useBillingStatus to GET /api/v1/billing/status when backend endpoint is added

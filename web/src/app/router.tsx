@@ -19,6 +19,7 @@ import SchemaEditorPage from '@/pages/schema-editor/ui/SchemaEditorPage';
 import AutomationsPage from '@/pages/automations/ui/AutomationsPage';
 import SettingsUsersPage from '@/pages/settings-users/ui/SettingsUsersPage';
 import SettingsTenantPage from '@/pages/settings-tenant/ui/SettingsTenantPage';
+import SettingsBillingPage from '@/pages/settings-billing/ui/SettingsBillingPage';
 
 export const router = createBrowserRouter([
   // ── Public routes ───────────────────────────────────────────────────
@@ -49,6 +50,7 @@ export const router = createBrowserRouter([
           { path: '/settings/*', element: <SettingsPage /> },
           { path: '/settings/users', element: <SettingsUsersPage /> },
           { path: '/settings/tenant', element: <SettingsTenantPage /> },
+          { path: '/settings/billing', element: <SettingsBillingPage /> },
           { path: '/schema-editor', element: <SchemaEditorPage /> },
           { path: '/automations', element: <AutomationsPage /> },
         ],

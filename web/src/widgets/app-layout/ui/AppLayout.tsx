@@ -8,6 +8,7 @@ import {
   LogOut,
   Building2,
   UserCog,
+  CreditCard,
 } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { useAuthStore, type UserRole } from '@/entities/user/model/authStore';
@@ -55,6 +56,7 @@ const NAV_ITEMS: NavItem[] = [
     subItems: [
       { label: 'Tenant', to: '/settings/tenant', icon: Building2 },
       { label: 'Users', to: '/settings/users', icon: UserCog },
+      { label: 'Billing', to: '/settings/billing', icon: CreditCard },
     ],
   },
 ];
