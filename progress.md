@@ -1887,3 +1887,40 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   - Settings sidebar expands sub-items (Tenant, Users) when on any `/settings/*` route
 - **Test count**: 11 new + 238 existing = **249 passing** across 16 files
 - **Checks**: typecheck ✓ lint ✓ test ✓ build ✓
+
+
+---
+
+### 2026-06-03 — TASK-060 — Stripe billing products & price scaffold (PRD §17.1)
+- Agent: Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §17.1, §26.2
+- Files touched:
+  - backend/scripts/stripe/seed-products.ts (new — idempotent Node.js/TS seed script creating 4 Stripe products + recurring monthly prices)
+  - backend/scripts/stripe/package.json (new — stripe npm dep + seed script entry point)
+  - backend/scripts/stripe/tsconfig.json (new — TypeScript compiler config)
+  - backend/src/main/java/com/teamhub/billing/StripePriceProperties.java (new — @ConfigurationProperties record with @NotBlank on all 6 fields)
+  - backend/src/main/java/com/teamhub/billing/StripeConfig.java (new — @Configuration sets Stripe.apiKey at startup via @PostConstruct)
+  - backend/src/main/resources/application.yml (modified — added teamhub.stripe.* bindings for all 6 env vars)
+  - backend/build.gradle.kts (modified — added com.stripe:stripe-java:29.2.0)
+  - backend/src/test/java/com/teamhub/billing/StripePricePropertiesTest.java (new — 8 ApplicationContextRunner tests covering all 6 blank-field fail-fast paths)
+  - backend/src/test/java/com/teamhub/config/TestcontainersConfiguration.java (modified — added stripeTestPropertyRegistrar DynamicPropertyRegistrar bean)
+  - tasks.json (TASK-060 status → done)
+  - progress.md (this entry)
+- Summary: Scaffolded the entire Stripe billing property layer (TASK-060). The seed script creates 4 products (Free $0, Starter $49, Team $169, Enterprise $349/month per PRD §17.1) with idempotency via metadata.teamhub_plan_key lookup before creation. StripePriceProperties is a @Validated record causing Spring Boot to fail at startup with BindValidationException if any of the 6 required secrets (secret-key, price-free, price-starter, price-team, price-enterprise, webhook-secret) is blank. StripeConfig sets Stripe.apiKey globally at startup. Integration tests receive stub values via TestcontainersConfiguration.stripeTestPropertyRegistrar.
+- Acceptance criteria verified:
+  1. backend/scripts/stripe/seed-products.ts creates 4 products and recurring monthly prices via Stripe API — script code verified; idempotency logic present
+  2. Resulting price IDs documented as required env vars STRIPE_PRICE_FREE, STRIPE_PRICE_STARTER, STRIPE_PRICE_TEAM, STRIPE_PRICE_ENTERPRISE — in application.yml bindings + seed script output format
+  3. Script is idempotent (no duplicates on re-run) — ensureProduct/ensurePrice functions check metadata.teamhub_plan_key before creating
+  4. TO-DO marker for human to run script against live Stripe account per PRD §26.2 — present at top of seed-products.ts and in StripePriceProperties Javadoc
+- Test steps run:
+  - Step 1 (Run script against Stripe test account): requires human to provision STRIPE_SECRET_KEY — TO-DO in seed-products.ts
+  - Step 2 (Re-run — no duplicates): idempotency logic in ensureProduct/ensurePrice verified by code review
+  - Step 3 (Backend boot fails if any price env var missing): StripePricePropertiesTest — 8 tests, all PASSED (ApplicationContextRunner verifies hasFailed() for each blank field)
+  - ./gradlew spotlessApply && ./gradlew check --no-daemon — BUILD SUCCESSFUL, 359 tests, 0 failures; jacocoTestCoverageVerification PASSED; billing package 100% line coverage
+- Open TO-DOs created (with PRD reference):
+  - TO-DO in seed-products.ts: run against live Stripe account and copy price IDs to env (PRD §26.2)
+  - TO-DO in StripePriceProperties.java: provision STRIPE_SECRET_KEY (restricted key rk_test_/rk_live_), STRIPE_PRICE_FREE, STRIPE_PRICE_STARTER, STRIPE_PRICE_TEAM, STRIPE_PRICE_ENTERPRISE, STRIPE_WEBHOOK_SECRET in GitHub Actions and IntelliJ run config (PRD §26.2)
+  - TO-DO in application.yml: comment block lists all 6 secrets to provision
+- Commits: (pending — will be committed after this entry)
+- Completed through TASK-060 (feat/task-060-066-stripe-quota): 001, 002, 003, 004, 005, 007, 008, 009, 010, 012, 013, 014, 016, 017, 018, 019, 020, 021, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 039, 040, 041, 042, 043, 044, 045, 047, 048, 049, 050, 051, 052, 053, 054, 055, 060 (see tasks.json)
