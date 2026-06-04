@@ -20,6 +20,11 @@ public interface DeviceTokenRepository extends JpaRepository<DeviceToken, UUID> 
   Optional<DeviceToken> findByUserIdAndExpoToken(UUID userId, String expoToken);
 
   /**
+   * Returns all non-stale tokens for a specific user; used for actor-targeted push notifications.
+   */
+  List<DeviceToken> findByUserIdAndStaleIsFalse(UUID userId);
+
+  /**
    * Returns all non-stale tokens for a specific role within a tenant.
    *
    * <p>Used for role-targeted fan-out (e.g. tech-only notifications). The native query joins {@code

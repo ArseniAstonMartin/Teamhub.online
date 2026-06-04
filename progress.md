@@ -2327,3 +2327,54 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Summary: Post-MVP deferral for mobile a11y (TASK-114) and Enterprise dedicated-DB runbook (TASK-119). TASK-120 (Kafka migration runbook) removed from backlog — Redis Streams + outbox remain the long-term eventing path; no Kafka migration planned. Added `deferred` status to `tasks.json` agent_instructions; TASK-122 MVP acceptance criteria updated accordingly.
 - Files touched: `tasks.json`
 - Open TO-DOs: none
+
+### 2026-06-04 — TASK-057 — Expo Push fan-out consumer
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §15.2, §15.3
+- Files touched:
+  - `backend/src/main/resources/application.yml` (modified — added `teamhub.push` config block)
+  - `backend/src/main/java/com/teamhub/push/ExpoPushProperties.java` (new)
+  - `backend/src/main/java/com/teamhub/push/PushMessage.java` (new)
+  - `backend/src/main/java/com/teamhub/push/PushTicket.java` (new)
+  - `backend/src/main/java/com/teamhub/push/ExpoPushClient.java` (new)
+  - `backend/src/main/java/com/teamhub/push/PushFanOutConsumer.java` (new)
+  - `backend/src/main/java/com/teamhub/push/PushFanOutConsumerConfig.java` (new)
+  - `backend/src/test/java/com/teamhub/push/PushFanOutIT.java` (new)
+  - `backend/src/test/java/com/teamhub/billing/QuotaCheckerIT.java` (modified — re-delete processed_events before tenant delete to guard against async consumer race)
+- Summary: Implemented the Expo Push HTTP V2 provider client (`ExpoPushClient`) backed by Spring `RestClient` with configurable batching (max 100 tokens/request), exponential-backoff retry (3 attempts, 1 s initial delay), and automatic `markStale` on `DeviceNotRegistered` tickets. Added `PushFanOutConsumer` extending `AbstractOutboxConsumer` for consumer group `push-fan-out-technicians` that subscribes to `events:JobSubmitted`, loads all non-stale TECHNICIAN device tokens for the tenant, builds push messages with deep-link params (`jobId`, `screen=JobDetail`, `channelId=jobs`), and calls `expoPushClient.sendBatch()`. Wired everything via `PushFanOutConsumerConfig` with `@EnableConfigurationProperties(ExpoPushProperties.class)`. Integration tests cover: 3-token fan-out, stale-token exclusion, `DeviceNotRegistered` → markStale flow, and 101-message batch splitting into 2 HTTP requests.
+- Acceptance criteria verified: 1 (batching + retry + backoff in ExpoPushClient), 2 (DeviceNotRegistered ticket → markStale), 3 (consumer subscribes to JobSubmitted; deep-link params present), 4 (push is side-effect only, no latency-added DB ops)
+- Test steps run: Step 1 (3 tokens → sendBatch called with 3 messages, correct body and data) passed, Step 2 (1 stale → sendBatch with 2 messages) passed, Step 3 (DeviceNotRegistered → markStale invoked) passed, batching test (101 → 2 batches) passed — all 4 passed
+- Open TO-DOs created (with PRD reference): none
+- Completed through TASK-057 (feat/task-056-059-push-notifications): adds 057 to existing done set
+
+### 2026-06-04 — TASK-058 — Silent push to other technicians on JobClaimed
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §15.2
+- Files touched:
+  - `backend/src/main/java/com/teamhub/push/SilentPushConsumer.java` (new)
+  - `backend/src/main/java/com/teamhub/push/SilentPushConsumerConfig.java` (new)
+  - `backend/src/test/java/com/teamhub/push/SilentPushIT.java` (new)
+  - `tasks.json` (modified — TASK-058 status → done)
+- Summary: Implemented `SilentPushConsumer` extending `AbstractOutboxConsumer` for consumer group `silent-push-other-techs` that subscribes to `events:JobClaimed`. On each event it loads all non-stale TECHNICIAN tokens for the tenant, excludes the claiming technician, and sends a silent `PushMessage` (no title, no body) with `data={type:"SHARED_POOL_REFRESH", jobId:"…"}` to signal the mobile app to invalidate its shared-pool query cache. Wired via `SilentPushConsumerConfig` which reuses the `ExpoPushClient` bean registered by `PushFanOutConsumerConfig`. Integration tests cover: silent fan-out to other techs (body=null, data.type=SHARED_POOL_REFRESH), claimer exclusion, and `processed_events` idempotency (same event_id injected twice → sendBatch called once).
+- Acceptance criteria verified: 1 (consumer group `silent-push-other-techs` subscribes to `JobClaimed`), 2 (push is silent — no sound/body, only data payload), 3 (claiming technician excluded from recipients), 4 (mobile receives `data.type=SHARED_POOL_REFRESH` to invalidate cache)
+- Test steps run: Step 1+2 (`step1And2_techBReceivesSilentPush_techAExcluded` — only Tech B's token, body=null, data correct, Tech A absent) passed, Step 3 (`step3_idempotency_duplicateEventCallsSendBatchOnce` — same event_id twice → sendBatch once) passed — all passed
+- Open TO-DOs created (with PRD reference): none
+- Completed through TASK-058 (feat/task-056-059-push-notifications)
+
+### 2026-06-04 — TASK-059 — push-actor consumer: job approved notification
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §15.2, §15.3
+- Files touched:
+  - `backend/src/main/java/com/teamhub/push/PushActorConsumer.java` (new)
+  - `backend/src/main/java/com/teamhub/push/PushActorConsumerConfig.java` (new)
+  - `backend/src/main/java/com/teamhub/push/DeviceTokenRepository.java` (modified — added `findByUserIdAndStaleIsFalse`)
+  - `backend/src/test/java/com/teamhub/push/PushActorIT.java` (new)
+  - `tasks.json` (modified — TASK-059 status → done)
+- Summary: Implemented `PushActorConsumer` extending `AbstractOutboxConsumer` for consumer group `push-actor` that subscribes to `events:JobStatusChanged`. The handler filters for the `DONE_PENDING_APPROVAL → COMPLETED` transition only, looks up the job's `assignedTechnicianId` via `JobRepository`, loads all non-stale device tokens for that technician, and sends a targeted push with title "Job Approved", body `"Job <shortId> approved"` (first 8 chars of UUID), and deep-link data `{jobId, screen:"JobDetail"}`. Wired via `PushActorConsumerConfig` which reuses `ExpoPushClient` from `PushFanOutConsumerConfig`. Added `findByUserIdAndStaleIsFalse` to `DeviceTokenRepository` for actor-targeted token lookup. Integration tests cover: assigned technician receives push (correct body + deep-link), other technician excluded, non-matching transitions produce no push, and `processed_events` idempotency (same event_id twice → sendBatch once).
+- Acceptance criteria verified: 1 (consumer group `push-actor` subscribes to `JobStatusChanged`), 2 (filter: only DONE_PENDING_APPROVAL→COMPLETED), 3 (body contains short job ID + "approved"; data.screen=JobDetail deep-link)
+- Test steps run: Step 1+2 (`step1And2_assignedTechnicianReceivesPush_otherTechnicianExcluded` — assigned tech receives push, body+data correct, other tech excluded) passed, Step 3 (`step3_idempotency_duplicateEventCallsSendBatchOnce` — same event_id twice → sendBatch once) passed, `nonMatchingTransition_noSendBatch` passed — all 3 passed
+- Open TO-DOs created (with PRD reference): none
+- Completed through TASK-059 (feat/task-056-059-push-notifications)

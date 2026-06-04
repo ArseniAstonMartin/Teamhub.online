@@ -93,9 +93,13 @@ public abstract class AbstractOutboxConsumer {
   /**
    * One poll iteration: ensures the consumer group exists, re-claims stale PEL messages, then reads
    * up to 10 new messages via {@code XREADGROUP}.
+   *
+   * <p>Synchronized to prevent concurrent execution when the {@link Scheduled} background task and
+   * an explicit test call overlap — callers wait for the in-progress poll to finish rather than
+   * being silently skipped.
    */
   @Scheduled(fixedDelay = 200)
-  public void pollOnce() {
+  public synchronized void pollOnce() {
     ensureGroupExists();
     if (!groupInitialized.get()) {
       return;
