@@ -2347,3 +2347,18 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Test steps run: Step 1 (3 tokens → sendBatch called with 3 messages, correct body and data) passed, Step 2 (1 stale → sendBatch with 2 messages) passed, Step 3 (DeviceNotRegistered → markStale invoked) passed, batching test (101 → 2 batches) passed — all 4 passed
 - Open TO-DOs created (with PRD reference): none
 - Completed through TASK-057 (feat/task-056-059-push-notifications): adds 057 to existing done set
+
+### 2026-06-04 — TASK-058 — Silent push to other technicians on JobClaimed
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §15.2
+- Files touched:
+  - `backend/src/main/java/com/teamhub/push/SilentPushConsumer.java` (new)
+  - `backend/src/main/java/com/teamhub/push/SilentPushConsumerConfig.java` (new)
+  - `backend/src/test/java/com/teamhub/push/SilentPushIT.java` (new)
+  - `tasks.json` (modified — TASK-058 status → done)
+- Summary: Implemented `SilentPushConsumer` extending `AbstractOutboxConsumer` for consumer group `silent-push-other-techs` that subscribes to `events:JobClaimed`. On each event it loads all non-stale TECHNICIAN tokens for the tenant, excludes the claiming technician, and sends a silent `PushMessage` (no title, no body) with `data={type:"SHARED_POOL_REFRESH", jobId:"…"}` to signal the mobile app to invalidate its shared-pool query cache. Wired via `SilentPushConsumerConfig` which reuses the `ExpoPushClient` bean registered by `PushFanOutConsumerConfig`. Integration tests cover: silent fan-out to other techs (body=null, data.type=SHARED_POOL_REFRESH), claimer exclusion, and `processed_events` idempotency (same event_id injected twice → sendBatch called once).
+- Acceptance criteria verified: 1 (consumer group `silent-push-other-techs` subscribes to `JobClaimed`), 2 (push is silent — no sound/body, only data payload), 3 (claiming technician excluded from recipients), 4 (mobile receives `data.type=SHARED_POOL_REFRESH` to invalidate cache)
+- Test steps run: Step 1+2 (`step1And2_techBReceivesSilentPush_techAExcluded` — only Tech B's token, body=null, data correct, Tech A absent) passed, Step 3 (`step3_idempotency_duplicateEventCallsSendBatchOnce` — same event_id twice → sendBatch once) passed — all passed
+- Open TO-DOs created (with PRD reference): none
+- Completed through TASK-058 (feat/task-056-059-push-notifications)
