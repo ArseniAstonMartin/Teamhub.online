@@ -130,3 +130,8 @@ teamhub:
     price-team: ${STRIPE_PRICE_TEAM:}
     price-enterprise: ${STRIPE_PRICE_ENTERPRISE:}
     webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+  push:
+    expo-push-url: ${EXPO_PUSH_URL:https://exp.host/--/api/v2/push/send}
+    max-batch-size: 100
+    retry-max-attempts: 3
+    retry-backoff-ms: 1000

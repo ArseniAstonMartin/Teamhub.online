@@ -105,6 +105,9 @@ class QuotaCheckerIT {
     jdbc.update("DELETE FROM tenant_quota_state WHERE tenant_id = ?", tenant.getId());
     jdbc.update("DELETE FROM refresh_tokens WHERE tenant_id = ?", tenant.getId());
     jdbc.update("DELETE FROM users WHERE tenant_id = ?", tenant.getId());
+    // Re-delete processed_events: background consumers (e.g. push-fan-out-technicians) may have
+    // inserted rows between the first delete (line 102) and this tenant delete.
+    jdbc.update("DELETE FROM processed_events WHERE tenant_id = ?", tenant.getId());
     jdbc.update("DELETE FROM tenants WHERE id = ?", tenant.getId());
   }
 

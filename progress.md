@@ -2327,3 +2327,23 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Summary: Post-MVP deferral for mobile a11y (TASK-114) and Enterprise dedicated-DB runbook (TASK-119). TASK-120 (Kafka migration runbook) removed from backlog — Redis Streams + outbox remain the long-term eventing path; no Kafka migration planned. Added `deferred` status to `tasks.json` agent_instructions; TASK-122 MVP acceptance criteria updated accordingly.
 - Files touched: `tasks.json`
 - Open TO-DOs: none
+
+### 2026-06-04 — TASK-057 — Expo Push fan-out consumer
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §15.2, §15.3
+- Files touched:
+  - `backend/src/main/resources/application.yml` (modified — added `teamhub.push` config block)
+  - `backend/src/main/java/com/teamhub/push/ExpoPushProperties.java` (new)
+  - `backend/src/main/java/com/teamhub/push/PushMessage.java` (new)
+  - `backend/src/main/java/com/teamhub/push/PushTicket.java` (new)
+  - `backend/src/main/java/com/teamhub/push/ExpoPushClient.java` (new)
+  - `backend/src/main/java/com/teamhub/push/PushFanOutConsumer.java` (new)
+  - `backend/src/main/java/com/teamhub/push/PushFanOutConsumerConfig.java` (new)
+  - `backend/src/test/java/com/teamhub/push/PushFanOutIT.java` (new)
+  - `backend/src/test/java/com/teamhub/billing/QuotaCheckerIT.java` (modified — re-delete processed_events before tenant delete to guard against async consumer race)
+- Summary: Implemented the Expo Push HTTP V2 provider client (`ExpoPushClient`) backed by Spring `RestClient` with configurable batching (max 100 tokens/request), exponential-backoff retry (3 attempts, 1 s initial delay), and automatic `markStale` on `DeviceNotRegistered` tickets. Added `PushFanOutConsumer` extending `AbstractOutboxConsumer` for consumer group `push-fan-out-technicians` that subscribes to `events:JobSubmitted`, loads all non-stale TECHNICIAN device tokens for the tenant, builds push messages with deep-link params (`jobId`, `screen=JobDetail`, `channelId=jobs`), and calls `expoPushClient.sendBatch()`. Wired everything via `PushFanOutConsumerConfig` with `@EnableConfigurationProperties(ExpoPushProperties.class)`. Integration tests cover: 3-token fan-out, stale-token exclusion, `DeviceNotRegistered` → markStale flow, and 101-message batch splitting into 2 HTTP requests.
+- Acceptance criteria verified: 1 (batching + retry + backoff in ExpoPushClient), 2 (DeviceNotRegistered ticket → markStale), 3 (consumer subscribes to JobSubmitted; deep-link params present), 4 (push is side-effect only, no latency-added DB ops)
+- Test steps run: Step 1 (3 tokens → sendBatch called with 3 messages, correct body and data) passed, Step 2 (1 stale → sendBatch with 2 messages) passed, Step 3 (DeviceNotRegistered → markStale invoked) passed, batching test (101 → 2 batches) passed — all 4 passed
+- Open TO-DOs created (with PRD reference): none
+- Completed through TASK-057 (feat/task-056-059-push-notifications): adds 057 to existing done set
