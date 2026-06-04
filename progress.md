@@ -1885,3 +1885,23 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   3. Pull-to-refresh invalidates all three queries and triggers refetch — ✅
   4. White background, blue accents, slate text — no gradients, no glow — ✅
 - **Test results**: `npm run lint` → exit 0 (0 warnings); `npm run typecheck` → exit 0; `npm test -- --ci` → 15 passed (4 suites), 0 failed
+
+## TASK-093 — Mobile Schedule Tab (2026-06-04)
+- **Files created/modified**:
+  - `mobile/src/theme/colors.ts` (updated — added 7 job-status colors: statusSubmitted, statusAssigned, statusInProgress, statusPending, statusDonePending, statusCompleted, statusCanceled)
+  - `mobile/src/api/jobsApi.ts` (extended — added `JobResponse` interface, `JobStatus` type, `useScheduleJobs(from, to)` hook, `claimJob(id)` function)
+  - `mobile/src/hooks/useReducedMotion.ts` (new — `AccessibilityInfo.isReduceMotionEnabled()` hook with `reduceMotionChanged` listener)
+  - `mobile/src/components/JobCard.tsx` (new — own-job card styled by status with colored left border and dot indicator)
+  - `mobile/src/components/SharedPoolCard.tsx` (new — red blinking ACCEPT THE JOB card; opacity 1→0.4→1 loop over 1.5s; static red left border fallback when `useReducedMotion()` is true; no `customerPhone` rendered)
+  - `mobile/src/components/AcceptJobSheet.tsx` (new — slide-up Modal confirmation sheet; optimistic close, calls `POST /jobs/{id}/claim`; Alert.alert on 409 conflict; ActivityIndicator on loading)
+  - `mobile/src/screens/ScheduleScreen.tsx` (replaced placeholder — full Day/Week toggle, date navigation arrows, FlatList for day view, ScrollView for week columns, pull-to-refresh, Unscheduled section, AcceptJobSheet integration)
+  - `mobile/src/__tests__/ScheduleScreen.test.tsx` (new — 12 tests covering toggle, shared-pool card label, status styling, customerPhone privacy, sheet open, claim API call, date navigation, unscheduled section)
+  - `tasks.json` (TASK-093 status: pending → done)
+- **Summary**: Full Schedule tab implemented. Day view is the default showing jobs sorted by `scheduledStart` with an Unscheduled section for jobs without times. Week view shows a horizontal date-strip for the current ISO week; selecting any day filters to that day's jobs. `SUBMITTED` (shared-pool) jobs render as animated red cards with "ACCEPT THE JOB" badge — animation is opacity-based (never strobe), and degrades to a static red left border when `prefers-reduced-motion` is enabled via `AccessibilityInfo`. Customer phone is not shown on SUBMITTED cards (backend enforces `customerPhone: null`). Tapping a shared-pool card opens `AcceptJobSheet`; pressing Accept calls `POST /jobs/{id}/claim` with optimistic close and 409 rollback.
+- **Acceptance criteria verified**:
+  1. Day view default; toggle to Week — ✅
+  2. Own jobs styled by status; SUBMITTED jobs render as red "ACCEPT THE JOB" cards — ✅
+  3. Blinking is opacity-based (no strobe); static red border fallback via `useReducedMotion()` — ✅
+  4. `customerPhone` never rendered on SUBMITTED cards — ✅
+  5. Tapping unclaimed card opens AcceptJobSheet with Accept Job button — ✅
+- **Test results**: `npm run lint` → exit 0 (0 warnings); `npm run typecheck` → exit 0; `npm test -- --ci` → 27 passed (5 suites), 0 failed
