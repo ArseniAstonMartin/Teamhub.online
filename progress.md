@@ -2294,6 +2294,29 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Test steps run: 13/13 e2e tests pass (8.3 s); 269 unit tests pass; typecheck clean; lint clean; build successful
 - Open TO-DOs: none
 
+### 2026-06-04 — TASK-056 — Device token management (Expo push)
+
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §15.1
+- Files touched:
+  - `backend/src/main/resources/db/migration/V30__device_tokens.sql` (new)
+  - `backend/src/main/java/com/teamhub/push/DevicePlatform.java` (new)
+  - `backend/src/main/java/com/teamhub/push/DeviceToken.java` (new)
+  - `backend/src/main/java/com/teamhub/push/DeviceTokenRepository.java` (new)
+  - `backend/src/main/java/com/teamhub/push/DeviceTokenService.java` (new)
+  - `backend/src/main/java/com/teamhub/push/DeviceController.java` (new)
+  - `backend/src/main/java/com/teamhub/push/dto/RegisterDeviceRequest.java` (new)
+  - `backend/src/main/java/com/teamhub/push/dto/UnregisterDeviceRequest.java` (new)
+  - `backend/src/main/java/com/teamhub/push/dto/DeviceTokenResponse.java` (new)
+  - `backend/src/test/java/com/teamhub/push/DeviceTokenIT.java` (new)
+- Summary: Added the `device_tokens` table via Flyway V30 migration with a PostgreSQL native enum (`device_platform` with `IOS`/`ANDROID` values), unique constraint on `expo_token`, and partial index for active (non-stale) tokens. Implemented the full `com.teamhub.push` package: `DeviceToken` JPA entity (with `@JdbcTypeCode(SqlTypes.NAMED_ENUM)` for Hibernate 6 / PostgreSQL enum mapping), `DeviceTokenRepository` with upsert, fan-out, unregister, and role-targeted query methods, `DeviceTokenService` with idempotent `register`, `unregister`, and `markStale` operations, and `DeviceController` exposing `POST /api/v1/devices/register` (200) and `POST /api/v1/devices/unregister` (204) requiring standard JWT auth.
+- Acceptance criteria verified: 1 (Flyway migration creates table with all columns), 2 (upsert on re-registration updates `last_seen_at` only), 3 (unregister deletes token on logout), 4 (markStale sets stale=true; stale tokens excluded from `findByTenantIdAndStaleIsFalse`)
+- Test steps run: Step 1 (register → row appears) passed, Step 2 (re-register same token → same row ID, `last_seen_at` updated) passed, Step 3 (markStale → excluded from fan-out) passed; plus unregister and 401-without-token tests — all passed (6/6)
+- Open TO-DOs created (with PRD reference): none
+- Commits: (see below)
+- Completed through TASK-056 (feat/task-056-059-push-notifications): adds 056 to existing done set
+
 ---
 
 ## Backlog scope (human decision)
