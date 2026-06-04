@@ -3,7 +3,6 @@ import { StatusBar } from 'expo-status-bar';
 import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
 import AppNavigator from './src/navigation/AppNavigator';
-import { colors } from './src/theme/colors';
 // TO-DO: replace placeholder icon/splash assets with final Teamhub brand mark
 
 // TO-DO: human must provision Sentry projects per PRD §26.2 before enabling in production.
