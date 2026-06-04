@@ -1867,3 +1867,21 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   4. Tokens stored in SecureStore; Axios interceptor handles 401 → refresh → retry — ✅
   5. On sign-in success, registers Expo push token via POST /api/v1/devices/register — ✅
 - **Test results**: `npm run lint` → exit 0; `npm run typecheck` → exit 0; `npm test -- --ci` → 10 passed (3 suites), 0 failed
+
+## TASK-092 — Mobile Home Dashboard Screen (2026-06-04)
+- **Files created/modified**:
+  - `mobile/src/api/jobsApi.ts` (new — `useJobCount` hook wrapping `useQuery`, fetches `totalElements` via `size=1`)
+  - `mobile/src/components/KpiCard.tsx` (new — reusable Pressable KPI card with label, value, loading spinner, accent color)
+  - `mobile/src/screens/HomeScreen.tsx` (replaced placeholder — bento grid with Today / This Week / Pending Approval KPIs, greeting, date, pull-to-refresh)
+  - `mobile/src/theme/colors.ts` (updated — added `card: '#F8FAFC'`)
+  - `mobile/App.tsx` (updated — added `QueryClientProvider` wrapping)
+  - `mobile/jest.setup.js` (updated — suppressed known TanStack Query v5 "act()" console.error in test env)
+  - `mobile/src/__tests__/HomeScreen.test.tsx` (new — 5 tests: labels render, loading state, fetched counts, navigation on press, pull-to-refresh refetch)
+  - `tasks.json` (TASK-092 status: pending → done)
+- **Summary**: Home screen replaced with a real KPI dashboard. Three cards fetch job counts via `GET /api/v1/jobs?size=1`: Today (all jobs scheduled today), This Week (COMPLETED jobs since Monday), Pending Approval (DONE_PENDING_APPROVAL). TanStack Query handles caching (1-min staleTime) and invalidation on pull-to-refresh. Navigation on card tap dispatches CommonActions.navigate to the Schedule tab.
+- **Acceptance criteria verified**:
+  1. Three KPI cards (Today, This Week, Pending Approval) — ✅
+  2. Tapping any card navigates to Schedule tab — ✅
+  3. Pull-to-refresh invalidates all three queries and triggers refetch — ✅
+  4. White background, blue accents, slate text — no gradients, no glow — ✅
+- **Test results**: `npm run lint` → exit 0 (0 warnings); `npm run typecheck` → exit 0; `npm test -- --ci` → 15 passed (4 suites), 0 failed

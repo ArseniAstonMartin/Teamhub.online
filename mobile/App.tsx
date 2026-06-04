@@ -2,7 +2,10 @@ import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AppNavigator from './src/navigation/AppNavigator';
+
+const queryClient = new QueryClient();
 // TO-DO: replace placeholder icon/splash assets with final Teamhub brand mark
 
 // TO-DO: human must provision Sentry projects per PRD §26.2 before enabling in production.
@@ -24,9 +27,9 @@ Sentry.init({
 
 export default Sentry.wrap(function App() {
   return (
-    <>
+    <QueryClientProvider client={queryClient}>
       <StatusBar style="dark" />
       <AppNavigator />
-    </>
+    </QueryClientProvider>
   );
 });

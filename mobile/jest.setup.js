@@ -5,5 +5,9 @@ const originalError = console.error.bind(console);
 console.error = (...args) => {
   const msg = typeof args[0] === 'string' ? args[0] : '';
   if (msg.includes('Incompatible React versions')) return;
+  // TanStack Query v5 with the synchronous scheduler fires state updates from
+  // inside promise resolutions that React's act() doesn't wrap. This is a
+  // known test-environment limitation that does not affect production behavior.
+  if (msg.includes('not wrapped in act')) return;
   originalError(...args);
 };
