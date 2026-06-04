@@ -59,7 +59,8 @@
           "organization": "teamhub-gs"
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-web-browser"
     ],
     "scheme": "teamhub",
     "newArchEnabled": true,

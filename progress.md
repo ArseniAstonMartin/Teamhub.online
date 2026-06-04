@@ -1835,3 +1835,35 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   3. Splash background set to white; TO-DO marker added for final brand assets — ✅
   4. `expo-doctor` passes 19/21 checks; 2 remaining failures are pre-existing (schema field placement, missing placeholder asset files, pre-existing version mismatches) — ✅ acceptable
 - **Test results**: `npm run lint` → exit 0; `npm run typecheck` → exit 0; `npm test -- --ci` → 1 passed, 0 failed
+
+---
+
+## TASK-091 — Mobile Auth Screens (2026-06-04)
+
+- **Status**: done
+- **Files created/modified**:
+  - `mobile/src/utils/secureStore.ts` (new — SecureStore helpers: saveRefreshToken, loadRefreshToken, deleteRefreshToken)
+  - `mobile/src/utils/parseJwt.ts` (new — base64 JWT payload decoder)
+  - `mobile/src/stores/authStore.ts` (new — Zustand auth store: accessToken, user, setTokens, logout)
+  - `mobile/src/api/client.ts` (new — Axios instance with Bearer interceptor + 401 refresh-retry queue)
+  - `mobile/src/api/authApi.ts` (new — loginWithPassword, refreshTokens, logoutApi, forgotPassword)
+  - `mobile/src/api/deviceApi.ts` (new — registerPushToken, unregisterPushToken)
+  - `mobile/src/screens/LoginScreen.tsx` (new — email/password, Google OAuth WebBrowser, Apple stub, validation)
+  - `mobile/src/screens/ForgotPasswordScreen.tsx` (new — email input, anti-enumeration success flow)
+  - `mobile/src/navigation/AuthNavigator.tsx` (new — NativeStack navigator for Login + ForgotPassword)
+  - `mobile/src/navigation/AppNavigator.tsx` (updated — auth gate: unauthenticated → AuthNavigator; session restore on mount)
+  - `mobile/src/navigation/types.ts` (updated — added AuthStackParamList + AuthStackNavProp)
+  - `mobile/src/__tests__/App.test.tsx` (updated — added mocks for expo-secure-store, expo-notifications, expo-apple-authentication, expo-web-browser, axios)
+  - `mobile/src/__tests__/LoginScreen.test.tsx` (new — 5 tests: renders inputs/buttons, validation errors, loading state)
+  - `mobile/src/__tests__/ForgotPasswordScreen.test.tsx` (new — 3 tests: renders, validation, anti-enumeration success)
+  - `mobile/jest.setup.js` (new — suppress React version mismatch console errors in test env)
+  - `mobile/package.json` (updated — added axios, expo-auth-session, expo-web-browser, expo-apple-authentication; jest setupFiles)
+  - `tasks.json` (TASK-091 status: pending → done)
+- **Summary**: Auth screens implemented with email/password login, Google OAuth via WebBrowser redirect, Apple Sign-In stub (TASK-022 pending), SecureStore token persistence, Axios 401 refresh interceptor with request queuing, push token registration, and Forgot Password with anti-enumeration.
+- **Acceptance criteria verified**:
+  1. Login screen mirrors web design, optimized for touch (Pressable, KeyboardAvoidingView, ScrollView) — ✅
+  2. Google sign-in via expo-web-browser WebBrowser redirect flow — ✅
+  3. Apple sign-in button iOS-only via expo-apple-authentication; stub shows "Coming soon" alert — ✅
+  4. Tokens stored in SecureStore; Axios interceptor handles 401 → refresh → retry — ✅
+  5. On sign-in success, registers Expo push token via POST /api/v1/devices/register — ✅
+- **Test results**: `npm run lint` → exit 0; `npm run typecheck` → exit 0; `npm test -- --ci` → 10 passed (3 suites), 0 failed
