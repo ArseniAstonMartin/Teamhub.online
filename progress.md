@@ -1811,3 +1811,27 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   4. Missing `EXPO_TOKEN` emits a clear skip message instead of failing — ✅
 - **Test results**: `npm run lint` → exit 0; `npm run typecheck` → exit 0; `npm test -- --ci` → 1 passed, 0 failed
 - **Commits**: see git log
+
+## TASK-090 — Mobile App Shell (bottom tabs)
+- **Date**: 2026-06-04
+- **Branch**: mobile
+- **Files created/modified**:
+  - `mobile/src/theme/colors.ts` (new — Teamhub brand palette constants: white background, blue-700 primary, slate text)
+  - `mobile/src/navigation/types.ts` (new — RootTabParamList & RootTabNavProp types)
+  - `mobile/src/navigation/AppNavigator.tsx` (new — NavigationContainer + createBottomTabNavigator; 4 tabs: Home, Schedule, Clients, Profile with Ionicons)
+  - `mobile/src/screens/HomeScreen.tsx` (new — placeholder)
+  - `mobile/src/screens/ScheduleScreen.tsx` (new — placeholder)
+  - `mobile/src/screens/ClientsScreen.tsx` (new — placeholder)
+  - `mobile/src/screens/ProfileScreen.tsx` (new — placeholder)
+  - `mobile/App.tsx` (updated — replaced inline view with AppNavigator; StatusBar style="dark"; added TO-DO comment for brand assets)
+  - `mobile/app.json` (updated — splash.backgroundColor #0F172A → #FFFFFF)
+  - `mobile/src/__tests__/App.test.tsx` (updated — added mocks for @react-navigation/native, @react-navigation/bottom-tabs, @expo/vector-icons)
+  - `mobile/package.json` (updated — added @react-navigation/bottom-tabs, @expo/vector-icons, expo-font)
+  - `tasks.json` (TASK-090 status: pending → done)
+- **Summary**: Mobile app shell implemented with React Navigation bottom tabs. Four placeholder screens (Home, Schedule, Clients, Profile) use Teamhub brand colors (white/blue). Status bar shows dark icons on white background. Splash background updated to white.
+- **Acceptance criteria verified**:
+  1. Four-tab bottom navigator: Home, Schedule, Clients, Profile — ✅
+  2. Status bar styled dark-content on white background — ✅
+  3. Splash background set to white; TO-DO marker added for final brand assets — ✅
+  4. `expo-doctor` passes 19/21 checks; 2 remaining failures are pre-existing (schema field placement, missing placeholder asset files, pre-existing version mismatches) — ✅ acceptable
+- **Test results**: `npm run lint` → exit 0; `npm run typecheck` → exit 0; `npm test -- --ci` → 1 passed, 0 failed

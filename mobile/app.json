@@ -9,7 +9,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0F172A"
+      "backgroundColor": "#FFFFFF"
     },
     "ios": {
       "supportsTablet": true,
@@ -58,7 +58,8 @@
           "project": "teamhub-mobile",
           "organization": "teamhub-gs"
         }
-      ]
+      ],
+      "expo-font"
     ],
     "scheme": "teamhub",
     "newArchEnabled": true,
