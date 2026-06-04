@@ -155,9 +155,11 @@ class PhotoUploadIT {
         s -> {
           jdbc.update("DELETE FROM job_photos WHERE tenant_id = ?", tid);
           jdbc.update("DELETE FROM outbox_events WHERE tenant_id = ?", tid);
+          jdbc.update("DELETE FROM delayed_jobs WHERE tenant_id = ?", tid);
           jdbc.update("DELETE FROM jobs WHERE tenant_id = ?", tid);
           jdbc.update("DELETE FROM customers WHERE tenant_id = ?", tid);
           jdbc.update("DELETE FROM users WHERE tenant_id = ?", tid);
+          jdbc.update("DELETE FROM processed_events WHERE tenant_id = ?", tid);
           jdbc.update("DELETE FROM tenants WHERE id = ?", tid);
           return null;
         });
