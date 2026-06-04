@@ -2362,3 +2362,19 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Test steps run: Step 1+2 (`step1And2_techBReceivesSilentPush_techAExcluded` — only Tech B's token, body=null, data correct, Tech A absent) passed, Step 3 (`step3_idempotency_duplicateEventCallsSendBatchOnce` — same event_id twice → sendBatch once) passed — all passed
 - Open TO-DOs created (with PRD reference): none
 - Completed through TASK-058 (feat/task-056-059-push-notifications)
+
+### 2026-06-04 — TASK-059 — push-actor consumer: job approved notification
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §15.2, §15.3
+- Files touched:
+  - `backend/src/main/java/com/teamhub/push/PushActorConsumer.java` (new)
+  - `backend/src/main/java/com/teamhub/push/PushActorConsumerConfig.java` (new)
+  - `backend/src/main/java/com/teamhub/push/DeviceTokenRepository.java` (modified — added `findByUserIdAndStaleIsFalse`)
+  - `backend/src/test/java/com/teamhub/push/PushActorIT.java` (new)
+  - `tasks.json` (modified — TASK-059 status → done)
+- Summary: Implemented `PushActorConsumer` extending `AbstractOutboxConsumer` for consumer group `push-actor` that subscribes to `events:JobStatusChanged`. The handler filters for the `DONE_PENDING_APPROVAL → COMPLETED` transition only, looks up the job's `assignedTechnicianId` via `JobRepository`, loads all non-stale device tokens for that technician, and sends a targeted push with title "Job Approved", body `"Job <shortId> approved"` (first 8 chars of UUID), and deep-link data `{jobId, screen:"JobDetail"}`. Wired via `PushActorConsumerConfig` which reuses `ExpoPushClient` from `PushFanOutConsumerConfig`. Added `findByUserIdAndStaleIsFalse` to `DeviceTokenRepository` for actor-targeted token lookup. Integration tests cover: assigned technician receives push (correct body + deep-link), other technician excluded, non-matching transitions produce no push, and `processed_events` idempotency (same event_id twice → sendBatch once).
+- Acceptance criteria verified: 1 (consumer group `push-actor` subscribes to `JobStatusChanged`), 2 (filter: only DONE_PENDING_APPROVAL→COMPLETED), 3 (body contains short job ID + "approved"; data.screen=JobDetail deep-link)
+- Test steps run: Step 1+2 (`step1And2_assignedTechnicianReceivesPush_otherTechnicianExcluded` — assigned tech receives push, body+data correct, other tech excluded) passed, Step 3 (`step3_idempotency_duplicateEventCallsSendBatchOnce` — same event_id twice → sendBatch once) passed, `nonMatchingTransition_noSendBatch` passed — all 3 passed
+- Open TO-DOs created (with PRD reference): none
+- Completed through TASK-059 (feat/task-056-059-push-notifications)
