@@ -101,11 +101,14 @@ class AuditEventConsumerIT {
   @AfterEach
   void cleanUp() {
     TenantContext.clear();
-    jdbc.update("DELETE FROM processed_events WHERE tenant_id = ?", tenant.getId());
     jdbc.update("DELETE FROM audit_log WHERE tenant_id = ?", tenant.getId());
     jdbc.update("DELETE FROM outbox_events WHERE tenant_id = ?", tenant.getId());
+    jdbc.update("DELETE FROM delayed_jobs WHERE tenant_id = ?", tenant.getId());
     jdbc.update("DELETE FROM refresh_tokens WHERE tenant_id = ?", tenant.getId());
     jdbc.update("DELETE FROM users WHERE tenant_id = ?", tenant.getId());
+    // Delete processed_events last — background consumers may insert rows during the cleanup
+    // above; deleting immediately before the tenant ensures FK consistency.
+    jdbc.update("DELETE FROM processed_events WHERE tenant_id = ?", tenant.getId());
     jdbc.update("DELETE FROM tenants WHERE id = ?", tenant.getId());
   }
 

@@ -2378,3 +2378,32 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Test steps run: Step 1+2 (`step1And2_assignedTechnicianReceivesPush_otherTechnicianExcluded` — assigned tech receives push, body+data correct, other tech excluded) passed, Step 3 (`step3_idempotency_duplicateEventCallsSendBatchOnce` — same event_id twice → sendBatch once) passed, `nonMatchingTransition_noSendBatch` passed — all 3 passed
 - Open TO-DOs created (with PRD reference): none
 - Completed through TASK-059 (feat/task-056-059-push-notifications)
+
+### 2026-06-04 — TASK-046 — 5-minute job escalation flow
+- Agent: Claude Sonnet 4.6
+- Status change: pending → done
+- PRD sections consulted: §10.3
+- Files touched:
+  - `backend/src/main/java/com/teamhub/escalation/EscalationPayload.java` (new)
+  - `backend/src/main/java/com/teamhub/escalation/EscalationSchedulerConsumer.java` (new)
+  - `backend/src/main/java/com/teamhub/escalation/EscalationCancelerConsumer.java` (new)
+  - `backend/src/main/java/com/teamhub/escalation/EscalateUnclaimedJobHandler.java` (new)
+  - `backend/src/main/java/com/teamhub/escalation/EscalationConfig.java` (new)
+  - `backend/src/test/java/com/teamhub/escalation/EscalationIT.java` (new)
+  - `backend/src/test/java/com/teamhub/push/PushFanOutIT.java` (modified — added `delayed_jobs` cleanup + moved `processed_events` to last)
+  - `backend/src/test/java/com/teamhub/audit/AuditEventConsumerIT.java` (modified — added `delayed_jobs` cleanup + moved `processed_events` to last)
+  - `backend/src/test/java/com/teamhub/billing/QuotaCheckerIT.java` (modified — added `delayed_jobs` cleanup)
+  - `backend/src/test/java/com/teamhub/job/JobControllerIT.java` (modified — added `delayed_jobs` + `processed_events` cleanup)
+  - `backend/src/test/java/com/teamhub/job/JobClaimIT.java` (modified — added `delayed_jobs` + `processed_events` cleanup)
+  - `backend/src/test/java/com/teamhub/job/JobNotesIT.java` (modified — added `delayed_jobs` + `processed_events` cleanup)
+  - `backend/src/test/java/com/teamhub/job/JobTechnicianTransitionIT.java` (modified — added `delayed_jobs` + `processed_events` cleanup)
+  - `backend/src/test/java/com/teamhub/security/AuthorizationMatrixIT.java` (modified — added `delayed_jobs` + `processed_events` cleanup)
+  - `backend/src/test/java/com/teamhub/storage/MultipartUploadIT.java` (modified — added `delayed_jobs` + `processed_events` cleanup)
+  - `backend/src/test/java/com/teamhub/storage/PhotoUploadIT.java` (modified — added `delayed_jobs` + `processed_events` cleanup)
+  - `backend/src/test/java/com/teamhub/reports/ReportIT.java` (modified — added `delayed_jobs` + `processed_events` cleanup)
+  - `tasks.json` (modified — TASK-046 status → done)
+- Summary: Implemented the 5-minute job escalation flow per PRD §10.3. `EscalationSchedulerConsumer` (group `escalation-scheduler`) subscribes to `events:JobSubmitted` and schedules a `delayed_jobs` row (`kind='escalate_unclaimed_job'`, `run_at=now()+5min`) plus a ZADD to the Redis sorted set via `DelayedJobDispatcher.schedule()`. `EscalationCancelerConsumer` (group `escalation-canceler`) subscribes to `events:JobClaimed` and UPDATES the matching pending row to `status='CANCELLED'`. `EscalateUnclaimedJobHandler` implements `DelayedJobHandler` for `kind='escalate_unclaimed_job'`: re-reads the job from the DB; if still `SUBMITTED`, loads all non-stale ADMIN device tokens for the tenant and sends `"JOB NOT HANDLED"` push via `ExpoPushClient.sendBatch()`. Wired via `EscalationConfig`. Six integration tests in `EscalationIT` cover all acceptance criteria using background `@Scheduled` dispatcher dispatch. Also fixed FK cleanup ordering in 9 existing test classes that were broken by the new consumer inserting `delayed_jobs` rows during those tests. New-code coverage: 90.5% instructions, 83.3% branches.
+- Acceptance criteria verified: 1 (`step1_jobSubmitted_delayedJobScheduled` — delayed_jobs row created + ZADD), 2 (`step2And3_jobClaimed_delayedJobCancelled` — status='CANCELLED' after JobClaimed), 3 (`ac3_handlerFires_jobStillSubmitted_adminsPushReceived` — "JOB NOT HANDLED" to all Admin tokens), 4 (handler fires within 5 min ± timing — verified by dispatcher dispatching due jobs)
+- Test steps run: Step 1 (`step1_jobSubmitted_delayedJobScheduled`) passed, Step 2+3 (`step2And3_jobClaimed_delayedJobCancelled` — row is CANCELLED) passed, AC3 positive (`ac3_handlerFires_jobStillSubmitted_adminsPushReceived` — 2 admin pushes with correct title/body/data) passed, AC3 negative (`ac3Negative_handlerFires_jobAlreadyClaimed_noPushSent`) passed, idempotency (`idempotency_duplicateJobSubmittedEvent_singleDelayedJobRow`) passed, no-admin-tokens (`noAdminTokens_handlerSkipsPush`) passed — all 6 passed
+- Open TO-DOs created (with PRD reference): none
+- Completed through TASK-046 (feat/task-046-job-escalation)
