@@ -178,13 +178,13 @@ describe('JobDetailScreen', () => {
     );
   });
 
-  // 5. Add Notes opens inline note composer
-  it('Add Notes button opens the note input', async () => {
-    const { getByLabelText, getByTestId } = renderScreen();
+  // 5. Add Notes navigates to AddNote screen
+  it('Add Notes button navigates to AddNote screen', async () => {
+    const { getByLabelText } = renderScreen();
     await waitFor(() => getByLabelText('Add Notes'));
 
     fireEvent.press(getByLabelText('Add Notes'));
-    expect(getByTestId('note-input')).toBeTruthy();
+    expect(mockNavigate).toHaveBeenCalledWith('AddNote', { jobId: 'job-uuid-1234' });
   });
 
   // 6. In-progress timer shown when status === 'IN_PROGRESS'

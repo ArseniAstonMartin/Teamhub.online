@@ -2025,3 +2025,39 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 ### Test results
 `npm run lint` → exit 0; `npm run typecheck` → exit 0; `npm test -- --ci` → 67 passed (10 suites), 0 failed
+
+---
+
+## TASK-099 — Mobile Add Notes with Offline Queue
+
+**Date**: 2026-06-06
+**Branch**: mobile
+
+### Files created
+- `mobile/src/db/notesQueue.ts` — SQLite queue: `initNotesQueue`, `enqueueNote`, `getPendingNotes`, `markNoteSynced`, `deleteNote`
+- `mobile/src/hooks/useOfflineNoteSync.ts` — NetInfo listener that syncs pending notes on connectivity restore
+- `mobile/src/screens/AddNoteScreen.tsx` — full-screen note editor (4000-char limit, char counter, online/offline save)
+- `mobile/src/components/NotesList.tsx` — flat note list with amber "🔄 Pending sync" badge for offline-queued items
+- `mobile/src/__tests__/AddNoteScreen.test.tsx` — 4 tests (render, char count, online save, offline enqueue)
+- `mobile/src/__tests__/notesQueue.test.ts` — 3 tests (enqueue, getPending, markSynced)
+- `mobile/src/__tests__/NotesList.test.tsx` — 1 test (pending badge shown/hidden)
+
+### Files modified
+- `mobile/src/navigation/types.ts` — added `AddNote: { jobId: string }` to `RootStackParamList`
+- `mobile/src/navigation/AppNavigator.tsx` — registered `AddNote` screen (modal presentation)
+- `mobile/src/screens/JobDetailScreen.tsx` — "Add Notes" navigates to `AddNote`; notes list merged with offline pending notes
+- `mobile/App.tsx` — calls `initNotesQueue()` at startup
+- `mobile/jest.setup.js` — global mocks for `expo-sqlite` and `@react-native-community/netinfo`
+- `mobile/eslint.config.js` — jest globals for `jest.setup.js`
+
+### Behaviour
+- Tap "Add Notes" → `AddNoteScreen` pushed as modal; multiline `TextInput` with `autoFocus`
+- Character counter updates live; Save disabled when empty or over 4000 chars
+- Online: `POST /api/v1/jobs/{id}/notes` called; query cache invalidated; navigates back
+- Offline / error: note written to `offline_notes` SQLite table (`synced=0`); navigates back
+- On reconnect: `useOfflineNoteSync` fires, replays unsynced notes and marks them synced
+- Notes list shows server notes + pending offline notes (newest-first); pending notes carry amber badge
+- Queue survives app restart (SQLite persisted to disk)
+
+### Test results
+`npm run lint` → exit 0; `npm run typecheck` → exit 0; `npm test -- --ci` → **75 passed** (13 suites), 0 failed

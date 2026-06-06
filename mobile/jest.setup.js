@@ -11,3 +11,23 @@ console.error = (...args) => {
   if (msg.includes('not wrapped in act')) return;
   originalError(...args);
 };
+
+// ─── expo-sqlite global mock ──────────────────────────────────────────────────
+// openDatabaseSync is called at module scope in notesQueue.ts, so it must be
+// mocked before any test module that imports JobDetailScreen or notesQueue.
+jest.mock('expo-sqlite', () => ({
+  openDatabaseSync: () => ({
+    execSync: jest.fn(),
+    runSync: jest.fn(),
+    getAllSync: jest.fn().mockReturnValue([]),
+  }),
+}));
+
+// ─── @react-native-community/netinfo global mock ──────────────────────────────
+jest.mock('@react-native-community/netinfo', () => ({
+  __esModule: true,
+  default: {
+    fetch: jest.fn().mockResolvedValue({ isConnected: true }),
+    addEventListener: jest.fn(() => jest.fn()),
+  },
+}));

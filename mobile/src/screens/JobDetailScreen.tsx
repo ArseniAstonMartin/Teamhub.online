@@ -10,7 +10,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -26,7 +25,6 @@ import type { RootStackParamList } from '../navigation/types';
 import {
   useJob,
   useJobNotes,
-  addNote,
   startJob,
   markDonePendingApproval,
   completeJob,
@@ -38,6 +36,10 @@ import { useTenantSettings } from '../api/tenantApi';
 import { createShakeAnimation } from '../utils/shake';
 import DefineEtaSheet from '../components/DefineEtaSheet';
 import PendingSheet from '../components/PendingSheet';
+import NotesList from '../components/NotesList';
+import type { NoteItem } from '../components/NotesList';
+import { getPendingNotes } from '../db/notesQueue';
+import { useOfflineNoteSync } from '../hooks/useOfflineNoteSync';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, 'JobDetail'>;
 type RouteP = RouteProp<RootStackParamList, 'JobDetail'>;
@@ -93,16 +95,6 @@ function formatElapsed(s: number) {
     .join(':');
 }
 
-function formatNoteTime(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function JobDetailScreen() {
@@ -114,6 +106,9 @@ export default function JobDetailScreen() {
   const { data: job, isLoading, isError } = useJob(jobId);
   const { data: notes = [] } = useJobNotes(jobId);
   const { data: tenantSettings } = useTenantSettings();
+
+  // Offline sync — fires when connectivity is restored
+  useOfflineNoteSync(jobId);
 
   const [localJob, setLocalJob] = useState<JobResponse | null>(null);
   const displayJob = localJob ?? job ?? null;
@@ -139,11 +134,6 @@ export default function JobDetailScreen() {
     }, 1000);
     return () => clearInterval(interval);
   }, [displayJob?.status, displayJob?.actualStart]);
-
-  // Notes composer
-  const [showNoteInput, setShowNoteInput] = useState(false);
-  const [noteText, setNoteText] = useState('');
-  const [noteSending, setNoteSending] = useState(false);
 
   // ─── Optimistic transition helper ─────────────────────────────────────────
 
@@ -273,23 +263,9 @@ export default function JobDetailScreen() {
   }, [displayJob]);
 
   const handleAddNotes = useCallback(() => {
-    setShowNoteInput((prev) => !prev);
-  }, []);
-
-  const handleSendNote = useCallback(async () => {
-    if (!displayJob || !noteText.trim()) return;
-    setNoteSending(true);
-    try {
-      await addNote(displayJob.id, noteText.trim());
-      queryClient.invalidateQueries({ queryKey: ['jobNotes', displayJob.id] });
-      setNoteText('');
-      setShowNoteInput(false);
-    } catch {
-      Alert.alert('Error', 'Could not save note. Please try again.');
-    } finally {
-      setNoteSending(false);
-    }
-  }, [displayJob, noteText, queryClient]);
+    if (!displayJob) return;
+    navigation.navigate('AddNote', { jobId: displayJob.id });
+  }, [displayJob, navigation]);
 
   const handleAttachImage = useCallback(async () => {
     if (!displayJob) return;
@@ -578,29 +554,6 @@ export default function JobDetailScreen() {
       </Animated.View>
 
       {/* Inline note composer */}
-      {showNoteInput && (
-        <View style={styles.card}>
-          <Text style={styles.sectionLabel}>New Note</Text>
-          <TextInput
-            style={styles.noteInput}
-            value={noteText}
-            onChangeText={setNoteText}
-            placeholder="Type your note…"
-            placeholderTextColor={colors.tabInactive}
-            multiline
-            autoFocus
-            testID="note-input"
-          />
-          <TouchableOpacity
-            style={[styles.sendBtn, !noteText.trim() && styles.actionBtnDisabled]}
-            onPress={handleSendNote}
-            disabled={noteSending || !noteText.trim()}
-            accessibilityLabel="Send note"
-          >
-            <Text style={styles.sendBtnText}>{noteSending ? 'Saving…' : 'Save Note'}</Text>
-          </TouchableOpacity>
-        </View>
-      )}
 
       {/* ETA action sheet */}
       <DefineEtaSheet
@@ -618,20 +571,34 @@ export default function JobDetailScreen() {
         onPending={handlePendingDone}
       />
 
-      {/* Notes list */}
-      {notes.length > 0 && (
-        <View style={styles.card}>
-          <Text style={styles.sectionLabel}>Notes</Text>
-          {[...notes]
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-            .map((note) => (
-              <View key={note.id} style={styles.noteItem}>
-                <Text style={styles.noteBody}>{note.body}</Text>
-                <Text style={styles.noteMeta}>{formatNoteTime(note.createdAt)}</Text>
-              </View>
-            ))}
-        </View>
-      )}
+      {/* Notes list — server notes merged with offline pending notes */}
+      {(() => {
+        const pendingRaw = getPendingNotes(jobId);
+        const pendingItems: NoteItem[] = pendingRaw.map((n) => ({
+          id: n.id,
+          body: n.body,
+          authorUserId: '',
+          createdAt: n.created_at,
+          pending: true,
+        }));
+        const serverItems: NoteItem[] = notes.map((n) => ({
+          id: n.id,
+          body: n.body,
+          authorUserId: n.authorUserId,
+          createdAt: n.createdAt,
+          pending: false,
+        }));
+        const allNotes = [...pendingItems, ...serverItems].sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+        if (allNotes.length === 0) return null;
+        return (
+          <View style={styles.card}>
+            <Text style={styles.sectionLabel}>Notes</Text>
+            <NotesList notes={allNotes} />
+          </View>
+        );
+      })()}
     </ScrollView>
   );
 }
@@ -820,41 +787,5 @@ const styles = StyleSheet.create({
   actionHint: {
     fontSize: 10,
     color: 'rgba(255,255,255,0.75)',
-  },
-  noteInput: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    padding: 10,
-    fontSize: 15,
-    color: colors.text,
-    minHeight: 80,
-    textAlignVertical: 'top',
-  },
-  sendBtn: {
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  sendBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  noteItem: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingVertical: 8,
-    gap: 2,
-  },
-  noteBody: {
-    fontSize: 14,
-    color: colors.text,
-    lineHeight: 20,
-  },
-  noteMeta: {
-    fontSize: 12,
-    color: colors.tabInactive,
   },
 });

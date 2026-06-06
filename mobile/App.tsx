@@ -4,8 +4,12 @@ import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AppNavigator from './src/navigation/AppNavigator';
+import { initNotesQueue } from './src/db/notesQueue';
 
 const queryClient = new QueryClient();
+
+// Initialize offline notes queue on startup
+initNotesQueue();
 // TO-DO: replace placeholder icon/splash assets with final Teamhub brand mark
 
 // TO-DO: human must provision Sentry projects per PRD §26.2 before enabling in production.

@@ -12,6 +12,7 @@ import ScheduleScreen from '../screens/ScheduleScreen';
 import ClientsScreen from '../screens/ClientsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import JobDetailScreen from '../screens/JobDetailScreen';
+import AddNoteScreen from '../screens/AddNoteScreen';
 import AuthNavigator from './AuthNavigator';
 import { useAuthStore } from '../stores/authStore';
 import { loadRefreshToken, deleteRefreshToken } from '../utils/secureStore';
@@ -69,6 +70,11 @@ function AuthenticatedStack() {
         name="JobDetail"
         component={JobDetailScreen}
         options={{ headerShown: false, presentation: 'card' }}
+      />
+      <Stack.Screen
+        name="AddNote"
+        component={AddNoteScreen}
+        options={{ headerShown: false, presentation: 'modal' }}
       />
     </Stack.Navigator>
   );
