@@ -15,7 +15,6 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -26,10 +25,11 @@ import {
   useJobNotes,
   addNote,
   startJob,
-  updateJobSchedule,
   requestPhotoUploadUrl,
   type JobStatus,
+  type JobResponse,
 } from '../api/jobsApi';
+import DefineEtaSheet from '../components/DefineEtaSheet';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, 'JobDetail'>;
 type RouteP = RouteProp<RootStackParamList, 'JobDetail'>;
@@ -106,20 +106,23 @@ export default function JobDetailScreen() {
   const { data: job, isLoading, isError } = useJob(jobId);
   const { data: notes = [] } = useJobNotes(jobId);
 
+  // Local job override for optimistic ETA update
+  const [localJob, setLocalJob] = useState<JobResponse | null>(null);
+  const displayJob = localJob ?? job ?? null;
+
+  // ETA sheet
+  const [showEtaSheet, setShowEtaSheet] = useState(false);
+
   // In-progress timer
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
-    if (job?.status !== 'IN_PROGRESS' || !job.actualStart) return;
-    const start = new Date(job.actualStart).getTime();
+    if (displayJob?.status !== 'IN_PROGRESS' || !displayJob.actualStart) return;
+    const start = new Date(displayJob.actualStart).getTime();
     const interval = setInterval(() => {
       setElapsed(Math.floor((Date.now() - start) / 1000));
     }, 1000);
     return () => clearInterval(interval);
-  }, [job?.status, job?.actualStart]);
-
-  // ETA date picker
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [pickerDate, setPickerDate] = useState<Date>(new Date());
+  }, [displayJob?.status, displayJob?.actualStart]);
 
   // Notes composer
   const [showNoteInput, setShowNoteInput] = useState(false);
@@ -127,34 +130,27 @@ export default function JobDetailScreen() {
   const [noteSending, setNoteSending] = useState(false);
 
   const handleDefineEta = useCallback(() => {
-    setPickerDate(job?.scheduledEnd ? new Date(job.scheduledEnd) : new Date());
-    setShowDatePicker(true);
-  }, [job]);
+    setShowEtaSheet(true);
+  }, []);
 
-  const handleDateChange = useCallback(
-    async (_: unknown, date?: Date) => {
-      if (Platform.OS === 'android') setShowDatePicker(false);
-      if (!date || !job) return;
-      try {
-        await updateJobSchedule(job.id, date.toISOString());
-        queryClient.invalidateQueries({ queryKey: ['job', job.id] });
-      } catch {
-        Alert.alert('Error', 'Could not update ETA. Please try again.');
-      }
-      if (Platform.OS !== 'android') setShowDatePicker(false);
+  const handleEtaDefined = useCallback(
+    (updatedJob: JobResponse) => {
+      setLocalJob(updatedJob);
+      queryClient.setQueryData(['job', updatedJob.id], updatedJob);
     },
-    [job, queryClient],
+    [queryClient],
   );
 
   const handleStartJob = useCallback(async () => {
-    if (!job) return;
+    if (!displayJob) return;
     try {
-      const updated = await startJob(job.id);
-      queryClient.setQueryData(['job', job.id], updated);
+      const updated = await startJob(displayJob.id);
+      queryClient.setQueryData(['job', displayJob.id], updated);
+      setLocalJob(null);
     } catch {
       Alert.alert('Error', 'Could not start job. Please try again.');
     }
-  }, [job, queryClient]);
+  }, [displayJob, queryClient]);
 
   const handlePay = useCallback(() => {
     Alert.alert('Coming in v1.1', 'In-app payment is coming in the next release.');
@@ -165,11 +161,11 @@ export default function JobDetailScreen() {
   }, []);
 
   const handleSendNote = useCallback(async () => {
-    if (!job || !noteText.trim()) return;
+    if (!displayJob || !noteText.trim()) return;
     setNoteSending(true);
     try {
-      await addNote(job.id, noteText.trim());
-      queryClient.invalidateQueries({ queryKey: ['jobNotes', job.id] });
+      await addNote(displayJob.id, noteText.trim());
+      queryClient.invalidateQueries({ queryKey: ['jobNotes', displayJob.id] });
       setNoteText('');
       setShowNoteInput(false);
     } catch {
@@ -177,10 +173,10 @@ export default function JobDetailScreen() {
     } finally {
       setNoteSending(false);
     }
-  }, [job, noteText, queryClient]);
+  }, [displayJob, noteText, queryClient]);
 
   const handleAttachImage = useCallback(async () => {
-    if (!job) return;
+    if (!displayJob) return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.8,
@@ -190,17 +186,17 @@ export default function JobDetailScreen() {
     const asset = result.assets[0];
     const sizeBytes = asset.fileSize ?? 0;
     try {
-      await requestPhotoUploadUrl(job.id, 'image/jpeg', sizeBytes);
+      await requestPhotoUploadUrl(displayJob.id, 'image/jpeg', sizeBytes);
       // TO-DO: complete multipart upload flow (TASK-098)
       Alert.alert('Image Selected', 'Upload flow will be completed in TASK-098.');
     } catch {
       Alert.alert('Error', 'Could not initiate image upload. Please try again.');
     }
-  }, [job]);
+  }, [displayJob]);
 
   // ─── Derived state ──────────────────────────────────────────────────────────
 
-  const status = job?.status;
+  const status = displayJob?.status;
   const canDefineEta =
     status === 'ASSIGNED_TO_TECHNICIAN' || status === 'IN_PROGRESS';
   const canStartJob = status === 'ASSIGNED_TO_TECHNICIAN';
@@ -210,12 +206,12 @@ export default function JobDetailScreen() {
   // ─── Render helpers ─────────────────────────────────────────────────────────
 
   const customerName =
-    job?.customFields?.customerName ||
-    job?.customFields?.customer_name ||
+    displayJob?.customFields?.customerName ||
+    displayJob?.customFields?.customer_name ||
     'Customer';
 
   const addressLine =
-    [job?.customFields?.address, job?.customFields?.city, job?.customFields?.state]
+    [displayJob?.customFields?.address, displayJob?.customFields?.city, displayJob?.customFields?.state]
       .filter(Boolean)
       .join(', ') || null;
 
@@ -229,7 +225,7 @@ export default function JobDetailScreen() {
     );
   }
 
-  if (isError || !job) {
+  if (isError || !displayJob) {
     return (
       <View style={styles.center}>
         <Text style={styles.errorText}>Failed to load job. Pull to refresh.</Text>
@@ -255,10 +251,17 @@ export default function JobDetailScreen() {
           <Text style={styles.backText}>‹ Back</Text>
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.jobId}>Job #{shortId(job.id)}</Text>
+          <Text style={styles.jobId}>Job #{shortId(displayJob.id)}</Text>
         </View>
-        <View style={[styles.badge, { backgroundColor: STATUS_COLOR[job.status] }]}>
-          <Text style={styles.badgeText}>{STATUS_LABEL[job.status]}</Text>
+        <View style={styles.badgeRow}>
+          <View style={[styles.badge, { backgroundColor: STATUS_COLOR[displayJob.status] }]}>
+            <Text style={styles.badgeText}>{STATUS_LABEL[displayJob.status]}</Text>
+          </View>
+          {displayJob.status === 'IN_PROGRESS' && displayJob.inProgressSubstatus === 'ON_THE_WAY' && (
+            <View style={styles.onTheWayBadge}>
+              <Text style={styles.onTheWayText}>On the Way</Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -267,21 +270,21 @@ export default function JobDetailScreen() {
         <Text style={styles.sectionLabel}>Customer</Text>
         <Text style={styles.customerName}>{String(customerName)}</Text>
 
-        {job.customerPhone ? (
+        {displayJob.customerPhone ? (
           <Pressable
-            onPress={() => Linking.openURL(`tel:${job.customerPhone}`)}
+            onPress={() => Linking.openURL(`tel:${displayJob.customerPhone}`)}
             accessibilityRole="button"
-            accessibilityLabel={`Call ${job.customerPhone}`}
+            accessibilityLabel={`Call ${displayJob.customerPhone}`}
             style={styles.infoRow}
           >
             <Text style={styles.infoIcon}>📞</Text>
-            <Text style={[styles.infoText, styles.link]}>{job.customerPhone}</Text>
+            <Text style={[styles.infoText, styles.link]}>{displayJob.customerPhone}</Text>
           </Pressable>
         ) : null}
 
         {addressLine ? (
           <Pressable
-            onPress={() => navigation.navigate('MapView', { jobId: job.id })}
+            onPress={() => navigation.navigate('MapView', { jobId: displayJob.id })}
             accessibilityRole="button"
             accessibilityLabel="Open map"
             style={styles.infoRow}
@@ -293,7 +296,7 @@ export default function JobDetailScreen() {
       </View>
 
       {/* In-progress timer */}
-      {job.status === 'IN_PROGRESS' && (
+      {displayJob.status === 'IN_PROGRESS' && (
         <View style={styles.card}>
           <Text style={styles.sectionLabel}>Time on site</Text>
           <Text style={styles.timer} testID="elapsed-timer">
@@ -303,21 +306,21 @@ export default function JobDetailScreen() {
       )}
 
       {/* Schedule */}
-      {(job.scheduledStart || job.scheduledEnd) && (
+      {(displayJob.scheduledStart || displayJob.scheduledEnd) && (
         <View style={styles.card}>
           <Text style={styles.sectionLabel}>Scheduled</Text>
           <Text style={styles.scheduleText}>
-            {formatDate(job.scheduledStart)} · {formatTime(job.scheduledStart)}
-            {job.scheduledEnd ? ` – ${formatTime(job.scheduledEnd)}` : ''}
+            {formatDate(displayJob.scheduledStart)} · {formatTime(displayJob.scheduledStart)}
+            {displayJob.scheduledEnd ? ` – ${formatTime(displayJob.scheduledEnd)}` : ''}
           </Text>
         </View>
       )}
 
       {/* Custom fields */}
-      {job.customFields && Object.keys(job.customFields).length > 0 && (
+      {displayJob.customFields && Object.keys(displayJob.customFields).length > 0 && (
         <View style={styles.card}>
           <Text style={styles.sectionLabel}>Details</Text>
-          {Object.entries(job.customFields).map(([k, v]) => (
+          {Object.entries(displayJob.customFields).map(([k, v]) => (
             <View key={k} style={styles.fieldRow}>
               <Text style={styles.fieldKey}>{snakeToTitle(k)}</Text>
               <Text style={styles.fieldValue}>{String(v)}</Text>
@@ -418,16 +421,13 @@ export default function JobDetailScreen() {
         </View>
       )}
 
-      {/* Date picker for ETA */}
-      {showDatePicker && (
-        <DateTimePicker
-          value={pickerDate}
-          mode="datetime"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={handleDateChange}
-          minimumDate={new Date()}
-        />
-      )}
+      {/* ETA action sheet */}
+      <DefineEtaSheet
+        visible={showEtaSheet}
+        jobId={displayJob.id}
+        onClose={() => setShowEtaSheet(false)}
+        onEtaDefined={handleEtaDefined}
+      />
 
       {/* Notes list */}
       {notes.length > 0 && (
@@ -496,12 +496,29 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   badge: {
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
   badgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+  },
+  onTheWayBadge: {
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: '#3B82F6',
+  },
+  onTheWayText: {
     fontSize: 11,
     fontWeight: '700',
     color: '#FFFFFF',

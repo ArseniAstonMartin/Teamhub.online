@@ -1954,3 +1954,23 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 ### Test results
 `npm run lint` → exit 0; `npm run typecheck` → exit 0; `npm test -- --ci` → 41 passed (7 suites), 0 failed
+
+## TASK-096 — Define ETA Action Sheet
+**Status**: Done | **Date**: 2026-06-06
+
+### Files created
+- `mobile/src/components/DefineEtaSheet.tsx` — slide-up Modal with 30/45 quick buttons and custom numeric input; loading spinners per button; validation 5–480 min; TO-DO comment for v1.1 SMS (PRD §13.2)
+- `mobile/src/__tests__/DefineEtaSheet.test.tsx` — 10 tests
+
+### Files modified
+- `mobile/src/api/jobsApi.ts` — added `defineEta(jobId, etaMinutes)` with PATCH workaround and optimistic `ON_THE_WAY` substatus; TO-DO comment for backend `/eta` endpoint
+- `mobile/src/screens/JobDetailScreen.tsx` — replaced date-picker ETA with `DefineEtaSheet`; added `showEtaSheet` state; `handleEtaDefined` optimistic update; "On the Way" blue badge when `inProgressSubstatus === 'ON_THE_WAY'`; `localJob` override pattern
+
+### Acceptance criteria
+1. Sheet appears on Define ETA tap; 30/45 immediately submit; Custom opens numeric input — ✅
+2. Submission calls `PATCH /api/v1/jobs/{id}` with `scheduledEnd`; returns optimistic `ON_THE_WAY` — ✅ (TO-DO backend endpoint)
+3. TO-DO marker references PRD §13.2 v1.1 SMS — ✅
+4. "On the Way" blue (#3B82F6) badge shows when `inProgressSubstatus === 'ON_THE_WAY'` — ✅
+
+### Test results
+`npm run lint` → exit 0; `npm run typecheck` → exit 0; `npm test -- --ci` → 51 passed (8 suites), 0 failed
