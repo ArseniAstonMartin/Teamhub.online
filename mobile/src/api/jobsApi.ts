@@ -1,6 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from './client';
 
+export interface JobNoteResponse {
+  id: string;
+  jobId: string;
+  authorUserId: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface JobPhotoUploadUrlResponse {
+  uploadUrl: string;
+  objectKey: string;
+}
+
 interface JobsPageMeta {
   totalElements: number;
 }
@@ -85,5 +98,65 @@ export function useScheduleJobs(from: string, to: string, enabled = true) {
 
 export async function claimJob(id: string): Promise<JobResponse> {
   const { data } = await apiClient.post<JobResponse>(`/api/v1/jobs/${id}/claim`);
+  return data;
+}
+
+async function fetchJob(id: string): Promise<JobResponse> {
+  const { data } = await apiClient.get<JobResponse>(`/api/v1/jobs/${id}`);
+  return data;
+}
+
+export function useJob(id: string) {
+  return useQuery({
+    queryKey: ['job', id],
+    queryFn: () => fetchJob(id),
+    enabled: Boolean(id),
+    staleTime: 30_000,
+  });
+}
+
+async function fetchJobNotes(id: string): Promise<JobNoteResponse[]> {
+  const { data } = await apiClient.get<JobNoteResponse[]>(`/api/v1/jobs/${id}/notes`);
+  return data;
+}
+
+export function useJobNotes(id: string) {
+  return useQuery({
+    queryKey: ['jobNotes', id],
+    queryFn: () => fetchJobNotes(id),
+    enabled: Boolean(id),
+    staleTime: 30_000,
+  });
+}
+
+export async function addNote(jobId: string, body: string): Promise<JobNoteResponse> {
+  const { data } = await apiClient.post<JobNoteResponse>(`/api/v1/jobs/${jobId}/notes`, { body });
+  return data;
+}
+
+export async function startJob(id: string): Promise<JobResponse> {
+  const { data } = await apiClient.post<JobResponse>(`/api/v1/jobs/${id}/start`, {});
+  return data;
+}
+
+export async function markDonePendingApproval(id: string, note?: string): Promise<JobResponse> {
+  const { data } = await apiClient.post<JobResponse>(`/api/v1/jobs/${id}/done-pending-approval`, { note });
+  return data;
+}
+
+export async function updateJobSchedule(id: string, scheduledEnd: string): Promise<JobResponse> {
+  const { data } = await apiClient.patch<JobResponse>(`/api/v1/jobs/${id}`, { scheduledEnd });
+  return data;
+}
+
+export async function requestPhotoUploadUrl(
+  jobId: string,
+  contentType: string,
+  sizeBytes: number,
+): Promise<JobPhotoUploadUrlResponse> {
+  const { data } = await apiClient.post<JobPhotoUploadUrlResponse>(
+    `/api/v1/jobs/${jobId}/photo-upload-url`,
+    { contentType, sizeBytes },
+  );
   return data;
 }

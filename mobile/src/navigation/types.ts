@@ -4,6 +4,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 export type RootStackParamList = {
   MainTabs: undefined;
   JobDetail: { jobId: string };
+  // TO-DO: implement MapView screen (TASK-098)
+  MapView: { jobId: string };
 };
 
 export type RootTabParamList = {

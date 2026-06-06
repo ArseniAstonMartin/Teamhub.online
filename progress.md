@@ -1933,3 +1933,24 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   5. Network error: exponential backoff 3 attempts (500ms, 1000ms) → "Connection Error" alert — ✅
   6. `usePushHandler.ts`: `data.type === 'JOB_CLAIMED'` → `invalidateQueries(['scheduleJobs'])` — ✅
 - **Test results**: `npm run lint` → exit 0; `npm run typecheck` → exit 0; `npm test -- --ci` → 33 passed (6 suites), 0 failed
+
+## TASK-095 — Mobile Job Detail / Job Card Screen
+**Status**: Done | **Date**: 2026-06-06
+
+### Files modified
+- `mobile/src/api/jobsApi.ts` — added `useJob`, `useJobNotes`, `addNote`, `startJob`, `markDonePendingApproval`, `updateJobSchedule`, `requestPhotoUploadUrl`; new `JobNoteResponse` and `JobPhotoUploadUrlResponse` interfaces
+- `mobile/src/navigation/types.ts` — added `MapView: { jobId: string }` to `RootStackParamList` (TO-DO TASK-098)
+- `mobile/src/screens/JobDetailScreen.tsx` — full implementation replacing placeholder
+
+### Files created
+- `mobile/src/__tests__/JobDetailScreen.test.tsx` — 8 tests
+
+### Acceptance criteria
+1. Five buttons always visible in order: Define ETA, Start the Job, Pay, Add Notes, Attach Image — disabled with `opacity: 0.5` when not applicable — ✅
+2. Pay always disabled (MVP) with `Alert.alert('Coming in v1.1', ...)` — ✅
+3. Customer phone tappable via `Linking.openURL('tel:...')` — ✅
+4. Address row tappable → `navigation.navigate('MapView', { jobId })` — ✅
+5. In-progress timer shown only when `status === 'IN_PROGRESS'`, flat monospace style — ✅
+
+### Test results
+`npm run lint` → exit 0; `npm run typecheck` → exit 0; `npm test -- --ci` → 41 passed (7 suites), 0 failed
