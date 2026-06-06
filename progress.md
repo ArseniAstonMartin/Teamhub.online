@@ -1974,3 +1974,30 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 ### Test results
 `npm run lint` → exit 0; `npm run typecheck` → exit 0; `npm test -- --ci` → 51 passed (8 suites), 0 failed
+
+## TASK-097 — Job Transition Buttons
+**Status**: Done | **Date**: 2026-06-06
+
+### Files created
+- `mobile/src/api/tenantApi.ts` — `useTenantSettings()` hook; fetches `GET /api/v1/tenant/settings` with `closeJobsEnabled`; refetches on focus
+- `mobile/src/components/PendingSheet.tsx` — slide-up Modal with `WAITING_FOR_PARTS` / `RESCHEDULING_NEEDED` radio options, optional note input; `markPending` API call; loading spinner; `useNativeDriver: false` on animations
+- `mobile/src/utils/shake.ts` — `createShakeAnimation(animatedValue)` using `Animated.sequence` with `useNativeDriver: false`
+- `mobile/src/__tests__/JobTransitions.test.tsx` — 8 tests covering all transition flows and edge cases
+
+### Files modified
+- `mobile/src/api/jobsApi.ts` — added `startJob`, `markPending`, `markDonePendingApproval`, `completeJob`, `PendingReason` type
+- `mobile/src/screens/JobDetailScreen.tsx` — added all transition buttons (Start, Pending, Done Pending Approval, Complete); `handleTransition` optimistic helper with 409 rollback + shake; `PendingSheet` integration; `canComplete` gated by `closeJobsEnabled`
+- `mobile/src/__tests__/JobDetailScreen.test.tsx` — added tenant settings mock to all `GET /api/v1/tenant/settings` paths
+
+### Bug fixed (pre-existing)
+- `mobile/src/screens/HomeScreen.tsx` — `weekRange()` returned `to: now.toISOString()` (millisecond precision), causing query key to change on every re-render and perpetual loading state for "This Week" KPI card. Fixed with `useMemo(() => weekRange(), [])`.
+
+### Acceptance criteria
+1. Start → `POST /jobs/{id}/start` → optimistic `{ status: 'IN_PROGRESS', inProgressSubstatus: 'WORKING' }` — ✅
+2. Pending → `PendingSheet` with `WAITING_FOR_PARTS` / `RESCHEDULING_NEEDED` → `POST /jobs/{id}/pending` — ✅
+3. Done Pending Approval → `POST /jobs/{id}/done-pending-approval` — ✅
+4. Complete → `POST /jobs/{id}/complete`; hidden when `closeJobsEnabled === false` — ✅
+5. Optimistic UI for all; rollback on 409 with shake + alert — ✅
+
+### Test results
+`npm run lint` → exit 0; `npm run typecheck` → exit 0; `npm test -- --ci` → 59 passed (9 suites), 0 failed

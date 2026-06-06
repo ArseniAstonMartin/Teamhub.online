@@ -1,9 +1,25 @@
 import React from 'react';
 import { Alert, Linking } from 'react-native';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider, notifyManager } from '@tanstack/react-query';
 import JobDetailScreen from '../screens/JobDetailScreen';
 import type { JobResponse, JobNoteResponse } from '../api/jobsApi';
+
+// ─── RendererProxy — prevent react@19.2.6 / react-native-renderer@19.2.3 mismatch
+jest.mock('react-native/Libraries/ReactNative/RendererProxy', () => ({
+  findNodeHandle: jest.fn(() => null),
+  findHostInstance_DEPRECATED: jest.fn(() => null),
+  unstable_batchedUpdates: jest.fn((fn: () => void) => fn()),
+  renderElement: jest.fn(),
+  dispatchCommand: jest.fn(),
+  sendAccessibilityEvent: jest.fn(),
+  unmountComponentAtNodeAndRemoveContainer: jest.fn(),
+  isChildPublicInstance: jest.fn(),
+  getNodeFromInternalInstanceHandle: jest.fn(),
+  getPublicInstanceFromInternalInstanceHandle: jest.fn(),
+  getPublicInstanceFromRootTag: jest.fn(),
+  isProfilingRenderer: jest.fn(() => false),
+}));
 
 // ─── Navigation & route ───────────────────────────────────────────────────────
 const mockGoBack = jest.fn();
@@ -11,6 +27,7 @@ const mockNavigate = jest.fn();
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ goBack: mockGoBack, navigate: mockNavigate }),
   useRoute: () => ({ params: { jobId: 'job-uuid-1234' } }),
+  useFocusEffect: (cb: () => void) => { cb(); },
 }));
 
 // ─── DateTimePicker — stub (native only) ─────────────────────────────────────
@@ -106,6 +123,9 @@ describe('JobDetailScreen', () => {
       if (url === '/api/v1/jobs/job-uuid-1234/notes') {
         return Promise.resolve({ data: [] });
       }
+      if (url === '/api/v1/tenant/settings') {
+        return Promise.resolve({ data: { closeJobsEnabled: true } });
+      }
       return Promise.reject(new Error(`Unmocked GET ${url}`));
     });
   });
@@ -127,13 +147,14 @@ describe('JobDetailScreen', () => {
 
   // 3. Start the Job button calls startJob API
   it('calls POST /jobs/{id}/start when Start the Job is tapped', async () => {
-    // Keep the job status as ASSIGNED_TO_TECHNICIAN after start to avoid timer teardown issues
     mockPost.mockResolvedValue({ data: makeJob({ status: 'ASSIGNED_TO_TECHNICIAN' }) });
 
     const { getByLabelText } = renderScreen();
     await waitFor(() => getByLabelText('Start the Job'));
 
-    fireEvent.press(getByLabelText('Start the Job'));
+    await act(async () => {
+      fireEvent.press(getByLabelText('Start the Job'));
+    });
 
     await waitFor(() => {
       expect(mockPost).toHaveBeenCalledWith('/api/v1/jobs/job-uuid-1234/start', {});
@@ -174,6 +195,9 @@ describe('JobDetailScreen', () => {
       if (url === '/api/v1/jobs/job-uuid-1234/notes') {
         return Promise.resolve({ data: [] });
       }
+      if (url === '/api/v1/tenant/settings') {
+        return Promise.resolve({ data: { closeJobsEnabled: true } });
+      }
       return Promise.reject(new Error(`Unmocked GET ${url}`));
     });
 
@@ -204,6 +228,9 @@ describe('JobDetailScreen', () => {
             makeNote({ id: 'n2', body: 'Parts needed' }),
           ],
         });
+      }
+      if (url === '/api/v1/tenant/settings') {
+        return Promise.resolve({ data: { closeJobsEnabled: true } });
       }
       return Promise.reject(new Error(`Unmocked GET ${url}`));
     });

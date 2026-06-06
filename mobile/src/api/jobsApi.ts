@@ -144,6 +144,27 @@ export async function markDonePendingApproval(id: string, note?: string): Promis
   return data;
 }
 
+export type PendingReason = 'WAITING_FOR_PARTS' | 'RESCHEDULING_NEEDED';
+
+export async function markPending(
+  id: string,
+  pendingReason: PendingReason,
+  note?: string,
+): Promise<JobResponse> {
+  const { data } = await apiClient.post<JobResponse>(`/api/v1/jobs/${id}/pending`, {
+    pendingReason,
+    ...(note ? { note } : {}),
+  });
+  return data;
+}
+
+export async function completeJob(id: string, note?: string): Promise<JobResponse> {
+  const { data } = await apiClient.post<JobResponse>(`/api/v1/jobs/${id}/complete`, {
+    ...(note ? { note } : {}),
+  });
+  return data;
+}
+
 export async function updateJobSchedule(id: string, scheduledEnd: string): Promise<JobResponse> {
   const { data } = await apiClient.patch<JobResponse>(`/api/v1/jobs/${id}`, { scheduledEnd });
   return data;

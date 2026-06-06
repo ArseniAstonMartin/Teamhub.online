@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Linking,
   Platform,
   Pressable,
@@ -25,11 +26,16 @@ import {
   useJobNotes,
   addNote,
   startJob,
+  markDonePendingApproval,
+  completeJob,
   requestPhotoUploadUrl,
   type JobStatus,
   type JobResponse,
 } from '../api/jobsApi';
+import { useTenantSettings } from '../api/tenantApi';
+import { createShakeAnimation } from '../utils/shake';
 import DefineEtaSheet from '../components/DefineEtaSheet';
+import PendingSheet from '../components/PendingSheet';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, 'JobDetail'>;
 type RouteP = RouteProp<RootStackParamList, 'JobDetail'>;
@@ -105,13 +111,21 @@ export default function JobDetailScreen() {
 
   const { data: job, isLoading, isError } = useJob(jobId);
   const { data: notes = [] } = useJobNotes(jobId);
+  const { data: tenantSettings } = useTenantSettings();
 
-  // Local job override for optimistic ETA update
   const [localJob, setLocalJob] = useState<JobResponse | null>(null);
   const displayJob = localJob ?? job ?? null;
 
-  // ETA sheet
+  const [shakeAnim] = useState(() => new Animated.Value(0));
+
+  // Sheets
   const [showEtaSheet, setShowEtaSheet] = useState(false);
+  const [showPendingSheet, setShowPendingSheet] = useState(false);
+
+  // Per-button loading states
+  const [startingJob, setStartingJob] = useState(false);
+  const [markingDone, setMarkingDone] = useState(false);
+  const [completingJob, setCompletingJob] = useState(false);
 
   // In-progress timer
   const [elapsed, setElapsed] = useState(0);
@@ -129,6 +143,44 @@ export default function JobDetailScreen() {
   const [noteText, setNoteText] = useState('');
   const [noteSending, setNoteSending] = useState(false);
 
+  // ─── Optimistic transition helper ─────────────────────────────────────────
+
+  const handleTransition = useCallback(
+    async (
+      action: () => Promise<JobResponse>,
+      optimisticJob: Partial<JobResponse>,
+      setLoading: (v: boolean) => void,
+    ) => {
+      const previous = localJob ?? job ?? null;
+      setLocalJob((prev) => ({ ...(prev ?? job)!, ...optimisticJob }));
+      setLoading(true);
+      try {
+        const updated = await action();
+        setLocalJob(updated);
+        queryClient.setQueryData(['job', jobId], updated);
+      } catch (err: unknown) {
+        setLocalJob(previous);
+        createShakeAnimation(shakeAnim).start();
+        const status =
+          err &&
+          typeof err === 'object' &&
+          'response' in err &&
+          (err as { response?: { status?: number } }).response?.status;
+        if (status === 409) {
+          Alert.alert('Conflict', 'This job status was already changed. Refreshing...');
+          queryClient.invalidateQueries({ queryKey: ['job', jobId] });
+        } else {
+          Alert.alert('Error', 'Action failed. Please try again.');
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [job, jobId, localJob, queryClient, shakeAnim],
+  );
+
+  // ─── Button handlers ───────────────────────────────────────────────────────
+
   const handleDefineEta = useCallback(() => {
     setShowEtaSheet(true);
   }, []);
@@ -141,16 +193,44 @@ export default function JobDetailScreen() {
     [queryClient],
   );
 
-  const handleStartJob = useCallback(async () => {
+  const handleStartJob = useCallback(() => {
     if (!displayJob) return;
-    try {
-      const updated = await startJob(displayJob.id);
-      queryClient.setQueryData(['job', displayJob.id], updated);
-      setLocalJob(null);
-    } catch {
-      Alert.alert('Error', 'Could not start job. Please try again.');
-    }
-  }, [displayJob, queryClient]);
+    void handleTransition(
+      () => startJob(displayJob.id),
+      { status: 'IN_PROGRESS', inProgressSubstatus: 'WORKING' },
+      setStartingJob,
+    );
+  }, [displayJob, handleTransition]);
+
+  const handleMarkPending = useCallback(() => {
+    setShowPendingSheet(true);
+  }, []);
+
+  const handlePendingDone = useCallback(
+    (updatedJob: JobResponse) => {
+      setLocalJob(updatedJob);
+      queryClient.setQueryData(['job', jobId], updatedJob);
+    },
+    [jobId, queryClient],
+  );
+
+  const handleDonePendingApproval = useCallback(() => {
+    if (!displayJob) return;
+    void handleTransition(
+      () => markDonePendingApproval(displayJob.id),
+      { status: 'DONE_PENDING_APPROVAL' },
+      setMarkingDone,
+    );
+  }, [displayJob, handleTransition]);
+
+  const handleComplete = useCallback(() => {
+    if (!displayJob) return;
+    void handleTransition(
+      () => completeJob(displayJob.id),
+      { status: 'COMPLETED' },
+      setCompletingJob,
+    );
+  }, [displayJob, handleTransition]);
 
   const handlePay = useCallback(() => {
     Alert.alert('Coming in v1.1', 'In-app payment is coming in the next release.');
@@ -197,9 +277,12 @@ export default function JobDetailScreen() {
   // ─── Derived state ──────────────────────────────────────────────────────────
 
   const status = displayJob?.status;
-  const canDefineEta =
-    status === 'ASSIGNED_TO_TECHNICIAN' || status === 'IN_PROGRESS';
+  const canDefineEta = status === 'ASSIGNED_TO_TECHNICIAN' || status === 'IN_PROGRESS';
   const canStartJob = status === 'ASSIGNED_TO_TECHNICIAN';
+  const canMarkPending = status === 'IN_PROGRESS';
+  const canMarkDone = status === 'IN_PROGRESS';
+  const canComplete =
+    status === 'DONE_PENDING_APPROVAL' && tenantSettings?.closeJobsEnabled === true;
   const canAddNotes = status !== 'COMPLETED' && status !== 'CANCELED';
   const canAttachImage = status === 'IN_PROGRESS';
 
@@ -330,7 +413,7 @@ export default function JobDetailScreen() {
       )}
 
       {/* Actions */}
-      <View style={styles.card}>
+      <Animated.View style={[styles.card, { transform: [{ translateX: shakeAnim }] }]}>
         <Text style={styles.sectionLabel}>Actions</Text>
 
         <View style={styles.actionsGrid}>
@@ -350,12 +433,19 @@ export default function JobDetailScreen() {
           <TouchableOpacity
             style={[styles.actionBtn, !canStartJob && styles.actionBtnDisabled]}
             onPress={handleStartJob}
-            disabled={!canStartJob}
+            disabled={!canStartJob || startingJob}
             accessibilityLabel="Start the Job"
             accessibilityHint={!canStartJob ? 'Not available in current status' : undefined}
+            testID="btn-start-job"
           >
-            <Text style={styles.actionIcon}>▶️</Text>
-            <Text style={styles.actionLabel}>Start the Job</Text>
+            {startingJob ? (
+              <ActivityIndicator color="#fff" testID="spinner-start" />
+            ) : (
+              <>
+                <Text style={styles.actionIcon}>▶️</Text>
+                <Text style={styles.actionLabel}>Start the Job</Text>
+              </>
+            )}
           </TouchableOpacity>
 
           {/* 3. Pay (always disabled in MVP) */}
@@ -393,8 +483,61 @@ export default function JobDetailScreen() {
             <Text style={styles.actionIcon}>📷</Text>
             <Text style={styles.actionLabel}>Attach Image</Text>
           </TouchableOpacity>
+
+          {/* 6. Mark as Pending — visible when IN_PROGRESS */}
+          {canMarkPending && (
+            <TouchableOpacity
+              style={styles.actionBtn}
+              onPress={handleMarkPending}
+              accessibilityLabel="Mark as Pending"
+              testID="btn-mark-pending"
+            >
+              <Text style={styles.actionIcon}>⏸️</Text>
+              <Text style={styles.actionLabel}>Mark as Pending</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* 7. Done Pending Approval — visible when IN_PROGRESS */}
+          {canMarkDone && (
+            <TouchableOpacity
+              style={[styles.actionBtn, markingDone && styles.actionBtnDisabled]}
+              onPress={handleDonePendingApproval}
+              disabled={markingDone}
+              accessibilityLabel="Done Pending Approval"
+              testID="btn-done-pending"
+            >
+              {markingDone ? (
+                <ActivityIndicator color="#fff" testID="spinner-done" />
+              ) : (
+                <>
+                  <Text style={styles.actionIcon}>✅</Text>
+                  <Text style={styles.actionLabel}>Done · Pending Approval</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+
+          {/* 8. Complete — visible only when status=DONE_PENDING_APPROVAL AND closeJobsEnabled */}
+          {canComplete && (
+            <TouchableOpacity
+              style={[styles.actionBtnComplete, completingJob && styles.actionBtnDisabled]}
+              onPress={handleComplete}
+              disabled={completingJob}
+              accessibilityLabel="Complete Job"
+              testID="btn-complete"
+            >
+              {completingJob ? (
+                <ActivityIndicator color="#fff" testID="spinner-complete" />
+              ) : (
+                <>
+                  <Text style={styles.actionIcon}>🏁</Text>
+                  <Text style={styles.actionLabel}>Complete</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
-      </View>
+      </Animated.View>
 
       {/* Inline note composer */}
       {showNoteInput && (
@@ -427,6 +570,14 @@ export default function JobDetailScreen() {
         jobId={displayJob.id}
         onClose={() => setShowEtaSheet(false)}
         onEtaDefined={handleEtaDefined}
+      />
+
+      {/* Pending action sheet */}
+      <PendingSheet
+        visible={showPendingSheet}
+        jobId={displayJob.id}
+        onClose={() => setShowPendingSheet(false)}
+        onPending={handlePendingDone}
       />
 
       {/* Notes list */}
@@ -596,6 +747,17 @@ const styles = StyleSheet.create({
   },
   actionBtn: {
     backgroundColor: colors.primary,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: '47%',
+    flex: 1,
+    gap: 4,
+  },
+  actionBtnComplete: {
+    backgroundColor: '#16a34a',
     borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 14,

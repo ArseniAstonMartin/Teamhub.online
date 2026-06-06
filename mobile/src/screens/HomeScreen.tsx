@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -46,8 +46,8 @@ export default function HomeScreen() {
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
 
-  const today = todayRange();
-  const week = weekRange();
+  const today = useMemo(() => todayRange(), []);
+  const week = useMemo(() => weekRange(), []);
 
   const todayQuery = useJobCount('today', { from: today.from, to: today.to });
   const weekQuery = useJobCount('week', { status: 'COMPLETED', from: week.from, to: week.to });
