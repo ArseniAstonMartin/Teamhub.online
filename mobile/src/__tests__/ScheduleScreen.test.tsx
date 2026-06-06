@@ -26,7 +26,9 @@ jest.mock('../hooks/useReducedMotion', () => ({
 // when connecting to the native renderer in the test environment.
 
 jest.mock('../components/SharedPoolCard', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const React = require('react');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { Text, TouchableOpacity } = require('react-native');
   return function MockSharedPoolCard({
     onPress,
@@ -42,25 +44,30 @@ jest.mock('../components/SharedPoolCard', () => {
 });
 
 jest.mock('../components/AcceptJobSheet', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const React = require('react');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { Text, TouchableOpacity, View } = require('react-native');
   return function MockAcceptJobSheet({
     visible,
     onClose,
     job,
     onClaimed,
+    onJobClaimed: _onJobClaimed,
   }: {
     visible: boolean;
     onClose: () => void;
     job: { id: string } | null;
     onClaimed: (j: unknown) => void;
+    onJobClaimed: (id: string) => void;
   }) {
     if (!visible || !job) return null;
     return (
       <View>
         <TouchableOpacity
           onPress={() => {
-            const { apiClient } = require('../api/client');
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { apiClient } = require('../api/client');
             apiClient
               .post(`/api/v1/jobs/${job.id}/claim`)
               .then((res: { data: unknown }) => {

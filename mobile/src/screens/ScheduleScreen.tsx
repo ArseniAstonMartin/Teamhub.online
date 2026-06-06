@@ -172,6 +172,14 @@ export default function ScheduleScreen() {
     );
   }
 
+  function handleJobClaimed(jobId: string) {
+    queryClient.setQueryData(
+      ['scheduleJobs', toIso(fromDate), toIso(toDate)],
+      (old: JobResponse[] | undefined) => (old ?? []).filter((j) => j.id !== jobId),
+    );
+    setSheetVisible(false);
+  }
+
   const today = startOfDay(new Date());
 
   return (
@@ -303,6 +311,7 @@ export default function ScheduleScreen() {
         visible={sheetVisible}
         onClose={() => setSheetVisible(false)}
         onClaimed={handleClaimed}
+        onJobClaimed={handleJobClaimed}
       />
     </View>
   );

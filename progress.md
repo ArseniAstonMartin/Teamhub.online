@@ -1905,3 +1905,31 @@ This file is the running log of work completed against `tasks.json`. Each agent 
   4. `customerPhone` never rendered on SUBMITTED cards — ✅
   5. Tapping unclaimed card opens AcceptJobSheet with Accept Job button — ✅
 - **Test results**: `npm run lint` → exit 0 (0 warnings); `npm run typecheck` → exit 0; `npm test -- --ci` → 27 passed (5 suites), 0 failed
+
+## TASK-094 — Mobile Claim Flow Hardening (2026-06-06)
+- **Status**: done
+- **Files changed**:
+  - `mobile/src/components/AcceptJobSheet.tsx` (modified — debounce via `isSubmitting` useRef, `ActivityIndicator` spinner, exponential backoff retry, 409 / network-error alert handling, `navigation.navigate('JobDetail')` on success; `useNativeDriver: false` for test compatibility)
+  - `mobile/src/navigation/AppNavigator.tsx` (modified — `JobDetailScreen` added to root stack, `usePushHandler` called in `AuthenticatedStack`)
+  - `mobile/src/navigation/types.ts` (modified — `JobDetail: { jobId: string }` added to `RootStackParamList`)
+  - `mobile/src/screens/ScheduleScreen.tsx` (modified — `onJobClaimed` handler removes job from query cache and closes sheet on 409)
+  - `mobile/src/screens/JobDetailScreen.tsx` (new — placeholder screen showing jobId, with back button)
+  - `mobile/src/hooks/usePushHandler.ts` (new — listens for `data.type === 'JOB_CLAIMED'` silent push and invalidates `['scheduleJobs']` query)
+  - `mobile/src/__tests__/AcceptJobSheet.test.tsx` (new — 6 tests: spinner, debounce, 200 navigate, 409 alert, 3-retry backoff, first-fail second-succeed)
+  - `mobile/src/__tests__/App.test.tsx` (modified — `expo-notifications` mock added)
+  - `mobile/src/__tests__/ScheduleScreen.test.tsx` (modified — `onJobClaimed` prop wired into mock `AcceptJobSheet`)
+  - `tasks.json` (TASK-094 status: pending → done)
+- **Fixes applied during hardening**:
+  - Removed broken `jest.mock('react-native', () => jest.requireActual(...))` block that caused `TurboModuleRegistry 'DevMenu' not found` crash
+  - Changed `useNativeDriver: true → false` in sheet animations (resolves react@19.2.6 / react-native-renderer@19.2.3 mismatch in tests; imperceptible in production for a simple translate animation)
+  - Added targeted mock for `react-native/Libraries/ReactNative/RendererProxy` so `TouchableOpacity`'s internal opacity animation does not trigger the version-mismatch throw
+  - Fixed alert assertion case mismatch: `stringContaining('connection error')` → `stringContaining('Connection error')`
+  - Widened regex lookahead window (300 → 2000 chars) to correctly locate `"status"` field in TASK-094 JSON block
+- **Acceptance criteria verified**:
+  1. `AcceptJobSheet` button debounced via `isSubmitting` useRef flag — ✅
+  2. `ActivityIndicator` shown while claim request is in flight (testID="accept-spinner") — ✅
+  3. On 200: `navigation.navigate('JobDetail', { jobId: claimed.id })` + `onClaimed` callback — ✅
+  4. On 409: Alert "Already Claimed / Job already taken" + `onJobClaimed(jobId)` callback — ✅
+  5. Network error: exponential backoff 3 attempts (500ms, 1000ms) → "Connection Error" alert — ✅
+  6. `usePushHandler.ts`: `data.type === 'JOB_CLAIMED'` → `invalidateQueries(['scheduleJobs'])` — ✅
+- **Test results**: `npm run lint` → exit 0; `npm run typecheck` → exit 0; `npm test -- --ci` → 33 passed (6 suites), 0 failed

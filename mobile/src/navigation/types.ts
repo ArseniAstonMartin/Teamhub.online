@@ -1,6 +1,11 @@
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
+export type RootStackParamList = {
+  MainTabs: undefined;
+  JobDetail: { jobId: string };
+};
+
 export type RootTabParamList = {
   Home: undefined;
   Schedule: undefined;
@@ -10,6 +15,9 @@ export type RootTabParamList = {
 
 export type RootTabNavProp<T extends keyof RootTabParamList> =
   BottomTabNavigationProp<RootTabParamList, T>;
+
+export type RootStackNavProp<T extends keyof RootStackParamList> =
+  NativeStackNavigationProp<RootStackParamList, T>;
 
 export type AuthStackParamList = {
   Login: undefined;

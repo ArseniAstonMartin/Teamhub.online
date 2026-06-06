@@ -50,6 +50,7 @@ jest.mock('expo-secure-store', () => ({
 jest.mock('expo-notifications', () => ({
   requestPermissionsAsync: jest.fn().mockResolvedValue({ status: 'denied' }),
   getExpoPushTokenAsync: jest.fn().mockResolvedValue({ data: 'ExponentPushToken[test]' }),
+  addNotificationReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
 }));
 
 jest.mock('expo-apple-authentication', () => ({

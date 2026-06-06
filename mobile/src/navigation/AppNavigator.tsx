@@ -1,20 +1,24 @@
 import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 
 import { colors } from '../theme/colors';
-import { RootTabParamList } from './types';
+import type { RootStackParamList, RootTabParamList } from './types';
 import HomeScreen from '../screens/HomeScreen';
 import ScheduleScreen from '../screens/ScheduleScreen';
 import ClientsScreen from '../screens/ClientsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import JobDetailScreen from '../screens/JobDetailScreen';
 import AuthNavigator from './AuthNavigator';
 import { useAuthStore } from '../stores/authStore';
 import { loadRefreshToken, deleteRefreshToken } from '../utils/secureStore';
+import { usePushHandler } from '../hooks/usePushHandler';
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -55,10 +59,24 @@ function MainTabs() {
   );
 }
 
+function AuthenticatedStack() {
+  usePushHandler();
+
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="MainTabs" component={MainTabs} />
+      <Stack.Screen
+        name="JobDetail"
+        component={JobDetailScreen}
+        options={{ headerShown: false, presentation: 'card' }}
+      />
+    </Stack.Navigator>
+  );
+}
+
 export default function AppNavigator() {
   const { accessToken, setTokens } = useAuthStore();
 
-  // Silently restore session from SecureStore on mount
   useEffect(() => {
     loadRefreshToken().then((rt) => {
       if (!rt) return;
@@ -71,7 +89,7 @@ export default function AppNavigator() {
 
   return (
     <NavigationContainer>
-      {accessToken ? <MainTabs /> : <AuthNavigator />}
+      {accessToken ? <AuthenticatedStack /> : <AuthNavigator />}
     </NavigationContainer>
   );
 }

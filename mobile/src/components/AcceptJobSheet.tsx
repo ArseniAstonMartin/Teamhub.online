@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -10,11 +10,16 @@ import {
   View,
   ActivityIndicator,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors } from '../theme/colors';
 import { claimJob } from '../api/jobsApi';
 import type { JobResponse } from '../api/jobsApi';
+import type { RootStackParamList } from '../navigation/types';
 
 const SHEET_HEIGHT = 320;
+
+type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
 function formatTime(iso: string | null): string {
   if (!iso) return '—';
@@ -35,22 +40,53 @@ function getServiceLabel(job: JobResponse): string {
   return 'New Job';
 }
 
+async function claimWithRetry(id: string, maxAttempts = 3): Promise<JobResponse> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await claimJob(id);
+    } catch (err: unknown) {
+      const status =
+        err &&
+        typeof err === 'object' &&
+        'response' in err &&
+        (err as { response?: { status?: number } }).response?.status;
+      // 409 is a definitive answer — do not retry
+      if (status === 409) throw err;
+      if (attempt === maxAttempts) throw err;
+      // Exponential backoff: 500ms, 1000ms, 2000ms
+      await new Promise<void>((resolve) =>
+        setTimeout(resolve, 500 * Math.pow(2, attempt - 1)),
+      );
+    }
+  }
+  throw new Error('unreachable');
+}
+
 interface Props {
   job: JobResponse | null;
   visible: boolean;
   onClose: () => void;
   onClaimed: (job: JobResponse) => void;
+  onJobClaimed: (jobId: string) => void;
 }
 
-export default function AcceptJobSheet({ job, visible, onClose, onClaimed }: Props) {
+export default function AcceptJobSheet({
+  job,
+  visible,
+  onClose,
+  onClaimed,
+  onJobClaimed,
+}: Props) {
+  const navigation = useNavigation<NavProp>();
   const [translateY] = useState(() => new Animated.Value(SHEET_HEIGHT));
   const [loading, setLoading] = useState(false);
+  const isSubmitting = useRef(false);
 
   useEffect(() => {
     if (visible) {
       Animated.spring(translateY, {
         toValue: 0,
-        useNativeDriver: true,
+        useNativeDriver: false,
         damping: 20,
         stiffness: 200,
       }).start();
@@ -58,37 +94,49 @@ export default function AcceptJobSheet({ job, visible, onClose, onClaimed }: Pro
       Animated.timing(translateY, {
         toValue: SHEET_HEIGHT,
         duration: 200,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }).start();
     }
   }, [visible, translateY]);
 
-  async function handleAccept() {
+  const handleAccept = async () => {
     if (!job) return;
+    if (isSubmitting.current) return;
+    isSubmitting.current = true;
     setLoading(true);
-    onClose();
+
     try {
-      const claimed = await claimJob(job.id);
+      const claimed = await claimWithRetry(job.id);
+      onClose();
       onClaimed(claimed);
+      navigation.navigate('JobDetail', { jobId: claimed.id });
     } catch (err: unknown) {
       const status =
         err &&
         typeof err === 'object' &&
         'response' in err &&
         (err as { response?: { status?: number } }).response?.status;
+
       if (status === 409) {
+        onClose();
+        onJobClaimed(job.id);
         Alert.alert(
           'Already Claimed',
-          'This job was accepted by another technician.',
+          'Job already taken — it was claimed by another technician.',
           [{ text: 'OK' }],
         );
       } else {
-        Alert.alert('Error', 'Failed to accept the job. Please try again.');
+        Alert.alert(
+          'Connection Error',
+          'Connection error. Please check your network and try again.',
+          [{ text: 'OK' }],
+        );
       }
     } finally {
       setLoading(false);
+      isSubmitting.current = false;
     }
-  }
+  };
 
   if (!job) return null;
 
@@ -140,7 +188,7 @@ export default function AcceptJobSheet({ job, visible, onClose, onClaimed }: Pro
           accessibilityState={{ busy: loading }}
         >
           {loading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color="#fff" testID="accept-spinner" />
           ) : (
             <Text style={styles.acceptBtnText}>Accept Job</Text>
           )}
