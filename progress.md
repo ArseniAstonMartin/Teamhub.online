@@ -2001,3 +2001,27 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 ### Test results
 `npm run lint` → exit 0; `npm run typecheck` → exit 0; `npm test -- --ci` → 59 passed (9 suites), 0 failed
+
+---
+
+## TASK-098 — Address Tap → Device Navigation App
+**Date**: 2026-06-06
+**Branch**: mobile
+
+### Files created
+- `mobile/src/utils/openMaps.ts` — `openMaps()` and `copyAddress()` utilities
+
+### Files modified
+- `mobile/src/screens/JobDetailScreen.tsx` — address row: tap → `openMaps`, long-press → copy via ActionSheetIOS (iOS) / Alert (Android)
+- `mobile/src/navigation/types.ts` — updated MapView TO-DO comment
+- `mobile/src/__tests__/openMaps.test.ts` — 6 unit tests for openMaps utility (new file)
+- `mobile/src/__tests__/JobDetailScreen.test.tsx` — added tests 9 & 10 (address tap, long-press copy)
+
+### Behaviour
+- Android: `geo:0,0?q=<lat>,<lon>(label)` when lat/lon available; URL-encoded address fallback
+- iOS: Google Maps (`comgooglemaps://`) checked first via `Linking.canOpenURL`; falls back to Apple Maps (`maps://?daddr=`)
+- Long-press: ActionSheetIOS (iOS) / Alert (Android) with "Copy Address" option
+- `Clipboard` from `react-native` used for MVP (TO-DO comment to migrate to `@react-native-clipboard/clipboard`)
+
+### Test results
+`npm run lint` → exit 0; `npm run typecheck` → exit 0; `npm test -- --ci` → 67 passed (10 suites), 0 failed

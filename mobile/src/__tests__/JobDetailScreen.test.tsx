@@ -1,9 +1,10 @@
 import React from 'react';
-import { Alert, Linking } from 'react-native';
+import { Alert, Linking, Platform } from 'react-native';
 import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider, notifyManager } from '@tanstack/react-query';
 import JobDetailScreen from '../screens/JobDetailScreen';
 import type { JobResponse, JobNoteResponse } from '../api/jobsApi';
+import * as openMapsModule from '../utils/openMaps';
 
 // ─── RendererProxy — prevent react@19.2.6 / react-native-renderer@19.2.3 mismatch
 jest.mock('react-native/Libraries/ReactNative/RendererProxy', () => ({
@@ -59,6 +60,8 @@ jest.mock('../api/client', () => ({
 // ─── Alert & Linking spies ────────────────────────────────────────────────────
 const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 const openURLSpy = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined as unknown as boolean);
+const openMapsSpy = jest.spyOn(openMapsModule, 'openMaps').mockResolvedValue(undefined);
+const copyAddressSpy = jest.spyOn(openMapsModule, 'copyAddress').mockImplementation(() => {});
 
 // ─── TanStack Query sync scheduler ───────────────────────────────────────────
 beforeAll(() => { notifyManager.setScheduler((fn) => fn()); });
@@ -238,5 +241,45 @@ describe('JobDetailScreen', () => {
     const { getByText } = renderScreen();
     await waitFor(() => getByText('Arrived on site'));
     expect(getByText('Parts needed')).toBeTruthy();
+  });
+
+  // 9. Address tap calls openMaps
+  it('calls openMaps when address row is tapped', async () => {
+    const { getByTestId } = renderScreen();
+    await waitFor(() => getByTestId('address-row'));
+
+    await act(async () => {
+      fireEvent.press(getByTestId('address-row'));
+    });
+
+    expect(openMapsSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ lat: 45.52, lon: -122.68, label: 'Job site' }),
+    );
+  });
+
+  // 10. Address long-press shows copy option on Android and copies address
+  it('shows copy Alert on Android when address row is long-pressed', async () => {
+    Object.defineProperty(Platform, 'OS', { get: () => 'android' });
+
+    const { getByTestId } = renderScreen();
+    await waitFor(() => getByTestId('address-row'));
+
+    fireEvent(getByTestId('address-row'), 'longPress');
+
+    expect(alertSpy).toHaveBeenCalledWith(
+      'Address',
+      expect.stringContaining('123 Main St'),
+      expect.arrayContaining([expect.objectContaining({ text: 'Copy' })]),
+    );
+
+    // Invoke the Copy button's onPress callback to verify copyAddress is wired up
+    const alertArgs = alertSpy.mock.calls[alertSpy.mock.calls.length - 1];
+    const buttons: { text: string; onPress?: () => void }[] = alertArgs[2] as { text: string; onPress?: () => void }[];
+    const copyBtn = buttons.find((b) => b.text === 'Copy');
+    copyBtn?.onPress?.();
+    expect(copyAddressSpy).toHaveBeenCalledWith(expect.stringContaining('123 Main St'));
+
+    // restore
+    Object.defineProperty(Platform, 'OS', { get: () => 'ios' });
   });
 });

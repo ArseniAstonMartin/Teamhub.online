@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActionSheetIOS,
   ActivityIndicator,
   Alert,
   Animated,
@@ -13,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { openMaps, copyAddress } from '../utils/openMaps';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
@@ -236,6 +238,40 @@ export default function JobDetailScreen() {
     Alert.alert('Coming in v1.1', 'In-app payment is coming in the next release.');
   }, []);
 
+  const handleAddressPress = useCallback(() => {
+    if (!displayJob) return;
+    const fullAddress = [
+      displayJob.customFields?.address_line ?? displayJob.customFields?.address,
+      displayJob.customFields?.city,
+    ]
+      .filter(Boolean)
+      .join(', ');
+    void openMaps({ lat: displayJob.lat, lon: displayJob.lon, address: fullAddress, label: 'Job site' });
+  }, [displayJob]);
+
+  const handleAddressLongPress = useCallback(() => {
+    if (!displayJob) return;
+    const fullAddress = [
+      displayJob.customFields?.address_line ?? displayJob.customFields?.address,
+      displayJob.customFields?.city,
+    ]
+      .filter(Boolean)
+      .join(', ');
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: ['Copy Address', 'Cancel'], cancelButtonIndex: 1 },
+        (index) => {
+          if (index === 0) copyAddress(fullAddress);
+        },
+      );
+    } else {
+      Alert.alert('Address', fullAddress, [
+        { text: 'Copy', onPress: () => copyAddress(fullAddress) },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+    }
+  }, [displayJob]);
+
   const handleAddNotes = useCallback(() => {
     setShowNoteInput((prev) => !prev);
   }, []);
@@ -367,9 +403,11 @@ export default function JobDetailScreen() {
 
         {addressLine ? (
           <Pressable
-            onPress={() => navigation.navigate('MapView', { jobId: displayJob.id })}
+            onPress={handleAddressPress}
+            onLongPress={handleAddressLongPress}
             accessibilityRole="button"
             accessibilityLabel="Open map"
+            testID="address-row"
             style={styles.infoRow}
           >
             <Text style={styles.infoIcon}>📍</Text>
