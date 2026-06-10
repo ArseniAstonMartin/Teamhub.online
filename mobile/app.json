@@ -9,7 +9,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0F172A"
+      "backgroundColor": "#FFFFFF"
     },
     "ios": {
       "supportsTablet": true,
@@ -58,7 +58,11 @@
           "project": "teamhub-mobile",
           "organization": "teamhub-gs"
         }
-      ]
+      ],
+      "expo-font",
+      "expo-web-browser",
+      "@react-native-community/datetimepicker",
+      "expo-sqlite"
     ],
     "scheme": "teamhub",
     "newArchEnabled": true,

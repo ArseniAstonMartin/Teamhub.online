@@ -1,8 +1,17 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
+import { QueryClientProvider } from '@tanstack/react-query';
+import AppNavigator from './src/navigation/AppNavigator';
+import { initNotesQueue } from './src/db/notesQueue';
+import { initPhotoQueue } from './src/upload/photoQueue';
+import { queryClient } from './src/api/queryClient';
+
+// Initialize offline queues on startup
+initNotesQueue();
+initPhotoQueue();
+// TO-DO: replace placeholder icon/splash assets with final Teamhub brand mark
 
 // TO-DO: human must provision Sentry projects per PRD §26.2 before enabling in production.
 // DSN is read from EXPO_PUBLIC_SENTRY_DSN — no-op when absent (local dev without Sentry).
@@ -23,31 +32,9 @@ Sentry.init({
 
 export default Sentry.wrap(function App() {
   return (
-    <View style={styles.container}>
-      <Text style={styles.logo}>Teamhub</Text>
-      <Text style={styles.tagline}>Field Service Management</Text>
-      <StatusBar style="light" />
-    </View>
+    <QueryClientProvider client={queryClient}>
+      <StatusBar style="dark" />
+      <AppNavigator />
+    </QueryClientProvider>
   );
-});
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0F172A',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logo: {
-    fontSize: 36,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: -0.5,
-  },
-  tagline: {
-    fontSize: 14,
-    fontWeight: '400',
-    color: '#94A3B8',
-    marginTop: 8,
-  },
 });
