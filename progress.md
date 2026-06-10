@@ -2271,5 +2271,5 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Acceptance criteria verified: 1 (`GET /api/v1/jobs/{id}/status-history` returns documented fields oldest-first with read permissions), 2 (`findByJobIdAndTenantIdOrderByCreatedAtAsc` + job tenant validation in service layer), 3 (Job Detail sidebar `StatusTimeline` replaces placeholder)
 - Test steps run: Step 1 (`step1_submittedAssignedInProgress_returnsHistoryInOrder`) — passed; Step 2 (`renders a 3-step status timeline from history rows`) — passed; Step 3 (`step3_anotherTenant_listStatusHistory_returns404`) — passed
 - Open TO-DOs created (with PRD reference): none
-- Commits: (pending commit)
+- Commits: b5e6721
 - Completed through TASK-124 (feat/missing-apis-refactor)
