@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Edit2,
   Archive,
+  ArchiveRestore,
   MapPin,
   Phone,
   Mail,
@@ -13,7 +14,12 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { useCustomer, useUpdateCustomer, useArchiveCustomer } from '@/entities/customer/api/customersApi';
+import {
+  useCustomer,
+  useUpdateCustomer,
+  useArchiveCustomer,
+  useRestoreCustomer,
+} from '@/entities/customer/api/customersApi';
 import type { UpdateCustomerRequest } from '@/entities/customer/model/types';
 import { useJobs } from '@/entities/job/api/jobsApi';
 import type { JobDto } from '@/entities/job/model/types';
@@ -274,6 +280,7 @@ export default function CustomerDetailPage() {
 
   const { data: customer, isLoading, isError } = useCustomer(id);
   const archiveMutation = useArchiveCustomer();
+  const restoreMutation = useRestoreCustomer();
 
   const [activeTab, setActiveTab] = useState<TabId>('jobs');
   const [editOpen, setEditOpen] = useState(false);
@@ -289,6 +296,18 @@ export default function CustomerDetailPage() {
       onError: () => {
         toast.error('Failed to archive customer');
         setConfirmArchive(false);
+      },
+    });
+  }
+
+  function handleRestore() {
+    if (!customer) return;
+    restoreMutation.mutate(customer.id, {
+      onSuccess: () => {
+        toast.success(`${customer.name} restored`);
+      },
+      onError: () => {
+        toast.error('Failed to restore customer');
       },
     });
   }
@@ -394,7 +413,19 @@ export default function CustomerDetailPage() {
                   Archive
                 </Button>
               )}
-              {/* TO-DO: add POST /api/v1/customers/{id}/restore endpoint */}
+              {customer.archivedAt && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-green-700 hover:bg-green-50"
+                  onClick={handleRestore}
+                  disabled={restoreMutation.isPending}
+                  data-testid="restore-customer-btn"
+                >
+                  <ArchiveRestore className="mr-1.5 h-3.5 w-3.5" />
+                  {restoreMutation.isPending ? 'Restoring…' : 'Restore'}
+                </Button>
+              )}
             </div>
           )}
         </div>

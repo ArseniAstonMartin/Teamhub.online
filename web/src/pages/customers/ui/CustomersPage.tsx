@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Search, Archive, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Archive, ArchiveRestore, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { useCustomers, useArchiveCustomer } from '@/entities/customer/api/customersApi';
+import { useCustomers, useArchiveCustomer, useRestoreCustomer } from '@/entities/customer/api/customersApi';
 import type { CustomerResponse } from '@/entities/customer/model/types';
 import { useAuthStore } from '@/entities/user/model/authStore';
 import { Button } from '@/shared/ui/button';
@@ -88,6 +88,7 @@ export default function CustomersPage() {
   });
 
   const archiveMutation = useArchiveCustomer();
+  const restoreMutation = useRestoreCustomer();
   const [pendingArchive, setPendingArchive] = useState<CustomerResponse | null>(null);
 
 
@@ -144,6 +145,17 @@ export default function CustomersPage() {
       onError: () => {
         toast.error('Failed to archive customer');
         setPendingArchive(null);
+      },
+    });
+  }
+
+  function handleRestore(customer: CustomerResponse) {
+    restoreMutation.mutate(customer.id, {
+      onSuccess: () => {
+        toast.success(`${customer.name} restored`);
+      },
+      onError: () => {
+        toast.error('Failed to restore customer');
       },
     });
   }
@@ -259,7 +271,18 @@ export default function CustomersPage() {
                               <Archive className="h-4 w-4 text-gray-500" />
                             </Button>
                           )}
-                          {/* TO-DO: add POST /api/v1/customers/{id}/restore endpoint */}
+                          {includeArchived && c.archivedAt && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Restore ${c.name}`}
+                              data-testid={`restore-btn-${c.id}`}
+                              disabled={restoreMutation.isPending}
+                              onClick={() => handleRestore(c)}
+                            >
+                              <ArchiveRestore className="h-4 w-4 text-green-600" />
+                            </Button>
+                          )}
                         </td>
                       )}
                     </tr>

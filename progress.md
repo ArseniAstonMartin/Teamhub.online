@@ -2285,3 +2285,15 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Open TO-DOs created (with PRD reference): none
 - Commits: 5c658ff
 - Completed through TASK-125 (feat/missing-apis-refactor)
+
+### 2026-06-10 — TASK-126 — Customer restore API + UI
+- Agent: Composer
+- Status change: pending → done
+- PRD sections consulted: §11.3
+- Files touched: backend/src/main/java/com/teamhub/customer/CustomerService.java, backend/src/main/java/com/teamhub/customer/CustomerController.java, backend/src/test/java/com/teamhub/customer/CustomerRestoreIT.java, web/src/entities/customer/api/customersApi.ts, web/src/pages/customers/ui/CustomersPage.tsx, web/src/pages/customers/ui/CustomersPage.test.tsx, web/src/pages/customers/ui/CustomerDetailPage.tsx, web/src/pages/customers/ui/CustomerDetailPage.test.tsx, tasks.json, progress.md
+- Summary: Added `POST /api/v1/customers/{id}/restore` (PERM_job.create) clearing `archived_at` and returning `CustomerResponse`; 404 when customer is not archived or cross-tenant. Wired `useRestoreCustomer()` on the Customer List (Restore icon when `include_archived=true`) and Customer Detail header (Restore button when `archivedAt` is set).
+- Acceptance criteria verified: 1 (`CustomerService.restore` + `POST /{id}/restore` with PERM_job.create, 200 + CustomerResponse), 2 (404 for non-archived and cross-tenant via CustomerNotFoundException), 3 (List Restore button on archived rows with include_archived), 4 (Detail Restore button when archivedAt set)
+- Test steps run: Step 1 (`step1_archiveThenRestore_archivedAtIsNull`) — passed; Step 2 (`shows restore button for archived customer when include_archived is true` + `step2_restore_reappearsInDefaultList`) — passed; Step 3 (`step3_detailAfterRestore_returnsActiveCustomer` + `calls restore mutation when restore button is clicked`) — passed; Step 4 (`step4_restoreOnNonArchived_returns404`) — passed
+- Open TO-DOs created (with PRD reference): none
+- Commits: 7c1a231
+- Completed through TASK-126 (feat/missing-apis-refactor)

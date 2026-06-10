@@ -72,3 +72,19 @@ export function useArchiveCustomer() {
     },
   });
 }
+
+export function useRestoreCustomer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await apiClient.post<CustomerResponse>(
+        `/api/v1/customers/${id}/restore`,
+      );
+      return data;
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['customer', updated.id], updated);
+      void queryClient.invalidateQueries({ queryKey: CUSTOMERS_QUERY_KEY });
+    },
+  });
+}
