@@ -2259,5 +2259,5 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Acceptance criteria verified: 1 (`findByJobIdAndTenantIdOrderByCreatedAtDesc` on `JobPhotoRepository`), 2 (`GET /api/v1/jobs/{id}/photos` returns array with `PERM_photo.upload`), 3 (each item includes `downloadUrl` with 5-min TTL), 4 (Job Detail thumbnail grid + lightbox), 5 (empty state with upload icon + "No photos yet")
 - Test steps run: Step 1 (`task123_step1_listPhotos_afterUpload_returnsDownloadUrl`) — passed; Step 2 (Job Detail thumbnail grid — `renders photo thumbnail grid when photos exist`) — passed; Step 3 (lightbox — `opens lightbox with full image when thumbnail is clicked`) — passed; Step 4 (`task123_step4_listPhotos_noPhotos_returnsEmptyArray` + `shows empty photos state when job has no photos`) — passed
 - Open TO-DOs created (with PRD reference): none
-- Commits: (pending)
+- Commits: b4cf72e
 - Completed through TASK-123 (feat/task-123-job-photos-list)
