@@ -2061,3 +2061,33 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 ### Test results
 `npm run lint` → exit 0; `npm run typecheck` → exit 0; `npm test -- --ci` → **75 passed** (13 suites), 0 failed
+
+---
+
+## TASK-100 — Mobile Attach Result Image Flow
+**Date**: 2026-06-10
+
+### Files created
+- `mobile/src/upload/photoQueue.ts` — SQLite queue for pending photo uploads (`pending_photos` table); `initPhotoQueue`, `enqueuePhoto`, `getPendingPhotos`, `setPhotoStatus`, `deletePendingPhoto`
+- `mobile/src/upload/uploadPhoto.ts` — core upload logic: EXIF strip via `expo-image-manipulator`, small upload (pre-signed PUT + confirm), multipart upload (start → part-url → PUT → complete) for files ≥ 5 MB
+- `mobile/src/upload/usePhotoUploadQueue.ts` — hook: subscribes to NetInfo; replays pending/error items from queue on reconnect
+- `mobile/src/screens/AttachImageScreen.tsx` — full-screen modal with Take Photo / Choose from Library buttons, thumbnail row, and upload tray; handles online/offline branching
+- `mobile/src/components/UploadTray.tsx` — persistent upload progress tray (uploading/done/pending/error states with progress bar)
+- `mobile/src/__tests__/uploadPhoto.test.ts` — 4 new tests covering small upload flow, multipart upload flow, enqueuePhoto, getPendingPhotos
+
+### Files modified
+- `mobile/src/navigation/types.ts` — added `AttachImage: { jobId: string }` to `RootStackParamList`
+- `mobile/src/navigation/AppNavigator.tsx` — registered `AttachImage` screen (modal presentation)
+- `mobile/src/screens/JobDetailScreen.tsx` — "Attach Image" button navigates to `AttachImage` screen; removed old inline ImagePicker stub
+- `mobile/App.tsx` — calls `initPhotoQueue()` at startup alongside `initNotesQueue()`
+
+### Behaviour
+- Tap "Attach Image" (only when IN_PROGRESS) → `AttachImageScreen` modal
+- Take Photo uses camera; Choose from Library supports multi-select
+- EXIF stripped client-side via `expo-image-manipulator` re-encode (resize to max 4000px, JPEG 85%)
+- Online: `uploadPhoto()` called immediately — pre-signed PUT for < 5 MB, multipart for ≥ 5 MB
+- Offline: photo enqueued in `pending_photos` SQLite table; `usePhotoUploadQueue` retries on reconnect
+- User can navigate away; queue survives across navigation and app restarts
+
+### Test results
+`npm run lint` → exit 0; `npm run typecheck` → exit 0; `npm test -- --ci` → **79 passed** (14 suites), 0 failed

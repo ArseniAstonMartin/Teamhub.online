@@ -5,6 +5,7 @@ export type RootStackParamList = {
   MainTabs: undefined;
   JobDetail: { jobId: string };
   AddNote: { jobId: string };
+  AttachImage: { jobId: string };
   // TO-DO: implement full MapView screen in a future task
   MapView: { jobId: string };
 };

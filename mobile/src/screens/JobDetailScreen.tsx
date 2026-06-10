@@ -17,7 +17,6 @@ import { openMaps, copyAddress } from '../utils/openMaps';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
-import * as ImagePicker from 'expo-image-picker';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { colors } from '../theme/colors';
@@ -28,7 +27,6 @@ import {
   startJob,
   markDonePendingApproval,
   completeJob,
-  requestPhotoUploadUrl,
   type JobStatus,
   type JobResponse,
 } from '../api/jobsApi';
@@ -267,24 +265,10 @@ export default function JobDetailScreen() {
     navigation.navigate('AddNote', { jobId: displayJob.id });
   }, [displayJob, navigation]);
 
-  const handleAttachImage = useCallback(async () => {
+  const handleAttachImage = useCallback(() => {
     if (!displayJob) return;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
-      allowsEditing: false,
-    });
-    if (result.canceled || !result.assets?.length) return;
-    const asset = result.assets[0];
-    const sizeBytes = asset.fileSize ?? 0;
-    try {
-      await requestPhotoUploadUrl(displayJob.id, 'image/jpeg', sizeBytes);
-      // TO-DO: complete multipart upload flow (TASK-098)
-      Alert.alert('Image Selected', 'Upload flow will be completed in TASK-098.');
-    } catch {
-      Alert.alert('Error', 'Could not initiate image upload. Please try again.');
-    }
-  }, [displayJob]);
+    navigation.navigate('AttachImage', { jobId: displayJob.id });
+  }, [displayJob, navigation]);
 
   // ─── Derived state ──────────────────────────────────────────────────────────
 

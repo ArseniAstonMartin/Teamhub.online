@@ -5,11 +5,13 @@ import Constants from 'expo-constants';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AppNavigator from './src/navigation/AppNavigator';
 import { initNotesQueue } from './src/db/notesQueue';
+import { initPhotoQueue } from './src/upload/photoQueue';
 
 const queryClient = new QueryClient();
 
-// Initialize offline notes queue on startup
+// Initialize offline queues on startup
 initNotesQueue();
+initPhotoQueue();
 // TO-DO: replace placeholder icon/splash assets with final Teamhub brand mark
 
 // TO-DO: human must provision Sentry projects per PRD §26.2 before enabling in production.
