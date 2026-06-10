@@ -2121,3 +2121,14 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 ### Test results
 `npm run lint` → exit 0; `npm run typecheck` → exit 0; `npm test -- --ci` → **97 passed** (17 suites), 0 failed
+
+## TASK-103 — Mobile Profile Tab (2026-06-10)
+- Branch: `mobile`
+- Files modified/created:
+  - `mobile/src/screens/ProfileScreen.tsx` (replaced placeholder) — Account section (role, truncated tenant ID, truncated user ID), About section (app version from expo-constants, device model from expo-device), Sign Out button with alert confirmation
+  - `mobile/src/__tests__/ProfileScreen.test.tsx` (new) — 4 tests
+- Sign-out flow: loads refresh token from SecureStore → best-effort `POST /api/v1/auth/logout` → `authStore.logout()` (handles push token deregistration + token clearing). Navigation reset via `AppNavigator` watching `user === null`.
+- Packages added: `expo-constants@~56.0.17`, `expo-application@~56.0.3` (expo-device was already present)
+- Note: No `/me` endpoint available; shows JWT-derived fields only (role, tenant ID, user ID). TO-DO comment left for future `GET /api/v1/users/me` endpoint.
+- Tests: 101 total (4 new), 101 passed — lint ✓, typecheck ✓, tests ✓
+- Open TO-DOs: `GET /api/v1/users/me` endpoint to expose name and email
