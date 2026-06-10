@@ -2319,5 +2319,5 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Acceptance criteria verified: 1 (V32 migration + default `America/New_York`), 2 (`TenantController.getTenant` + `TenantResponse`), 3 (`TenantService.updateName` audited), 4 (`TenantSettingsResponse.timezone` + `setTimezone`), 5 (SettingsTenantPage enabled inputs), 6 (SchedulePage `useTenantSettings` + timezone helpers)
 - Test steps run: Step 1 (`step1_getTenant_returnsNameAndTimezone`) — passed; Step 2 (`step2_patchNameAndTimezone_getConfirmsUpdates`) — passed; Step 3 (`step3_patchInvalidTimezone_returns422`) — passed; Step 4 (`calls PATCH /api/v1/tenant when team name is saved` + AppLayout tenant name display) — passed
 - Open TO-DOs created (with PRD reference): non-Admin users do not fetch `GET /api/v1/tenant` — sidebar/header team name visible to Admin only until a read path exists for all roles (PRD §5.2)
-- Commits: 79ebd85
+- Commits: 86b9053
 - Completed through TASK-128 (feat/missing-apis-refactor)
