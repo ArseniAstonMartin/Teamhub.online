@@ -10,3 +10,9 @@ export const loadRefreshToken = () =>
 
 export const deleteRefreshToken = () =>
   SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+
+export const setItem = (key: string, value: string) =>
+  SecureStore.setItemAsync(key, value);
+
+export const getItem = (key: string) =>
+  SecureStore.getItemAsync(key);

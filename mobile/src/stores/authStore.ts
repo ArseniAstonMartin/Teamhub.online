@@ -29,8 +29,15 @@ export const useAuthStore = create<AuthState>((set) => ({
       : null;
     await saveRefreshToken(refreshToken);
     set({ accessToken, user });
+    // Dynamic import breaks circular dep: pushService → apiClient → authStore
+    import('../notifications/pushService')
+      .then(({ registerPushToken }) => registerPushToken())
+      .catch(() => {});
   },
   async logout() {
+    await import('../notifications/pushService')
+      .then(({ unregisterPushToken }) => unregisterPushToken())
+      .catch(() => {});
     await deleteRefreshToken();
     set({ accessToken: null, user: null });
   },

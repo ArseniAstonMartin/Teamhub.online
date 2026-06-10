@@ -1,24 +1,33 @@
 import { useEffect } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
-import { useQueryClient } from '@tanstack/react-query';
+import { handleSilentPush, handleNotificationTap } from '../notifications/pushService';
+import type { RootStackNavProp } from '../navigation/types';
 
-/**
- * Handles silent push notifications from the backend.
- *
- * JOB_CLAIMED: Sent to all OTHER technicians when a job in the shared pool
- * is claimed. We invalidate the schedule query so the card disappears without
- * a visible alert.
- */
 export function usePushHandler() {
-  const queryClient = useQueryClient();
+  const navigation = useNavigation<RootStackNavProp<'MainTabs'>>();
 
   useEffect(() => {
-    const sub = Notifications.addNotificationReceivedListener((notification) => {
-      const data = notification.request.content.data as Record<string, unknown> | undefined;
-      if (data?.type === 'JOB_CLAIMED') {
-        queryClient.invalidateQueries({ queryKey: ['scheduleJobs'] });
+    // Cold-start: process a notification tap that launched the app
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) {
+        handleNotificationTap(response, (screen, params) =>
+          navigation.navigate(screen as any, params as any),
+        );
       }
     });
-    return () => sub.remove();
-  }, [queryClient]);
+
+    const receivedSub = Notifications.addNotificationReceivedListener(handleSilentPush);
+
+    const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
+      handleNotificationTap(response, (screen, params) =>
+        navigation.navigate(screen as any, params as any),
+      );
+    });
+
+    return () => {
+      receivedSub.remove();
+      responseSub.remove();
+    };
+  }, [navigation]);
 }

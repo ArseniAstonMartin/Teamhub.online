@@ -48,9 +48,14 @@ jest.mock('expo-secure-store', () => ({
 }));
 
 jest.mock('expo-notifications', () => ({
+  setNotificationHandler: jest.fn(),
   requestPermissionsAsync: jest.fn().mockResolvedValue({ status: 'denied' }),
+  getPermissionsAsync: jest.fn().mockResolvedValue({ status: 'denied' }),
   getExpoPushTokenAsync: jest.fn().mockResolvedValue({ data: 'ExponentPushToken[test]' }),
   addNotificationReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+  addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+  getLastNotificationResponseAsync: jest.fn().mockResolvedValue(null),
+  AndroidImportance: { MAX: 5 },
 }));
 
 jest.mock('expo-apple-authentication', () => ({

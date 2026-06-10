@@ -2,12 +2,11 @@ import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import AppNavigator from './src/navigation/AppNavigator';
 import { initNotesQueue } from './src/db/notesQueue';
 import { initPhotoQueue } from './src/upload/photoQueue';
-
-const queryClient = new QueryClient();
+import { queryClient } from './src/api/queryClient';
 
 // Initialize offline queues on startup
 initNotesQueue();

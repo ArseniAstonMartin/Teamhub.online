@@ -2091,3 +2091,33 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 
 ### Test results
 `npm run lint` → exit 0; `npm run typecheck` → exit 0; `npm test -- --ci` → **79 passed** (14 suites), 0 failed
+
+---
+
+## TASK-101 — Mobile Push Notification Handling
+**Date:** 2026-06-10
+**Branch:** mobile
+**PRD refs:** §15.1 / §15.3
+
+### Files created
+- `mobile/src/api/queryClient.ts` — exported QueryClient singleton (used by pushService and App.tsx)
+- `mobile/src/notifications/pushService.ts` — push token registration/unregistration, foreground handler config, notification tap deep-link, silent push cache invalidation
+- `mobile/src/__tests__/pushService.test.ts` — 9 unit tests covering all acceptance criteria
+
+### Files modified
+- `mobile/App.tsx` — switched to singleton queryClient from `api/queryClient.ts`
+- `mobile/src/utils/secureStore.ts` — added generic `setItem` / `getItem` exports
+- `mobile/src/stores/authStore.ts` — `setTokens` fires `registerPushToken()`; `logout` awaits `unregisterPushToken()` (dynamic import breaks circular dep)
+- `mobile/src/hooks/usePushHandler.ts` — extended to handle: foreground → `handleSilentPush`; tap → `handleNotificationTap` navigate; cold-start via `getLastNotificationResponseAsync`
+- `mobile/src/__tests__/App.test.tsx` — added missing `expo-notifications` mock methods
+
+### Acceptance criteria covered
+1. On sign-in → `registerPushToken()` → `POST /api/v1/devices/register`
+2. Foreground: `setNotificationHandler` shows alert/sound/banner
+3. Background tap → deep-link to `JobDetail` via `useNavigation`
+4. Silent push / `screen === 'SharedPool'` → invalidates `['jobs', 'shared-pool']` TanStack Query cache
+5. `DeviceNotRegistered` error → re-requests token and retries register
+6. On logout → `unregisterPushToken()` → `POST /api/v1/devices/unregister`
+
+### Test results
+`npm run lint` → exit 0; `npm run typecheck` → exit 0; `npm test -- --ci` → **97 passed** (17 suites), 0 failed
