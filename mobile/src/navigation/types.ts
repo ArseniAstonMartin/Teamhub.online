@@ -16,6 +16,8 @@ export type RootTabParamList = {
   Schedule: undefined;
   Clients: undefined;
   Profile: undefined;
+  Messages: undefined;
+  Calls: undefined;
 };
 
 export type RootTabNavProp<T extends keyof RootTabParamList> =

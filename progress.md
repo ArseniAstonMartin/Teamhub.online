@@ -2176,3 +2176,32 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Test steps run: Step 1 (`step1_jobSubmitted_delayedJobScheduled`) passed, Step 2+3 (`step2And3_jobClaimed_delayedJobCancelled` — row is CANCELLED) passed, AC3 positive (`ac3_handlerFires_jobStillSubmitted_adminsPushReceived` — 2 admin pushes with correct title/body/data) passed, AC3 negative (`ac3Negative_handlerFires_jobAlreadyClaimed_noPushSent`) passed, idempotency (`idempotency_duplicateJobSubmittedEvent_singleDelayedJobRow`) passed, no-admin-tokens (`noAdminTokens_handlerSkipsPush`) passed — all 6 passed
 - Open TO-DOs created (with PRD reference): none
 - Completed through TASK-046 (feat/task-046-job-escalation)
+
+## TASK-115 — Placeholder Messages tab (v1_2_preview feature flag)
+- Date: 2026-06-10
+- Branch: mobile
+- Files created/modified:
+  - `mobile/src/config/featureFlags.ts` (new — `v1_2_preview: false` flag)
+  - `mobile/src/screens/ComingSoonScreen.tsx` (new — reusable placeholder component)
+  - `mobile/src/screens/MessagesScreen.tsx` (new — renders ComingSoonScreen with Messages copy)
+  - `mobile/src/navigation/types.ts` (modified — added `Messages: undefined` to `RootTabParamList`)
+  - `mobile/src/navigation/AppNavigator.tsx` (modified — added TAB_ICONS entries + conditional Messages tab)
+  - `mobile/src/__tests__/ComingSoonScreen.test.tsx` (new — 2 tests)
+  - `mobile/src/__tests__/featureFlags.test.ts` (new — 1 test)
+  - `mobile/src/__tests__/AppNavigator.featureFlag.test.tsx` (new — 4 tests)
+- Summary: Implemented Messages placeholder tab behind `v1_2_preview` feature flag (defaults to `false`). Tab is hidden by default; when flag is `true`, a ComingSoonScreen with title "Messages are coming in v1.2" and subtitle "Stay tuned for real-time in-app chat." appears. Reusable `ComingSoonScreen` component accepts `title` and `subtitle` props.
+- Acceptance criteria verified: flag defaults to false ✓, tab hidden when false ✓, tab visible when true ✓, correct placeholder copy ✓, TO-DO comment present ✓
+- Test count: 4 new tests + 104 existing = 108 total, all passing
+- Checks: lint ✓, typecheck ✓, tests 108/108 ✓
+
+## TASK-116 — Placeholder Calls tab (v1_2_preview feature flag)
+- Date: 2026-06-10
+- Branch: mobile
+- Files created/modified:
+  - `mobile/src/screens/CallsScreen.tsx` (new — renders ComingSoonScreen with Calls copy)
+  - `mobile/src/navigation/types.ts` (modified — added `Calls: undefined` to `RootTabParamList`)
+  - `mobile/src/navigation/AppNavigator.tsx` (modified — added TAB_ICONS entry + conditional Calls tab)
+  - `mobile/src/__tests__/AppNavigator.featureFlag.test.tsx` (covers both Messages and Calls)
+- Summary: Implemented Calls placeholder tab behind the same `v1_2_preview` feature flag as TASK-115. Placeholder shows "Voice calls are coming in v1.2" + "Powered by Twilio — no extra app required." Zero Twilio SDK imports anywhere in `mobile/`.
+- Acceptance criteria verified: same flag as TASK-115 ✓, correct placeholder copy ✓, TO-DO comment present ✓, zero Twilio SDK imports ✓
+- Completed through TASK-116 (mobile branch)
