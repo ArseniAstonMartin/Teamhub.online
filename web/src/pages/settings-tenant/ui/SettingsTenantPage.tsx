@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
@@ -100,22 +100,13 @@ function SettingsTenantPageInner() {
   const updateTenant = useUpdateTenant();
 
   const [optimisticCloseJobs, setOptimisticCloseJobs] = useState<boolean | null>(null);
-  const [teamName, setTeamName] = useState('');
-  const [timezone, setTimezone] = useState(DEFAULT_TENANT_TIMEZONE);
+  const [teamNameDraft, setTeamNameDraft] = useState<string | null>(null);
+  const [timezoneDraft, setTimezoneDraft] = useState<string | null>(null);
   const [savingName, setSavingName] = useState(false);
   const [savingTimezone, setSavingTimezone] = useState(false);
 
-  useEffect(() => {
-    if (tenant?.name) {
-      setTeamName(tenant.name);
-    }
-  }, [tenant?.name]);
-
-  useEffect(() => {
-    if (settings?.timezone) {
-      setTimezone(settings.timezone);
-    }
-  }, [settings?.timezone]);
+  const teamName = teamNameDraft ?? tenant?.name ?? '';
+  const timezone = timezoneDraft ?? settings?.timezone ?? DEFAULT_TENANT_TIMEZONE;
 
   const closeJobsEnabled = optimisticCloseJobs ?? settings?.closeJobsEnabled ?? false;
   const isLoading = settingsLoading || tenantLoading;
@@ -142,6 +133,7 @@ function SettingsTenantPageInner() {
     setSavingName(true);
     try {
       await updateTenant.mutateAsync({ name: trimmed });
+      setTeamNameDraft(null);
       toast.success('Team name updated.');
     } catch {
       toast.error('Failed to save team name. Please try again.');
@@ -156,6 +148,7 @@ function SettingsTenantPageInner() {
     setSavingTimezone(true);
     try {
       await updateSettings.mutateAsync({ timezone });
+      setTimezoneDraft(null);
       toast.success('Time zone updated.');
     } catch {
       toast.error('Failed to save time zone. Please try again.');
@@ -216,7 +209,7 @@ function SettingsTenantPageInner() {
               value={teamName}
               placeholder="Your team name"
               className="flex-1"
-              onChange={(e) => setTeamName(e.target.value)}
+              onChange={(e) => setTeamNameDraft(e.target.value)}
             />
             <Button
               type="button"
@@ -235,7 +228,7 @@ function SettingsTenantPageInner() {
             Default time zone
           </Label>
           <div className="flex gap-2">
-            <Select value={timezone} onValueChange={setTimezone}>
+            <Select value={timezone} onValueChange={setTimezoneDraft}>
               <SelectTrigger id="timezone-select" className="flex-1">
                 <SelectValue />
               </SelectTrigger>
