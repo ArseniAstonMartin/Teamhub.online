@@ -2261,3 +2261,15 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Open TO-DOs created (with PRD reference): none
 - Commits: b4cf72e
 - Completed through TASK-123 (feat/task-123-job-photos-list)
+
+### 2026-06-10 — TASK-124 — Job status history API + timeline
+- Agent: Composer
+- Status change: pending → done
+- PRD sections consulted: §9
+- Files touched: backend/src/main/java/com/teamhub/job/dto/JobStatusHistoryResponse.java, backend/src/main/java/com/teamhub/job/JobStatusHistoryService.java, backend/src/main/java/com/teamhub/job/JobStatusHistoryRepository.java, backend/src/main/java/com/teamhub/job/JobController.java, backend/src/test/java/com/teamhub/job/JobStatusHistoryIT.java, web/src/entities/job/model/types.ts, web/src/entities/job/api/jobsApi.ts, web/src/pages/job-detail/ui/JobDetailPage.tsx, web/src/pages/job-detail/ui/JobDetailPage.test.tsx, tasks.json, progress.md
+- Summary: Added `GET /api/v1/jobs/{id}/status-history` returning `[ { fromStatus, toStatus, actorRole, transitionNote, createdAt } ]` oldest-first, guarded by `PERM_job.read.own` or `PERM_job.read.tenant`. `JobStatusHistoryService` validates the parent job belongs to the caller's tenant and queries history filtered by `tenant_id`. Replaced the Job Detail sidebar placeholder with a vertical timeline (icon, label, relative time via date-fns, optional note); the UI derives a 3-step progression from two history rows by prepending the initial `fromStatus`.
+- Acceptance criteria verified: 1 (`GET /api/v1/jobs/{id}/status-history` returns documented fields oldest-first with read permissions), 2 (`findByJobIdAndTenantIdOrderByCreatedAtAsc` + job tenant validation in service layer), 3 (Job Detail sidebar `StatusTimeline` replaces placeholder)
+- Test steps run: Step 1 (`step1_submittedAssignedInProgress_returnsHistoryInOrder`) — passed; Step 2 (`renders a 3-step status timeline from history rows`) — passed; Step 3 (`step3_anotherTenant_listStatusHistory_returns404`) — passed
+- Open TO-DOs created (with PRD reference): none
+- Commits: (pending commit)
+- Completed through TASK-124 (feat/missing-apis-refactor)

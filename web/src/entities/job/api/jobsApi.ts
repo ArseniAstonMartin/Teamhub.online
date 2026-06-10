@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/shared/api/client';
-import type { JobDto, JobNoteResponse, JobPhotoResponse, JobResponse, JobsPageResponse, JobsQueryParams } from '../model/types';
+import type { JobDto, JobNoteResponse, JobPhotoResponse, JobResponse, JobStatusHistoryResponse, JobsPageResponse, JobsQueryParams } from '../model/types';
 
 export interface CreateJobRequest {
   customerId?: string;
@@ -49,6 +49,18 @@ export function useJobNotes(id: string) {
     queryKey: ['job-notes', id],
     queryFn: async () => {
       const { data } = await apiClient.get<JobNoteResponse[]>(`/api/v1/jobs/${id}/notes`);
+      return data;
+    },
+    enabled: Boolean(id),
+  });
+}
+
+/** GET /api/v1/jobs/{id}/status-history — oldest-first list of status transitions. */
+export function useJobStatusHistory(id: string) {
+  return useQuery({
+    queryKey: ['job-status-history', id],
+    queryFn: async () => {
+      const { data } = await apiClient.get<JobStatusHistoryResponse[]>(`/api/v1/jobs/${id}/status-history`);
       return data;
     },
     enabled: Boolean(id),

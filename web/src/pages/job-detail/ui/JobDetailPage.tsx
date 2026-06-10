@@ -18,8 +18,9 @@ import {
   Upload,
 } from 'lucide-react';
 
-import { useJob, useJobNotes, useJobPhotos, createNote, fireTransition } from '@/entities/job/api/jobsApi';
-import type { JobNoteResponse, JobPhotoResponse, JobResponse, JobStatus } from '@/entities/job/model/types';
+import { formatDistanceToNow } from 'date-fns';
+import { useJob, useJobNotes, useJobPhotos, useJobStatusHistory, createNote, fireTransition } from '@/entities/job/api/jobsApi';
+import type { JobNoteResponse, JobPhotoResponse, JobResponse, JobStatus, JobStatusHistoryResponse } from '@/entities/job/model/types';
 import { TRANSITIONS_FROM, type TransitionAction } from '@/entities/job/model/transitions';
 import { useAuthStore } from '@/entities/user/model/authStore';
 import { Button } from '@/shared/ui/button';
@@ -42,7 +43,104 @@ const STATUS_CONFIG: Record<JobStatus, { label: string; Icon: React.ElementType;
   CANCELED:              { label: 'Canceled',               Icon: XCircle,       className: 'bg-red-100    text-red-700    border-red-200' },
 };
 
+/** Maps backend enum names to the frontend JobStatus union. */
+function normalizeStatus(raw: string | null | undefined): JobStatus {
+  if (raw === 'ASSIGNED_TO_TECHNICIAN') return 'ASSIGNED';
+  if (raw && raw in STATUS_CONFIG) return raw as JobStatus;
+  return 'SUBMITTED';
+}
+
+interface TimelineStep {
+  status: JobStatus;
+  createdAt: string;
+  note: string | null;
+}
+
+function buildTimelineSteps(
+  history: JobStatusHistoryResponse[],
+  jobCreatedAt: string,
+): TimelineStep[] {
+  if (history.length === 0) return [];
+
+  const steps: TimelineStep[] = [];
+  const first = history[0];
+  if (first.fromStatus) {
+    steps.push({
+      status: normalizeStatus(first.fromStatus),
+      createdAt: jobCreatedAt,
+      note: null,
+    });
+  }
+  for (const entry of history) {
+    steps.push({
+      status: normalizeStatus(entry.toStatus),
+      createdAt: entry.createdAt,
+      note: entry.transitionNote,
+    });
+  }
+  return steps;
+}
+
 // ── Sub-components ────────────────────────────────────────────────────────────
+
+function StatusTimeline({
+  history,
+  jobCreatedAt,
+}: {
+  history: JobStatusHistoryResponse[];
+  jobCreatedAt: string;
+}) {
+  const steps = buildTimelineSteps(history, jobCreatedAt);
+
+  if (steps.length === 0) {
+    return (
+      <p className="text-xs text-brand-muted" data-testid="status-history-empty">
+        No status changes recorded yet.
+      </p>
+    );
+  }
+
+  return (
+    <ol className="relative space-y-0" data-testid="status-history-timeline">
+      {steps.map((step, index) => {
+        const { label, Icon } = STATUS_CONFIG[step.status] ?? STATUS_CONFIG.SUBMITTED;
+        const isLast = index === steps.length - 1;
+        return (
+          <li
+            key={`${step.status}-${step.createdAt}-${index}`}
+            className="relative flex gap-3 pb-4 last:pb-0"
+            data-testid={`status-timeline-step-${step.status}`}
+          >
+            {!isLast && (
+              <span
+                className="absolute left-[11px] top-6 bottom-0 w-px bg-border"
+                aria-hidden="true"
+              />
+            )}
+            <span
+              className={cn(
+                'relative z-10 flex size-6 shrink-0 items-center justify-center rounded-full border bg-brand-surface',
+                isLast ? 'border-brand-blue text-brand-blue' : 'border-border text-brand-muted',
+              )}
+              aria-hidden="true"
+            >
+              <Icon className="size-3.5" />
+            </span>
+            <div className="min-w-0 flex-1 pt-0.5">
+              <p className="text-sm font-medium text-brand-navy">{label}</p>
+              <p className="text-xs text-brand-muted">
+                {formatDistanceToNow(new Date(step.createdAt), { addSuffix: true })}
+              </p>
+              {step.note && (
+                <p className="mt-1 text-xs text-brand-muted italic">{step.note}</p>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
 
 function StatusBadge({ status }: { status: JobStatus }) {
   const { label, Icon, className } = STATUS_CONFIG[status] ?? STATUS_CONFIG.SUBMITTED;
@@ -111,6 +209,7 @@ export default function JobDetailPage() {
   const { data: job, isLoading: jobLoading, isError: jobError } = useJob(id);
   const { data: notes = [], isLoading: notesLoading } = useJobNotes(id);
   const { data: photos = [], isLoading: photosLoading } = useJobPhotos(id);
+  const { data: statusHistory = [], isLoading: statusHistoryLoading } = useJobStatusHistory(id);
 
   // ── Action buttons — only allowed role+state combos (AC2) ────────────────
 
@@ -509,20 +608,24 @@ export default function JobDetailPage() {
             )}
           </section>
 
-          {/* Status history placeholder — TO-DO when GET /api/v1/jobs/{id}/status-history is available */}
+          {/* Status history timeline (PRD §9; TASK-124) */}
           <section
-            className="rounded-lg border border-border bg-brand-surface p-4 space-y-2"
+            className="rounded-lg border border-border bg-brand-surface p-4 space-y-3"
             data-testid="status-history"
           >
             <div className="flex items-center gap-1.5">
               <History className="size-3.5 text-brand-muted" aria-hidden="true" />
               <h2 className="text-sm font-semibold text-brand-navy">Status History</h2>
             </div>
-            {/* TO-DO: implement full audit trail when GET /api/v1/jobs/{id}/status-history is available */}
-            <div className="text-sm text-brand-muted space-y-1">
-              <p>Current status: <StatusBadge status={job.status} /></p>
-              <p className="text-xs opacity-60">Full history coming soon.</p>
-            </div>
+            {statusHistoryLoading ? (
+              <div className="space-y-3 animate-pulse" data-testid="status-history-loading">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-10 rounded bg-gray-200" />
+                ))}
+              </div>
+            ) : (
+              <StatusTimeline history={statusHistory} jobCreatedAt={job.createdAt} />
+            )}
           </section>
 
           {/* Metadata */}

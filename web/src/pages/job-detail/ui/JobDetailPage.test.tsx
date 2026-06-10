@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import JobDetailPage from './JobDetailPage';
-import type { JobNoteResponse, JobPhotoResponse, JobResponse } from '@/entities/job/model/types';
+import type { JobNoteResponse, JobPhotoResponse, JobResponse, JobStatusHistoryResponse } from '@/entities/job/model/types';
 import type { UserRole } from '@/entities/user/model/authStore';
 
 // ── Hoisted mocks ─────────────────────────────────────────────────────────────
@@ -12,6 +12,7 @@ const {
   mockUseJob,
   mockUseJobNotes,
   mockUseJobPhotos,
+  mockUseJobStatusHistory,
   mockCreateNote,
   mockFireTransition,
   mockSetQueryData,
@@ -24,6 +25,7 @@ const {
   mockUseJob:            vi.fn(),
   mockUseJobNotes:       vi.fn(),
   mockUseJobPhotos:      vi.fn(),
+  mockUseJobStatusHistory: vi.fn(),
   mockCreateNote:        vi.fn(),
   mockFireTransition:    vi.fn(),
   mockSetQueryData:      vi.fn(),
@@ -38,6 +40,7 @@ vi.mock('@/entities/job/api/jobsApi', () => ({
   useJob:         mockUseJob,
   useJobNotes:    mockUseJobNotes,
   useJobPhotos:   mockUseJobPhotos,
+  useJobStatusHistory: mockUseJobStatusHistory,
   createNote:     mockCreateNote,
   fireTransition: mockFireTransition,
 }));
@@ -109,6 +112,17 @@ function makeNote(overrides: Partial<JobNoteResponse> = {}): JobNoteResponse {
   };
 }
 
+function makeHistoryEntry(overrides: Partial<JobStatusHistoryResponse> = {}): JobStatusHistoryResponse {
+  return {
+    fromStatus: 'SUBMITTED',
+    toStatus: 'ASSIGNED_TO_TECHNICIAN',
+    actorRole: 'TECHNICIAN',
+    transitionNote: 'Claimed from pool',
+    createdAt: '2026-06-01T10:00:00Z',
+    ...overrides,
+  };
+}
+
 function makePhoto(overrides: Partial<JobPhotoResponse> = {}): JobPhotoResponse {
   return {
     id: 'photo-1',
@@ -144,6 +158,14 @@ function mockPhotosEmpty() {
   mockUseJobPhotos.mockReturnValue({ data: [], isLoading: false });
 }
 
+function mockStatusHistorySuccess(history: JobStatusHistoryResponse[]) {
+  mockUseJobStatusHistory.mockReturnValue({ data: history, isLoading: false });
+}
+
+function mockStatusHistoryEmpty() {
+  mockUseJobStatusHistory.mockReturnValue({ data: [], isLoading: false });
+}
+
 function setUser(role: UserRole, id = 'user-42') {
   mockUseAuthStore.mockImplementation((selector: (s: { user: ReturnType<typeof makeUser> }) => unknown) =>
     selector({ user: makeUser(role, id) }),
@@ -166,6 +188,7 @@ describe('JobDetailPage', () => {
     mockUseParams.mockReturnValue({ id: 'job-123' });
     mockInvalidateQueries.mockResolvedValue(undefined);
     mockPhotosEmpty();
+    mockStatusHistoryEmpty();
   });
 
   // ── Loading state ─────────────────────────────────────────────────────────
@@ -174,6 +197,7 @@ describe('JobDetailPage', () => {
     mockUseJob.mockReturnValue({ data: undefined, isLoading: true, isError: false });
     mockUseJobNotes.mockReturnValue({ data: [], isLoading: true });
     mockUseJobPhotos.mockReturnValue({ data: [], isLoading: true });
+    mockUseJobStatusHistory.mockReturnValue({ data: [], isLoading: true });
     setUser('ADMIN');
     renderPage();
     expect(screen.getByTestId('job-loading-skeleton')).toBeInTheDocument();
@@ -423,15 +447,43 @@ describe('JobDetailPage', () => {
     );
   });
 
-  // ── Status history placeholder ────────────────────────────────────────────
+  // ── Status history timeline (TASK-124) ────────────────────────────────────
 
-  it('shows status history placeholder (TO-DO)', () => {
+  it('shows empty status history state when no transitions exist', () => {
     mockJobSuccess(makeJob());
     mockNotesSuccess([]);
+    mockStatusHistoryEmpty();
     setUser('ADMIN');
     renderPage();
-    expect(screen.getByTestId('status-history')).toBeInTheDocument();
-    expect(screen.getByTestId('status-history')).toHaveTextContent(/full history coming soon/i);
+    expect(screen.getByTestId('status-history-empty')).toBeInTheDocument();
+  });
+
+  it('renders a 3-step status timeline from history rows', () => {
+    mockJobSuccess(makeJob({ status: 'IN_PROGRESS', createdAt: '2026-06-01T09:00:00Z' }));
+    mockNotesSuccess([]);
+    mockStatusHistorySuccess([
+      makeHistoryEntry({
+        fromStatus: 'SUBMITTED',
+        toStatus: 'ASSIGNED_TO_TECHNICIAN',
+        createdAt: '2026-06-01T10:00:00Z',
+        transitionNote: 'Claimed from pool',
+      }),
+      makeHistoryEntry({
+        fromStatus: 'ASSIGNED_TO_TECHNICIAN',
+        toStatus: 'IN_PROGRESS',
+        createdAt: '2026-06-01T11:00:00Z',
+        transitionNote: 'Started on site',
+      }),
+    ]);
+    setUser('ADMIN');
+    renderPage();
+
+    expect(screen.getByTestId('status-history-timeline')).toBeInTheDocument();
+    expect(screen.getByTestId('status-timeline-step-SUBMITTED')).toBeInTheDocument();
+    expect(screen.getByTestId('status-timeline-step-ASSIGNED')).toBeInTheDocument();
+    expect(screen.getByTestId('status-timeline-step-IN_PROGRESS')).toBeInTheDocument();
+    expect(screen.getByText('Claimed from pool')).toBeInTheDocument();
+    expect(screen.getByText('Started on site')).toBeInTheDocument();
   });
 
   // ── Sidebar ───────────────────────────────────────────────────────────────

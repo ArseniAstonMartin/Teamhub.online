@@ -6,6 +6,7 @@ import com.teamhub.job.dto.CreateJobRequest;
 import com.teamhub.job.dto.DonePendingApprovalRequest;
 import com.teamhub.job.dto.JobNoteResponse;
 import com.teamhub.job.dto.JobResponse;
+import com.teamhub.job.dto.JobStatusHistoryResponse;
 import com.teamhub.job.dto.PendingJobRequest;
 import com.teamhub.job.dto.StartJobRequest;
 import com.teamhub.job.dto.UpdateJobRequest;
@@ -75,6 +76,8 @@ public class JobController {
 
   private final JobNoteService jobNoteService;
 
+  private final JobStatusHistoryService jobStatusHistoryService;
+
   private final PhotoUploadService photoUploadService;
 
   private final MultipartUploadService multipartUploadService;
@@ -82,10 +85,12 @@ public class JobController {
   public JobController(
       JobService jobService,
       JobNoteService jobNoteService,
+      JobStatusHistoryService jobStatusHistoryService,
       PhotoUploadService photoUploadService,
       MultipartUploadService multipartUploadService) {
     this.jobService = jobService;
     this.jobNoteService = jobNoteService;
+    this.jobStatusHistoryService = jobStatusHistoryService;
     this.photoUploadService = photoUploadService;
     this.multipartUploadService = multipartUploadService;
   }
@@ -343,6 +348,22 @@ public class JobController {
   public List<JobNoteResponse> listNotes(@PathVariable UUID id) {
     UUID tenantId = TenantContext.get();
     return jobNoteService.listNotes(tenantId, id);
+  }
+
+  /**
+   * Lists status transition history for a job in oldest-first order (PRD §9; TASK-124).
+   *
+   * <p>Accessible to any caller with {@code PERM_job.read.own} or {@code PERM_job.read.tenant}.
+   * Tenant isolation is enforced in the service layer.
+   */
+  @GetMapping("/{id}/status-history")
+  @PreAuthorize("hasAuthority('PERM_job.read.own') or hasAuthority('PERM_job.read.tenant')")
+  @Operation(
+      summary = "List status history for a job",
+      description = "Returns transition audit rows ordered by created_at ASC (PRD §9).")
+  public List<JobStatusHistoryResponse> listStatusHistory(@PathVariable UUID id) {
+    UUID tenantId = TenantContext.get();
+    return jobStatusHistoryService.listStatusHistory(tenantId, id);
   }
 
   // =========================================================================

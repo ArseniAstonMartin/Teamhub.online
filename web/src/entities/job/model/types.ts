@@ -68,6 +68,15 @@ export interface JobNoteResponse {
   createdAt: string;
 }
 
+/** Shape returned by GET /api/v1/jobs/{id}/status-history (PRD §9; TASK-124). */
+export interface JobStatusHistoryResponse {
+  fromStatus: string | null;
+  toStatus: string;
+  actorRole: string | null;
+  transitionNote: string | null;
+  createdAt: string;
+}
+
 /** Shape returned by GET /api/v1/jobs/{id}/photos (PRD §14.2; TASK-123). */
 export interface JobPhotoResponse {
   id: string;
