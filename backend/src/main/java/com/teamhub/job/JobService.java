@@ -1,5 +1,7 @@
 package com.teamhub.job;
 
+import com.teamhub.auth.UserNameProjection;
+import com.teamhub.auth.UserRepository;
 import com.teamhub.billing.QuotaEnforcementService;
 import com.teamhub.customer.Customer;
 import com.teamhub.customer.CustomerRepository;
@@ -10,12 +12,18 @@ import com.teamhub.job.dto.CreateJobRequest;
 import com.teamhub.job.dto.JobResponse;
 import com.teamhub.job.dto.UpdateJobRequest;
 import com.teamhub.metrics.JobMetrics;
+import com.teamhub.shared.IdNameProjection;
 import com.teamhub.shared.TenantContext;
 import jakarta.persistence.criteria.Predicate;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
@@ -50,6 +58,8 @@ public class JobService {
 
   private final CustomerRepository customerRepository;
 
+  private final UserRepository userRepository;
+
   private final JobCustomFieldValidator customFieldValidator;
 
   private final OutboxPublisher outboxPublisher;
@@ -63,6 +73,7 @@ public class JobService {
   public JobService(
       JobRepository jobRepository,
       CustomerRepository customerRepository,
+      UserRepository userRepository,
       JobCustomFieldValidator customFieldValidator,
       OutboxPublisher outboxPublisher,
       JobMetrics jobMetrics,
@@ -70,6 +81,7 @@ public class JobService {
       QuotaEnforcementService quotaEnforcementService) {
     this.jobRepository = jobRepository;
     this.customerRepository = customerRepository;
+    this.userRepository = userRepository;
     this.customFieldValidator = customFieldValidator;
     this.outboxPublisher = outboxPublisher;
     this.jobMetrics = jobMetrics;
@@ -109,7 +121,8 @@ public class JobService {
     Specification<Job> spec =
         buildSpec(
             tenantId, technicianScope, actorUserId, statusFilter, assigneeFilter, fromDate, toDate);
-    return jobRepository.findAll(spec, pageable).map(JobResponse::from);
+    Page<Job> page = jobRepository.findAll(spec, pageable);
+    return enrichPage(tenantId, page);
   }
 
   private static Specification<Job> buildSpec(
@@ -276,7 +289,7 @@ public class JobService {
     }
 
     String customerPhone = resolvePhone(job.getCustomerId());
-    return JobResponse.from(job, customerPhone);
+    return enrichOne(tenantId, job, customerPhone);
   }
 
   /**
@@ -326,7 +339,78 @@ public class JobService {
         new JobClaimed(UUID.randomUUID(), tenantId, jobId, technicianId, Instant.now()));
 
     String customerPhone = resolvePhone(claimed.getCustomerId());
-    return JobResponse.from(claimed, customerPhone);
+    return enrichOne(tenantId, claimed, customerPhone);
+  }
+
+  private Page<JobResponse> enrichPage(UUID tenantId, Page<Job> page) {
+    List<Job> jobs = page.getContent();
+    if (jobs.isEmpty()) {
+      return page.map(job -> JobResponse.from(job));
+    }
+
+    Map<UUID, String> customerNames = loadCustomerNames(tenantId, jobs);
+    Map<UUID, String> assigneeNames = loadAssigneeNames(tenantId, jobs);
+    return page.map(job -> toEnrichedResponse(job, null, customerNames, assigneeNames));
+  }
+
+  private JobResponse enrichOne(UUID tenantId, Job job, String customerPhone) {
+    Map<UUID, String> customerNames = loadCustomerNamesById(tenantId, List.of(job.getCustomerId()));
+    Map<UUID, String> assigneeNames =
+        job.getAssignedTechnicianId() != null
+            ? loadAssigneeNamesById(tenantId, List.of(job.getAssignedTechnicianId()))
+            : Map.of();
+    return toEnrichedResponse(job, customerPhone, customerNames, assigneeNames);
+  }
+
+  private JobResponse toEnrichedResponse(
+      Job job,
+      String customerPhone,
+      Map<UUID, String> customerNames,
+      Map<UUID, String> assigneeNames) {
+    String customerName = customerNames.get(job.getCustomerId());
+    String assigneeName =
+        job.getAssignedTechnicianId() != null
+            ? assigneeNames.get(job.getAssignedTechnicianId())
+            : null;
+    return JobResponse.from(job, customerPhone, customerName, assigneeName);
+  }
+
+  private Map<UUID, String> loadCustomerNames(UUID tenantId, Collection<Job> jobs) {
+    Set<UUID> ids = jobs.stream().map(Job::getCustomerId).collect(Collectors.toSet());
+    return loadCustomerNamesById(tenantId, ids);
+  }
+
+  private Map<UUID, String> loadCustomerNamesById(UUID tenantId, Collection<UUID> ids) {
+    if (ids.isEmpty()) {
+      return Map.of();
+    }
+    return customerRepository.findIdAndNameByTenantIdAndIdIn(tenantId, ids).stream()
+        .collect(Collectors.toMap(IdNameProjection::getId, IdNameProjection::getName));
+  }
+
+  private Map<UUID, String> loadAssigneeNames(UUID tenantId, Collection<Job> jobs) {
+    Set<UUID> ids =
+        jobs.stream()
+            .map(Job::getAssignedTechnicianId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+    return loadAssigneeNamesById(tenantId, ids);
+  }
+
+  private Map<UUID, String> loadAssigneeNamesById(UUID tenantId, Collection<UUID> ids) {
+    if (ids.isEmpty()) {
+      return Map.of();
+    }
+    return userRepository.findIdNameEmailByTenantIdAndIdIn(tenantId, ids).stream()
+        .collect(Collectors.toMap(UserNameProjection::getId, this::resolveAssigneeDisplayName));
+  }
+
+  private String resolveAssigneeDisplayName(UserNameProjection user) {
+    String name = user.getName();
+    if (name != null && !name.isBlank()) {
+      return name;
+    }
+    return user.getEmail();
   }
 
   private String resolvePhone(UUID customerId) {

@@ -255,7 +255,7 @@ function JobsTab({ customerId }: { customerId: string }) {
                   : '—'}
               </td>
               <td className="px-4 py-3 text-gray-700">
-                {job.assignedTechnician?.name ?? '—'}
+                {job.assigneeName ?? '—'}
               </td>
               <td className="px-4 py-3">
                 <ChevronRight className="h-4 w-4 text-gray-400" />

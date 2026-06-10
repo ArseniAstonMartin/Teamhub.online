@@ -62,8 +62,8 @@ function formatDate(iso: string | null): string {
 // ── Job Card ──────────────────────────────────────────────────────────────────
 
 function JobCard({ job, isShaking }: { job: JobDto; isShaking: boolean }) {
-  const assignee = job.assignedTechnician;
-  const initials = assignee?.name?.charAt(0).toUpperCase() ?? '?';
+  const assigneeName = job.assigneeName ?? null;
+  const initials = assigneeName?.charAt(0).toUpperCase() ?? '?';
 
   return (
     <div
@@ -76,21 +76,16 @@ function JobCard({ job, isShaking }: { job: JobDto; isShaking: boolean }) {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-semibold text-sm text-brand-navy truncate leading-tight">
-            {job.customer?.name ?? '—'}
+            {job.customerName ?? '—'}
           </p>
-          {job.customer?.address && (
-            <p className="text-xs text-brand-muted truncate leading-tight">
-              {job.customer.address}
-            </p>
-          )}
         </div>
 
         {/* Assignee avatar */}
-        {assignee ? (
+        {assigneeName ? (
           <div
             className="shrink-0 size-6 rounded-full bg-brand-blue text-white text-[10px] flex items-center justify-center font-bold leading-none"
-            aria-label={`Assigned to ${assignee.name}`}
-            title={assignee.name}
+            aria-label={`Assigned to ${assigneeName}`}
+            title={assigneeName}
           >
             {initials}
           </div>
@@ -260,7 +255,7 @@ export default function KanbanView() {
                             ref={prov.innerRef}
                             {...prov.draggableProps}
                             {...prov.dragHandleProps}
-                            aria-label={`Job card: ${job.customer?.name ?? 'Unnamed'}, ${label}. Drag or press Space to move.`}
+                            aria-label={`Job card: ${job.customerName ?? 'Unnamed'}, ${label}. Drag or press Space to move.`}
                             data-testid={`kanban-card-${job.id}`}
                             className={cn(snap.isDragging && 'rotate-1 shadow-lg')}
                           >

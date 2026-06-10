@@ -2333,3 +2333,15 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Open TO-DOs created (with PRD reference): none
 - Commits: 0fbcbb5
 - Completed through TASK-129 (feat/missing-apis-refactor)
+
+### 2026-06-10 — TASK-130 — Job name enrichment API + UI
+- Agent: Composer
+- Status change: pending → done
+- PRD sections consulted: §11
+- Files touched: backend/src/main/java/com/teamhub/job/dto/JobResponse.java, backend/src/main/java/com/teamhub/job/JobService.java, backend/src/main/java/com/teamhub/customer/CustomerRepository.java, backend/src/main/java/com/teamhub/auth/UserRepository.java, backend/src/main/java/com/teamhub/shared/IdNameProjection.java, backend/src/main/java/com/teamhub/auth/UserNameProjection.java, backend/src/test/java/com/teamhub/job/JobNamesIT.java, backend/src/test/java/com/teamhub/job/JobServiceUnitTest.java, backend/src/test/java/com/teamhub/auth/AuthServiceUnitTest.java, web/src/entities/job/model/types.ts, web/src/pages/jobs/ui/KanbanView.tsx, web/src/pages/jobs/ui/JobsPage.tsx, web/src/pages/job-detail/ui/JobDetailPage.tsx, web/src/pages/schedule/ui/SchedulePage.tsx, web/src/pages/customers/ui/CustomerDetailPage.tsx, web/src/pages/jobs/ui/JobsPage.test.tsx, web/src/pages/jobs/ui/KanbanView.test.tsx, web/src/pages/job-detail/ui/JobDetailPage.test.tsx, web/src/pages/schedule/ui/SchedulePage.test.tsx, web/src/pages/customers/ui/CustomerDetailPage.test.tsx, tasks.json, progress.md
+- Summary: Added nullable `customerName` and `assigneeName` to `JobResponse` (`@JsonInclude NON_NULL`). `JobService.list()` and `getById()` batch-resolve names via tenant-scoped IN queries on `customers` and `users` (no N+1). Web `JobDto`/`JobResponse` types and Kanban, Jobs list, Job Detail, Schedule, and Customer Detail surfaces now use flat name fields; UUID fallbacks removed.
+- Acceptance criteria verified: 1 (`JobResponse.customerName`/`assigneeName` with NON_NULL), 2 (`enrichPage`/`enrichOne` batch IN queries in `JobService`), 3 (web types + Kanban/Job Detail flat fields), 4 (removed `Customer #`/`Tech #` fallbacks in JobDetailPage)
+- Test steps run: Step 1 (`step1_getById_withCustomerAndAssignee_returnsBothNames`) — passed; Step 2 (`step2_listJobs_eachRowHasCustomerName`) — passed; Step 3 (`step3_unassignedJob_omitsAssigneeName`) — passed; Step 4 (`shows assignee name from flat assigneeName field` + `renders job header with customer name and status badge`) — passed
+- Open TO-DOs created (with PRD reference): none
+- Commits: d95b2be
+- Completed through TASK-130 (feat/missing-apis-refactor)

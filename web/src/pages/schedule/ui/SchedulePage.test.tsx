@@ -104,8 +104,10 @@ function makeJob(overrides: Partial<JobDto> = {}): JobDto {
     status: 'ASSIGNED',
     scheduledStart: '2026-06-10T09:00:00Z',
     scheduledEnd: '2026-06-10T11:00:00Z',
-    customer: { id: 'c1', name: 'Acme Corp', address: '1 Main St' },
-    assignedTechnician: { id: 't1', name: 'Jane Smith' },
+    customerId: 'c1',
+    customerName: 'Acme Corp',
+    assigneeName: 'Jane Smith',
+    assignedTechnicianId: 't1',
     createdAt: '2026-01-01T00:00:00Z',
     ...overrides,
   };
@@ -222,7 +224,7 @@ describe('SchedulePage', () => {
   it('renders an event for each job with a scheduledStart', () => {
     mockJobsSuccess([
       makeJob({ id: 'job-1' }),
-      makeJob({ id: 'job-2', customer: { id: 'c2', name: 'Globex', address: '2 B St' } }),
+      makeJob({ id: 'job-2', customerId: 'c2', customerName: 'Globex' }),
     ]);
     renderPage();
     expect(screen.getByTestId('event-job-1')).toBeInTheDocument();

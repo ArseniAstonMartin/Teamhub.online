@@ -332,13 +332,8 @@ export default function JobDetailPage() {
     </div>
   );
 
-  const customerName =
-    job.customer?.name ??
-    (job.customerId ? `Customer #${job.customerId.slice(0, 8)}` : 'No customer');
-  // TO-DO: fetch assignee name from user service when backend returns only IDs
-  const technicianName =
-    job.assignedTechnician?.name ??
-    (job.assignedTechnicianId ? `Tech #${job.assignedTechnicianId.slice(0, 8)}` : 'Unassigned');
+  const customerName = job.customerName ?? 'No customer';
+  const technicianName = job.assigneeName ?? 'Unassigned';
 
   return (
     <div className="space-y-5 font-sans">

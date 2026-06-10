@@ -96,7 +96,8 @@ function makeJob(overrides: Partial<JobResponse> = {}): JobResponse {
     updatedAt: '2026-01-02T00:00:00Z',
     archivedAt: null,
     customerPhone: null,
-    customer: { id: 'customer-1', name: 'Acme Corp', address: '1 Main St' },
+    customerName: 'Acme Corp',
+    assigneeName: 'Jane Smith',
     ...overrides,
   };
 }
@@ -216,12 +217,20 @@ describe('JobDetailPage', () => {
     expect(screen.getAllByRole('status')[0]).toHaveAttribute('aria-label', 'Submitted');
   });
 
-  it('falls back to customer ID when nested customer object is absent', () => {
-    mockJobSuccess(makeJob({ customer: null, customerId: 'abc-12345678' }));
+  it('shows assignee name from flat assigneeName field (TASK-130 Step 4)', () => {
+    mockJobSuccess(makeJob({ assigneeName: 'Jane Smith' }));
     mockNotesSuccess([]);
     setUser('ADMIN');
     renderPage();
-    expect(screen.getByText(/customer #abc-1234/i)).toBeInTheDocument();
+    expect(screen.getByText('Jane Smith')).toBeInTheDocument();
+  });
+
+  it('shows "No customer" when customerName is absent', () => {
+    mockJobSuccess(makeJob({ customerName: undefined, customerId: 'abc-12345678' }));
+    mockNotesSuccess([]);
+    setUser('ADMIN');
+    renderPage();
+    expect(screen.getByText('No customer')).toBeInTheDocument();
   });
 
   // ── AC2: Action buttons hidden based on role + state ─────────────────────

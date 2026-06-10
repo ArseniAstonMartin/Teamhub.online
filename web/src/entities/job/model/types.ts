@@ -15,8 +15,10 @@ export interface JobDto {
   status: JobStatus;
   scheduledStart: string | null;
   scheduledEnd: string | null;
-  customer: { id: string; name: string; address: string } | null;
-  assignedTechnician: { id: string; name: string } | null;
+  customerId: string | null;
+  customerName: string | null;
+  assigneeName?: string | null;
+  assignedTechnicianId: string | null;
   createdAt: string;
 }
 
@@ -29,14 +31,13 @@ export interface JobsPageResponse {
   size: number;
 }
 
-/**
- * Full job detail shape returned by `GET /api/v1/jobs/{id}`.
- * TO-DO: update `customer`/`assignedTechnician` when backend returns nested objects.
- */
+/** Full job detail shape returned by `GET /api/v1/jobs/{id}` (TASK-130). */
 export interface JobResponse {
   id: string;
   tenantId: string;
   customerId: string | null;
+  customerName?: string | null;
+  assigneeName?: string | null;
   assignedTechnicianId: string | null;
   appointmentSchemaId: string | null;
   status: JobStatus;
@@ -54,10 +55,6 @@ export interface JobResponse {
   updatedAt: string;
   archivedAt: string | null;
   customerPhone: string | null;
-  /** Enriched — present only when backend includes it (TO-DO). */
-  customer?: { id: string; name: string; address: string } | null;
-  /** Enriched — present only when backend includes it (TO-DO). */
-  assignedTechnician?: { id: string; name: string } | null;
 }
 
 export interface JobNoteResponse {

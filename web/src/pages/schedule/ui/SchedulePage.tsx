@@ -130,7 +130,7 @@ export default function SchedulePage() {
         .filter((job) => job.scheduledStart !== null)
         .map((job) => ({
           id: job.id,
-          title: job.customer?.name ?? 'Unnamed Job',
+          title: job.customerName ?? 'Unnamed Job',
           start: utcToZonedDate(job.scheduledStart!, tenantTimezone),
           end: job.scheduledEnd
             ? utcToZonedDate(job.scheduledEnd, tenantTimezone)

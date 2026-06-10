@@ -81,8 +81,10 @@ function makeJob(overrides: Partial<JobDto> = {}): JobDto {
     status: 'SUBMITTED',
     scheduledStart: '2026-06-10T09:00:00Z',
     scheduledEnd: '2026-06-10T11:00:00Z',
-    customer: { id: 'c1', name: 'Acme Corp', address: '1 Main St' },
-    assignedTechnician: { id: 't1', name: 'Jane Smith' },
+    customerId: 'c1',
+    customerName: 'Acme Corp',
+    assigneeName: 'Jane Smith',
+    assignedTechnicianId: 't1',
     createdAt: '2026-01-01T00:00:00Z',
     ...overrides,
   };
@@ -276,18 +278,17 @@ describe('KanbanView', () => {
     expect(submittedCol.contains(screen.getByTestId('kanban-card-j2'))).toBe(false);
   });
 
-  it('AC3: card shows customer name, address, scheduled start, assignee initial', () => {
+  it('AC3: card shows customer name, scheduled start, assignee initial', () => {
     mockJobsSuccess([makeJob({ id: 'j1' })]);
     renderKanban();
     const card = screen.getByTestId('kanban-card-j1');
     expect(card).toHaveTextContent('Acme Corp');
-    expect(card).toHaveTextContent('1 Main St');
     expect(card).toHaveTextContent(/jun 10/i);
     expect(card).toHaveTextContent('J'); // Jane Smith initial
   });
 
   it('AC3: card shows "Unassigned" icon when no technician', () => {
-    mockJobsSuccess([makeJob({ id: 'j1', assignedTechnician: null })]);
+    mockJobsSuccess([makeJob({ id: 'j1', assignedTechnicianId: null, assigneeName: null })]);
     renderKanban();
     const card = screen.getByTestId('kanban-card-j1');
     // UserCircle icon is rendered with aria-label="Unassigned"

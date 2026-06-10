@@ -105,8 +105,9 @@ function makeJob(overrides: Partial<JobDto> = {}): JobDto {
     status: 'SUBMITTED',
     scheduledStart: '2026-06-10T09:00:00Z',
     scheduledEnd: null,
-    customer: { id: 'cust-1', name: 'Alice Johnson', address: '123 Main St' },
-    assignedTechnician: null,
+    customerId: 'cust-1',
+    customerName: 'Alice Johnson',
+    assignedTechnicianId: null,
     createdAt: '2026-01-01T00:00:00Z',
     ...overrides,
   };

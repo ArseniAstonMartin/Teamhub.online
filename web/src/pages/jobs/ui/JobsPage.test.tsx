@@ -21,8 +21,10 @@ function makeJob(overrides: Partial<JobDto> = {}): JobDto {
     status: 'SUBMITTED',
     scheduledStart: '2026-03-01T09:00:00Z',
     scheduledEnd: '2026-03-01T11:00:00Z',
-    customer: { id: 'cust-1', name: 'Acme Corp', address: '123 Main St' },
-    assignedTechnician: { id: 'tech-1', name: 'Jane Smith' },
+    customerId: 'cust-1',
+    customerName: 'Acme Corp',
+    assigneeName: 'Jane Smith',
+    assignedTechnicianId: 'tech-1',
     createdAt: '2026-01-15T10:00:00Z',
     ...overrides,
   };
@@ -109,28 +111,22 @@ describe('JobsPage', () => {
 
   it('renders a row for each job returned', () => {
     mockSuccess([
-      makeJob({ id: 'job-1', customer: { id: 'c1', name: 'Acme Corp', address: '1 A St' } }),
-      makeJob({ id: 'job-2', customer: { id: 'c2', name: 'Globex Inc', address: '2 B St' } }),
+      makeJob({ id: 'job-1', customerId: 'c1', customerName: 'Acme Corp' }),
+      makeJob({ id: 'job-2', customerId: 'c2', customerName: 'Globex Inc' }),
     ]);
     renderPage();
     expect(screen.getByText('Acme Corp')).toBeInTheDocument();
     expect(screen.getByText('Globex Inc')).toBeInTheDocument();
   });
 
-  it('renders customer address below customer name', () => {
-    mockSuccess([makeJob()]);
-    renderPage();
-    expect(screen.getByText('123 Main St')).toBeInTheDocument();
-  });
-
   it('renders technician name in the correct column', () => {
-    mockSuccess([makeJob({ assignedTechnician: { id: 't1', name: 'Bob Builder' } })]);
+    mockSuccess([makeJob({ assignedTechnicianId: 't1', assigneeName: 'Bob Builder' })]);
     renderPage();
     expect(screen.getByText('Bob Builder')).toBeInTheDocument();
   });
 
   it('renders em-dash when no technician is assigned', () => {
-    mockSuccess([makeJob({ assignedTechnician: null })]);
+    mockSuccess([makeJob({ assignedTechnicianId: null, assigneeName: null })]);
     renderPage();
     // The technician cell should show —
     const cells = screen.getAllByRole('cell');

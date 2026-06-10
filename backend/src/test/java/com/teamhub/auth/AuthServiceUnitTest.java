@@ -25,6 +25,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 class AuthServiceUnitTest {
 
   private static final String EMAIL = "owner@plumbing.com";
+
   private static final String PASSWORD = "S3cr3t-passw0rd!";
 
   @Mock private UserRepository userRepository;
