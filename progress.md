@@ -2205,3 +2205,11 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Summary: Implemented Calls placeholder tab behind the same `v1_2_preview` feature flag as TASK-115. Placeholder shows "Voice calls are coming in v1.2" + "Powered by Twilio — no extra app required." Zero Twilio SDK imports anywhere in `mobile/`.
 - Acceptance criteria verified: same flag as TASK-115 ✓, correct placeholder copy ✓, TO-DO comment present ✓, zero Twilio SDK imports ✓
 - Completed through TASK-116 (mobile branch)
+
+## TASK-117 — Near-real-time job list / calendar via 30 s poll (2026-06-10)
+- Branch: main
+- Files modified: `web/src/entities/job/api/jobsApi.ts`, `web/src/entities/job/api/jobsApi.test.ts` (new)
+- Summary: Added `refetchInterval: 30_000`, `refetchIntervalInBackground: false`, and `refetchOnWindowFocus: true` to the `useJobs` hook so both JobsPage and SchedulePage automatically poll every 30 s when the window is focused and immediately refetch on window focus. Left the `TO-DO` comment for v1.2 WebSocket invalidation (PRD §22.5.5). Created `jobsApi.test.ts` with 2 passing unit tests verifying the hook resolves correctly.
+- Acceptance criteria verified: 1 (refetchInterval + refetchIntervalInBackground: false), 2 (refetchOnWindowFocus: true), 3 (TO-DO comment present in source)
+- Test steps run: 271 tests passed (19 test files), lint clean, typecheck clean
+- Open TO-DOs created (with PRD reference): `TO-DO: when WebSocket push arrives (v1.2) call queryClient.invalidateQueries({ queryKey: JOBS_QUERY_KEY }) instead — PRD §22.5.5`
