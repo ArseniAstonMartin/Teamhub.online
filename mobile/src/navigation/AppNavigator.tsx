@@ -15,10 +15,13 @@ import JobDetailScreen from '../screens/JobDetailScreen';
 import AddNoteScreen from '../screens/AddNoteScreen';
 import AttachImageScreen from '../screens/AttachImageScreen';
 import CustomerDetailScreen from '../screens/CustomerDetailScreen';
+import MessagesScreen from '../screens/MessagesScreen';
+import CallsScreen from '../screens/CallsScreen';
 import AuthNavigator from './AuthNavigator';
 import { useAuthStore } from '../stores/authStore';
 import { loadRefreshToken, deleteRefreshToken } from '../utils/secureStore';
 import { usePushHandler } from '../hooks/usePushHandler';
+import { featureFlags } from '../config/featureFlags';
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -30,6 +33,8 @@ const TAB_ICONS: Record<keyof RootTabParamList, { active: IoniconName; inactive:
   Schedule: { active: 'calendar', inactive: 'calendar-outline' },
   Clients: { active: 'people', inactive: 'people-outline' },
   Profile: { active: 'person', inactive: 'person-outline' },
+  Messages: { active: 'chatbubble', inactive: 'chatbubble-outline' },
+  Calls: { active: 'call', inactive: 'call-outline' },
 };
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://api.teamhub.online';
@@ -58,6 +63,12 @@ function MainTabs() {
       <Tab.Screen name="Schedule" component={ScheduleScreen} />
       <Tab.Screen name="Clients" component={ClientsScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
+      {featureFlags.v1_2_preview && (
+        <Tab.Screen name="Messages" component={MessagesScreen} />
+      )}
+      {featureFlags.v1_2_preview && (
+        <Tab.Screen name="Calls" component={CallsScreen} />
+      )}
     </Tab.Navigator>
   );
 }

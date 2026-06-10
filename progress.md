@@ -2189,3 +2189,63 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Test steps run: Step 1 (`step1_jobSubmitted_delayedJobScheduled`) passed, Step 2+3 (`step2And3_jobClaimed_delayedJobCancelled` — row is CANCELLED) passed, AC3 positive (`ac3_handlerFires_jobStillSubmitted_adminsPushReceived` — 2 admin pushes with correct title/body/data) passed, AC3 negative (`ac3Negative_handlerFires_jobAlreadyClaimed_noPushSent`) passed, idempotency (`idempotency_duplicateJobSubmittedEvent_singleDelayedJobRow`) passed, no-admin-tokens (`noAdminTokens_handlerSkipsPush`) passed — all 6 passed
 - Open TO-DOs created (with PRD reference): none
 - Completed through TASK-046 (feat/task-046-job-escalation)
+
+## TASK-115 — Placeholder Messages tab (v1_2_preview feature flag)
+- Date: 2026-06-10
+- Branch: mobile
+- Files created/modified:
+  - `mobile/src/config/featureFlags.ts` (new — `v1_2_preview: false` flag)
+  - `mobile/src/screens/ComingSoonScreen.tsx` (new — reusable placeholder component)
+  - `mobile/src/screens/MessagesScreen.tsx` (new — renders ComingSoonScreen with Messages copy)
+  - `mobile/src/navigation/types.ts` (modified — added `Messages: undefined` to `RootTabParamList`)
+  - `mobile/src/navigation/AppNavigator.tsx` (modified — added TAB_ICONS entries + conditional Messages tab)
+  - `mobile/src/__tests__/ComingSoonScreen.test.tsx` (new — 2 tests)
+  - `mobile/src/__tests__/featureFlags.test.ts` (new — 1 test)
+  - `mobile/src/__tests__/AppNavigator.featureFlag.test.tsx` (new — 4 tests)
+- Summary: Implemented Messages placeholder tab behind `v1_2_preview` feature flag (defaults to `false`). Tab is hidden by default; when flag is `true`, a ComingSoonScreen with title "Messages are coming in v1.2" and subtitle "Stay tuned for real-time in-app chat." appears. Reusable `ComingSoonScreen` component accepts `title` and `subtitle` props.
+- Acceptance criteria verified: flag defaults to false ✓, tab hidden when false ✓, tab visible when true ✓, correct placeholder copy ✓, TO-DO comment present ✓
+- Test count: 4 new tests + 104 existing = 108 total, all passing
+- Checks: lint ✓, typecheck ✓, tests 108/108 ✓
+
+## TASK-116 — Placeholder Calls tab (v1_2_preview feature flag)
+- Date: 2026-06-10
+- Branch: mobile
+- Files created/modified:
+  - `mobile/src/screens/CallsScreen.tsx` (new — renders ComingSoonScreen with Calls copy)
+  - `mobile/src/navigation/types.ts` (modified — added `Calls: undefined` to `RootTabParamList`)
+  - `mobile/src/navigation/AppNavigator.tsx` (modified — added TAB_ICONS entry + conditional Calls tab)
+  - `mobile/src/__tests__/AppNavigator.featureFlag.test.tsx` (covers both Messages and Calls)
+- Summary: Implemented Calls placeholder tab behind the same `v1_2_preview` feature flag as TASK-115. Placeholder shows "Voice calls are coming in v1.2" + "Powered by Twilio — no extra app required." Zero Twilio SDK imports anywhere in `mobile/`.
+- Acceptance criteria verified: same flag as TASK-115 ✓, correct placeholder copy ✓, TO-DO comment present ✓, zero Twilio SDK imports ✓
+- Completed through TASK-116 (mobile branch)
+
+## TASK-117 — Near-real-time job list / calendar via 30 s poll (2026-06-10)
+- Branch: main
+- Files modified: `web/src/entities/job/api/jobsApi.ts`, `web/src/entities/job/api/jobsApi.test.ts` (new)
+- Summary: Added `refetchInterval: 30_000`, `refetchIntervalInBackground: false`, and `refetchOnWindowFocus: true` to the `useJobs` hook so both JobsPage and SchedulePage automatically poll every 30 s when the window is focused and immediately refetch on window focus. Left the `TO-DO` comment for v1.2 WebSocket invalidation (PRD §22.5.5). Created `jobsApi.test.ts` with 2 passing unit tests verifying the hook resolves correctly.
+- Acceptance criteria verified: 1 (refetchInterval + refetchIntervalInBackground: false), 2 (refetchOnWindowFocus: true), 3 (TO-DO comment present in source)
+- Test steps run: 271 tests passed (19 test files), lint clean, typecheck clean
+- Open TO-DOs created (with PRD reference): `TO-DO: when WebSocket push arrives (v1.2) call queryClient.invalidateQueries({ queryKey: JOBS_QUERY_KEY }) instead — PRD §22.5.5`
+
+## TASK-118 — Web "JOB NOT HANDLED" escalation alert banner (2026-06-10)
+- Branch: mobile
+- Files created:
+  - `backend/src/main/resources/db/migration/V31__in_app_alerts.sql` (new — creates `in_app_alerts` table + `alert.read` permission seeded to ADMIN)
+  - `backend/src/main/java/com/teamhub/alert/InAppAlert.java` (new — JPA entity)
+  - `backend/src/main/java/com/teamhub/alert/InAppAlertRepository.java` (new — Spring Data repo)
+  - `backend/src/main/java/com/teamhub/alert/InAppAlertResponse.java` (new — record DTO)
+  - `backend/src/main/java/com/teamhub/alert/InAppAlertService.java` (new — CRUD service)
+  - `backend/src/main/java/com/teamhub/alert/InAppAlertController.java` (new — GET /api/v1/alerts + POST /api/v1/alerts/{id}/dismiss)
+  - `backend/src/test/java/com/teamhub/alert/InAppAlertIT.java` (new — 3 IT tests)
+  - `web/src/entities/alert/api/alertsApi.ts` (new — useAlerts + useDismissAlert hooks)
+  - `web/src/widgets/AlertBanner/AlertBanner.tsx` (new — red banner component)
+  - `web/src/widgets/AlertBanner/index.ts` (new — re-export)
+  - `web/src/widgets/AlertBanner/AlertBanner.test.tsx` (new — 5 unit tests)
+- Files modified:
+  - `backend/src/main/java/com/teamhub/escalation/EscalateUnclaimedJobHandler.java` (wires InAppAlertService; creates in-app alerts after push)
+  - `backend/src/test/java/com/teamhub/escalation/EscalationIT.java` (cleanUp now deletes in_app_alerts before jobs)
+  - `web/src/widgets/app-layout/ui/AppLayout.tsx` (adds <AlertBanner /> above main content)
+- Summary: Full-stack in-app alert feature. Backend stores undismissed banners per Admin; escalation handler creates them after Expo push. Web polls every 30 s (window-focused), renders stacked red banners with "View Job" (navigates to /jobs/:id) and "Dismiss" (POST dismiss). Only rendered for ADMIN role. TO-DO comment added for alerting Admins without push tokens (PRD §28).
+- Acceptance criteria verified: 1 (GET /api/v1/alerts returns pending alerts, protected by PERM_alert.read), 2 (30 s poll, window-focus only, red banner), 3 (dismiss POST clears banner permanently)
+- Test results: backend 504 tests passed (0 failures), frontend 276 tests passed (20 test files), lint clean, typecheck clean
+- TO-DO created: alert Admins without push tokens via users table query — PRD §28

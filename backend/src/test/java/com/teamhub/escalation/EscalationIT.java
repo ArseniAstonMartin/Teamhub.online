@@ -141,6 +141,7 @@ class EscalationIT {
     jdbc.update("DELETE FROM outbox_events WHERE tenant_id = ?", tenantId);
     jdbc.update("DELETE FROM delayed_jobs WHERE tenant_id = ?", tenantId);
     jdbc.update("DELETE FROM device_tokens WHERE tenant_id = ?", tenantId);
+    jdbc.update("DELETE FROM in_app_alerts WHERE tenant_id = ?", tenantId);
     jdbc.update("DELETE FROM job_status_history WHERE tenant_id = ?", tenantId);
     jdbc.update("DELETE FROM jobs WHERE tenant_id = ?", tenantId);
     jdbc.update("DELETE FROM customers WHERE tenant_id = ?", tenantId);
