@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.teamhub.auth.UserRepository;
 import com.teamhub.billing.QuotaEnforcementService;
 import com.teamhub.customer.CustomerRepository;
 import com.teamhub.eventing.OutboxPublisher;
@@ -27,8 +26,6 @@ class JobServiceUnitTest {
 
   @Mock private CustomerRepository customerRepository;
 
-  @Mock private UserRepository userRepository;
-
   @Mock private JobCustomFieldValidator customFieldValidator;
 
   @Mock private OutboxPublisher outboxPublisher;
@@ -43,7 +40,6 @@ class JobServiceUnitTest {
     return new JobService(
         jobRepository,
         customerRepository,
-        userRepository,
         customFieldValidator,
         outboxPublisher,
         jobMetrics,
