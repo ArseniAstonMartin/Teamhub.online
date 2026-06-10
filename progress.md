@@ -2343,5 +2343,5 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Acceptance criteria verified: 1 (`JobResponse.customerName`/`assigneeName` with NON_NULL), 2 (`enrichPage`/`enrichOne` batch IN queries in `JobService`), 3 (web types + Kanban/Job Detail flat fields), 4 (removed `Customer #`/`Tech #` fallbacks in JobDetailPage)
 - Test steps run: Step 1 (`step1_getById_withCustomerAndAssignee_returnsBothNames`) — passed; Step 2 (`step2_listJobs_eachRowHasCustomerName`) — passed; Step 3 (`step3_unassignedJob_omitsAssigneeName`) — passed; Step 4 (`shows assignee name from flat assigneeName field` + `renders job header with customer name and status badge`) — passed
 - Open TO-DOs created (with PRD reference): none
-- Commits: d95b2be
+- Commits: a820a0c
 - Completed through TASK-130 (feat/missing-apis-refactor)
