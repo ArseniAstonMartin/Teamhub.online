@@ -2122,6 +2122,19 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 ### Test results
 `npm run lint` → exit 0; `npm run typecheck` → exit 0; `npm test -- --ci` → **97 passed** (17 suites), 0 failed
 
+## TASK-102 — Mobile Clients Tab (2026-06-10)
+- Branch: `mobile`
+- Files created/modified:
+  - `mobile/src/api/customersApi.ts` (new) — `useCustomers` (infinite query + 300 ms debounced search) and `useCustomer`
+  - `mobile/src/api/jobsApi.ts` (modified) — added `useJobsByCustomer(customerId)`
+  - `mobile/src/screens/ClientsScreen.tsx` (replaced placeholder) — FlatList with infinite scroll, pull-to-refresh, debounced search, 5-row skeleton, empty state
+  - `mobile/src/screens/CustomerDetailScreen.tsx` (new) — masked phone, email, address → openMaps, job history with status badges
+  - `mobile/src/navigation/types.ts` (modified) — `CustomerDetail: { customerId: string }` added to `RootStackParamList`
+  - `mobile/src/navigation/AppNavigator.tsx` (modified) — `CustomerDetailScreen` registered as stack screen
+  - `mobile/src/__tests__/ClientsScreen.test.tsx` (new) — 5 tests
+  - `mobile/src/__tests__/CustomerDetailScreen.test.tsx` (new) — 4 tests
+- Tests: 88 total (9 new), 88 passed — lint ✓, typecheck ✓, tests ✓
+
 ## TASK-103 — Mobile Profile Tab (2026-06-10)
 - Branch: `mobile`
 - Files modified/created:
