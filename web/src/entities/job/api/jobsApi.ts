@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/shared/api/client';
-import type { JobDto, JobNoteResponse, JobResponse, JobsPageResponse, JobsQueryParams } from '../model/types';
+import type { JobDto, JobNoteResponse, JobPhotoResponse, JobResponse, JobsPageResponse, JobsQueryParams } from '../model/types';
 
 export interface CreateJobRequest {
   customerId?: string;
@@ -49,6 +49,18 @@ export function useJobNotes(id: string) {
     queryKey: ['job-notes', id],
     queryFn: async () => {
       const { data } = await apiClient.get<JobNoteResponse[]>(`/api/v1/jobs/${id}/notes`);
+      return data;
+    },
+    enabled: Boolean(id),
+  });
+}
+
+/** GET /api/v1/jobs/{id}/photos — newest-first list with pre-signed download URLs. */
+export function useJobPhotos(id: string) {
+  return useQuery({
+    queryKey: ['job-photos', id],
+    queryFn: async () => {
+      const { data } = await apiClient.get<JobPhotoResponse[]>(`/api/v1/jobs/${id}/photos`);
       return data;
     },
     enabled: Boolean(id),

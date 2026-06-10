@@ -373,6 +373,24 @@ public class JobController {
   }
 
   /**
+   * Lists all photos for a job with short-lived pre-signed download URLs (PRD §14.2; TASK-123).
+   *
+   * <p>Returns an empty array when the job has no photos. Each item includes a {@code downloadUrl}
+   * valid for 5 minutes.
+   */
+  @GetMapping("/{id}/photos")
+  @PreAuthorize("hasAuthority('PERM_photo.upload')")
+  @Operation(
+      summary = "List photos for a job",
+      description =
+          "Returns all photos ordered by created_at DESC with 5-min pre-signed GET URLs"
+              + " (PRD §14.2).")
+  public List<JobPhotoResponse> listPhotos(@PathVariable UUID id) {
+    UUID tenantId = TenantContext.get();
+    return photoUploadService.listPhotos(tenantId, id);
+  }
+
+  /**
    * Confirms a completed photo upload by persisting metadata and publishing a {@code PhotoUploaded}
    * event (PRD §14.2; TASK-049).
    *

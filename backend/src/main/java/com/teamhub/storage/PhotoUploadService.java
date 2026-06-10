@@ -2,16 +2,20 @@ package com.teamhub.storage;
 
 import com.teamhub.eventing.OutboxPublisher;
 import com.teamhub.eventing.payloads.PhotoUploaded;
+import com.teamhub.job.JobNotFoundException;
+import com.teamhub.job.JobRepository;
 import com.teamhub.storage.dto.ConfirmUploadRequest;
 import com.teamhub.storage.dto.JobPhotoResponse;
 import com.teamhub.storage.dto.UploadUrlResponse;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
@@ -42,16 +46,20 @@ public class PhotoUploadService {
 
   private final JobPhotoRepository jobPhotoRepository;
 
+  private final JobRepository jobRepository;
+
   private final OutboxPublisher outboxPublisher;
 
   public PhotoUploadService(
       S3Presigner s3Presigner,
       ObjectStorageProperties storageProperties,
       JobPhotoRepository jobPhotoRepository,
+      JobRepository jobRepository,
       OutboxPublisher outboxPublisher) {
     this.s3Presigner = s3Presigner;
     this.storageProperties = storageProperties;
     this.jobPhotoRepository = jobPhotoRepository;
+    this.jobRepository = jobRepository;
     this.outboxPublisher = outboxPublisher;
   }
 
@@ -144,5 +152,41 @@ public class PhotoUploadService {
         new PhotoUploaded(UUID.randomUUID(), tenantId, jobId, photo.getId(), null, userId));
 
     return JobPhotoResponse.from(photo);
+  }
+
+  /**
+   * Lists all photos for a job with short-lived pre-signed GET URLs (PRD §14.2; TASK-123).
+   *
+   * @param tenantId the requesting tenant
+   * @param jobId the job whose photos to list
+   * @return photos ordered by {@code created_at DESC}, each with a 5-min {@code downloadUrl}
+   * @throws JobNotFoundException if the job does not exist or belongs to another tenant
+   */
+  @Transactional(readOnly = true)
+  public List<JobPhotoResponse> listPhotos(UUID tenantId, UUID jobId) {
+    jobRepository
+        .findByIdAndTenantIdAndArchivedAtIsNull(jobId, tenantId)
+        .orElseThrow(() -> new JobNotFoundException(jobId));
+
+    Duration ttl = Duration.ofMinutes(storageProperties.presignedUrlTtlMinutes());
+
+    return jobPhotoRepository.findByJobIdAndTenantIdOrderByCreatedAtDesc(jobId, tenantId).stream()
+        .map(
+            photo -> {
+              String downloadUrl =
+                  s3Presigner
+                      .presignGetObject(
+                          GetObjectPresignRequest.builder()
+                              .signatureDuration(ttl)
+                              .getObjectRequest(
+                                  r ->
+                                      r.bucket(storageProperties.bucket())
+                                          .key(photo.getObjectKey()))
+                              .build())
+                      .url()
+                      .toString();
+              return JobPhotoResponse.from(photo, downloadUrl);
+            })
+        .toList();
   }
 }

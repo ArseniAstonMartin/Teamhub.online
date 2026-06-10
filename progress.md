@@ -2249,3 +2249,15 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Acceptance criteria verified: 1 (GET /api/v1/alerts returns pending alerts, protected by PERM_alert.read), 2 (30 s poll, window-focus only, red banner), 3 (dismiss POST clears banner permanently)
 - Test results: backend 504 tests passed (0 failures), frontend 276 tests passed (20 test files), lint clean, typecheck clean
 - TO-DO created: alert Admins without push tokens via users table query — PRD §28
+
+### 2026-06-10 — TASK-123 — Job photos list API + gallery
+- Agent: Composer
+- Status change: pending → done
+- PRD sections consulted: §14.2
+- Files touched: backend/src/main/java/com/teamhub/storage/JobPhotoRepository.java, backend/src/main/java/com/teamhub/storage/dto/JobPhotoResponse.java, backend/src/main/java/com/teamhub/storage/PhotoUploadService.java, backend/src/main/java/com/teamhub/job/JobController.java, backend/src/test/java/com/teamhub/storage/PhotoUploadIT.java, web/src/entities/job/model/types.ts, web/src/entities/job/api/jobsApi.ts, web/src/pages/job-detail/ui/JobDetailPage.tsx, web/src/pages/job-detail/ui/JobDetailPage.test.tsx, tasks.json, progress.md
+- Summary: Added `GET /api/v1/jobs/{id}/photos` returning `JobPhotoResponse[]` with 5-min pre-signed S3 GET URLs (`downloadUrl`), guarded by `PERM_photo.upload`. Extended `PhotoUploadService.listPhotos` with tenant-scoped job validation and presigned download URL generation. Replaced the Job Detail photos placeholder with a thumbnail grid, Radix lightbox on click, and an empty state showing an upload icon with "No photos yet".
+- Acceptance criteria verified: 1 (`findByJobIdAndTenantIdOrderByCreatedAtDesc` on `JobPhotoRepository`), 2 (`GET /api/v1/jobs/{id}/photos` returns array with `PERM_photo.upload`), 3 (each item includes `downloadUrl` with 5-min TTL), 4 (Job Detail thumbnail grid + lightbox), 5 (empty state with upload icon + "No photos yet")
+- Test steps run: Step 1 (`task123_step1_listPhotos_afterUpload_returnsDownloadUrl`) — passed; Step 2 (Job Detail thumbnail grid — `renders photo thumbnail grid when photos exist`) — passed; Step 3 (lightbox — `opens lightbox with full image when thumbnail is clicked`) — passed; Step 4 (`task123_step4_listPhotos_noPhotos_returnsEmptyArray` + `shows empty photos state when job has no photos`) — passed
+- Open TO-DOs created (with PRD reference): none
+- Commits: (pending)
+- Completed through TASK-123 (feat/task-123-job-photos-list)

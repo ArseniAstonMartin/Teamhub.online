@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import JobDetailPage from './JobDetailPage';
-import type { JobNoteResponse, JobResponse } from '@/entities/job/model/types';
+import type { JobNoteResponse, JobPhotoResponse, JobResponse } from '@/entities/job/model/types';
 import type { UserRole } from '@/entities/user/model/authStore';
 
 // ── Hoisted mocks ─────────────────────────────────────────────────────────────
@@ -11,6 +11,7 @@ import type { UserRole } from '@/entities/user/model/authStore';
 const {
   mockUseJob,
   mockUseJobNotes,
+  mockUseJobPhotos,
   mockCreateNote,
   mockFireTransition,
   mockSetQueryData,
@@ -22,6 +23,7 @@ const {
 } = vi.hoisted(() => ({
   mockUseJob:            vi.fn(),
   mockUseJobNotes:       vi.fn(),
+  mockUseJobPhotos:      vi.fn(),
   mockCreateNote:        vi.fn(),
   mockFireTransition:    vi.fn(),
   mockSetQueryData:      vi.fn(),
@@ -35,6 +37,7 @@ const {
 vi.mock('@/entities/job/api/jobsApi', () => ({
   useJob:         mockUseJob,
   useJobNotes:    mockUseJobNotes,
+  useJobPhotos:   mockUseJobPhotos,
   createNote:     mockCreateNote,
   fireTransition: mockFireTransition,
 }));
@@ -106,6 +109,19 @@ function makeNote(overrides: Partial<JobNoteResponse> = {}): JobNoteResponse {
   };
 }
 
+function makePhoto(overrides: Partial<JobPhotoResponse> = {}): JobPhotoResponse {
+  return {
+    id: 'photo-1',
+    jobId: 'job-123',
+    objectKey: 'tenant/jobs/job-123/abc.jpg',
+    contentType: 'image/jpeg',
+    sizeBytes: 1024,
+    createdAt: '2026-06-01T12:00:00Z',
+    downloadUrl: 'https://example.com/photo.jpg?sig=abc',
+    ...overrides,
+  };
+}
+
 function makeUser(role: UserRole, id = 'user-42') {
   return { id, tenantId: 'tenant-1', role };
 }
@@ -118,6 +134,14 @@ function mockJobSuccess(job: JobResponse) {
 
 function mockNotesSuccess(notes: JobNoteResponse[]) {
   mockUseJobNotes.mockReturnValue({ data: notes, isLoading: false });
+}
+
+function mockPhotosSuccess(photos: JobPhotoResponse[]) {
+  mockUseJobPhotos.mockReturnValue({ data: photos, isLoading: false });
+}
+
+function mockPhotosEmpty() {
+  mockUseJobPhotos.mockReturnValue({ data: [], isLoading: false });
 }
 
 function setUser(role: UserRole, id = 'user-42') {
@@ -141,6 +165,7 @@ describe('JobDetailPage', () => {
     vi.clearAllMocks();
     mockUseParams.mockReturnValue({ id: 'job-123' });
     mockInvalidateQueries.mockResolvedValue(undefined);
+    mockPhotosEmpty();
   });
 
   // ── Loading state ─────────────────────────────────────────────────────────
@@ -148,6 +173,7 @@ describe('JobDetailPage', () => {
   it('shows skeleton while loading', () => {
     mockUseJob.mockReturnValue({ data: undefined, isLoading: true, isError: false });
     mockUseJobNotes.mockReturnValue({ data: [], isLoading: true });
+    mockUseJobPhotos.mockReturnValue({ data: [], isLoading: true });
     setUser('ADMIN');
     renderPage();
     expect(screen.getByTestId('job-loading-skeleton')).toBeInTheDocument();
@@ -359,16 +385,45 @@ describe('JobDetailPage', () => {
     expect(restored?.status).toBe('SUBMITTED');
   });
 
-  // ── Placeholders ─────────────────────────────────────────────────────────
+  // ── Photos (TASK-123) ─────────────────────────────────────────────────────
 
-  it('shows photos placeholder (TO-DO)', () => {
+  it('shows empty photos state when job has no photos', () => {
     mockJobSuccess(makeJob());
     mockNotesSuccess([]);
+    mockPhotosEmpty();
     setUser('ADMIN');
     renderPage();
-    expect(screen.getByTestId('photos-placeholder')).toBeInTheDocument();
-    expect(screen.getByTestId('photos-placeholder')).toHaveTextContent(/photos will appear here/i);
+    expect(screen.getByTestId('photos-empty')).toBeInTheDocument();
+    expect(screen.getByText('No photos yet')).toBeInTheDocument();
   });
+
+  it('renders photo thumbnail grid when photos exist', () => {
+    mockJobSuccess(makeJob());
+    mockNotesSuccess([]);
+    mockPhotosSuccess([makePhoto()]);
+    setUser('ADMIN');
+    renderPage();
+    expect(screen.getByTestId('photos-grid')).toBeInTheDocument();
+    expect(screen.getByTestId('photo-thumb-photo-1')).toBeInTheDocument();
+  });
+
+  it('opens lightbox with full image when thumbnail is clicked', async () => {
+    mockJobSuccess(makeJob());
+    mockNotesSuccess([]);
+    mockPhotosSuccess([makePhoto()]);
+    setUser('ADMIN');
+    renderPage();
+
+    await userEvent.click(screen.getByTestId('photo-thumb-photo-1'));
+
+    expect(screen.getByTestId('photo-lightbox')).toBeInTheDocument();
+    expect(screen.getByTestId('photo-lightbox-image')).toHaveAttribute(
+      'src',
+      'https://example.com/photo.jpg?sig=abc',
+    );
+  });
+
+  // ── Status history placeholder ────────────────────────────────────────────
 
   it('shows status history placeholder (TO-DO)', () => {
     mockJobSuccess(makeJob());

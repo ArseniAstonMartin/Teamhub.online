@@ -15,13 +15,19 @@ import {
   AlertCircle,
   ImageIcon,
   History,
+  Upload,
 } from 'lucide-react';
 
-import { useJob, useJobNotes, createNote, fireTransition } from '@/entities/job/api/jobsApi';
-import type { JobNoteResponse, JobResponse, JobStatus } from '@/entities/job/model/types';
+import { useJob, useJobNotes, useJobPhotos, createNote, fireTransition } from '@/entities/job/api/jobsApi';
+import type { JobNoteResponse, JobPhotoResponse, JobResponse, JobStatus } from '@/entities/job/model/types';
 import { TRANSITIONS_FROM, type TransitionAction } from '@/entities/job/model/transitions';
 import { useAuthStore } from '@/entities/user/model/authStore';
 import { Button } from '@/shared/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from '@/shared/ui/dialog';
 import { cn } from '@/shared/lib/utils';
 
 // ── Status config ─────────────────────────────────────────────────────────────
@@ -100,9 +106,11 @@ export default function JobDetailPage() {
   const [noteText, setNoteText] = useState('');
   const [isSubmittingNote, setIsSubmittingNote] = useState(false);
   const [pendingTransition, setPendingTransition] = useState<string | null>(null);
+  const [lightboxPhoto, setLightboxPhoto] = useState<JobPhotoResponse | null>(null);
 
   const { data: job, isLoading: jobLoading, isError: jobError } = useJob(id);
   const { data: notes = [], isLoading: notesLoading } = useJobNotes(id);
+  const { data: photos = [], isLoading: photosLoading } = useJobPhotos(id);
 
   // ── Action buttons — only allowed role+state combos (AC2) ────────────────
 
@@ -376,19 +384,85 @@ export default function JobDetailPage() {
             )}
           </section>
 
-          {/* Photos placeholder — TO-DO when GET /api/v1/jobs/{id}/photos is available (PRD §14) */}
+          {/* Photos (PRD §14.2; TASK-123) */}
           <section
-            className="rounded-lg border border-border border-dashed bg-brand-surface p-6 text-center space-y-2"
+            className="rounded-lg border border-border bg-brand-surface p-4 space-y-4"
             aria-label="Photos"
-            data-testid="photos-placeholder"
+            data-testid="photos-section"
           >
-            <ImageIcon className="mx-auto size-8 text-gray-300" aria-hidden="true" />
-            <p className="text-sm text-brand-muted font-medium">Photos</p>
-            <p className="text-xs text-brand-muted">
-              {/* TO-DO: implement thumbnail grid + lightbox when GET /api/v1/jobs/{id}/photos is available */}
-              Photos will appear here once the photos endpoint is available.
-            </p>
+            <h2 className="text-sm font-semibold text-brand-navy">Photos</h2>
+
+            {photosLoading && (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 animate-pulse" data-testid="photos-loading">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="aspect-square rounded-md bg-gray-100" />
+                ))}
+              </div>
+            )}
+
+            {!photosLoading && photos.length === 0 && (
+              <div
+                className="flex flex-col items-center gap-2 py-8 text-center"
+                data-testid="photos-empty"
+              >
+                <Upload className="size-8 text-gray-300" aria-hidden="true" />
+                <p className="text-sm text-brand-muted">No photos yet</p>
+              </div>
+            )}
+
+            {!photosLoading && photos.length > 0 && (
+              <ul
+                className="grid grid-cols-3 sm:grid-cols-4 gap-2"
+                aria-label="Photo thumbnails"
+                data-testid="photos-grid"
+              >
+                {photos.map((photo) => (
+                  <li key={photo.id}>
+                    <button
+                      type="button"
+                      className="group relative aspect-square w-full overflow-hidden rounded-md border border-border bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      data-testid={`photo-thumb-${photo.id}`}
+                      aria-label="View photo"
+                      onClick={() => setLightboxPhoto(photo)}
+                    >
+                      {photo.downloadUrl ? (
+                        <img
+                          src={photo.downloadUrl}
+                          alt=""
+                          className="size-full object-cover transition-transform group-hover:scale-105"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="flex size-full items-center justify-center">
+                          <ImageIcon className="size-6 text-gray-300" aria-hidden="true" />
+                        </div>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
+
+          <Dialog
+            open={lightboxPhoto !== null}
+            onOpenChange={(open) => { if (!open) setLightboxPhoto(null); }}
+          >
+            <DialogContent
+              className="max-w-4xl border-none bg-transparent p-2 shadow-none sm:max-w-5xl"
+              data-testid="photo-lightbox"
+            >
+              <DialogTitle className="sr-only">Photo preview</DialogTitle>
+              {lightboxPhoto?.downloadUrl && (
+                <img
+                  src={lightboxPhoto.downloadUrl}
+                  alt=""
+                  className="mx-auto max-h-[85vh] w-auto max-w-full rounded-md object-contain"
+                  data-testid="photo-lightbox-image"
+                />
+              )}
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* ── SIDEBAR ── */}

@@ -68,6 +68,17 @@ export interface JobNoteResponse {
   createdAt: string;
 }
 
+/** Shape returned by GET /api/v1/jobs/{id}/photos (PRD §14.2; TASK-123). */
+export interface JobPhotoResponse {
+  id: string;
+  jobId: string;
+  objectKey: string;
+  contentType: string;
+  sizeBytes: number;
+  createdAt: string;
+  downloadUrl: string | null;
+}
+
 export interface JobsQueryParams {
   status?: JobStatus;
   customerId?: string;
