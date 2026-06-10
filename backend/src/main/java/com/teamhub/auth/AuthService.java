@@ -123,6 +123,7 @@ public class AuthService {
       throw new InvalidCredentialsException();
     }
 
+    recordLastLogin(user);
     IssuedTokens tokens = issueTokens(user);
     asyncAuditService.recordAsync(
         buildLoginSuccessEntry(user.getTenant().getId(), user.getId(), sourceIp));
@@ -141,6 +142,7 @@ public class AuthService {
    */
   @Transactional
   public IssuedTokens issueTokensFor(User user) {
+    recordLastLogin(user);
     return issueTokens(user);
   }
 
@@ -276,6 +278,11 @@ public class AuthService {
   // -------------------------------------------------------------------------
   // Private helpers
   // -------------------------------------------------------------------------
+
+  private void recordLastLogin(User user) {
+    user.setLastLoginAt(Instant.now());
+    userRepository.save(user);
+  }
 
   private IssuedTokens issueTokens(User user) {
     JwtService.AccessToken access = jwtService.issue(user);

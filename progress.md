@@ -2321,3 +2321,15 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Open TO-DOs created (with PRD reference): non-Admin users do not fetch `GET /api/v1/tenant` — sidebar/header team name visible to Admin only until a read path exists for all roles (PRD §5.2)
 - Commits: 86b9053
 - Completed through TASK-128 (feat/missing-apis-refactor)
+
+### 2026-06-10 — TASK-129 — User last_login_at + Last seen column
+- Agent: Composer
+- Status change: pending → done
+- PRD sections consulted: §5.2, §6.1, §6.2
+- Files touched: backend/src/main/resources/db/migration/V33__user_last_login_at.sql, backend/src/main/java/com/teamhub/auth/User.java, AuthService.java, backend/src/main/java/com/teamhub/auth/dto/UserResponse.java, backend/src/test/java/com/teamhub/auth/UserLastLoginIT.java, AuthServiceIT.java, GoogleOAuth2IT.java, web/src/entities/user/model/userTypes.ts, web/src/pages/settings-users/ui/SettingsUsersPage.tsx, SettingsUsersPage.test.tsx, tasks.json, progress.md
+- Summary: Added nullable `last_login_at` on `users` (Flyway V33). `AuthService.login()` and `issueTokensFor()` (OAuth) set `lastLoginAt = now()`; token refresh does not. `UserResponse` and `GET /api/v1/users` expose `lastLoginAt`. Settings → Users table adds a "Last seen" column with relative time via date-fns, or "Never" when null.
+- Acceptance criteria verified: 1 (V33 migration `last_login_at timestamptz`), 2 (`recordLastLogin` in login + issueTokensFor/OAuth), 3 (`UserResponse.lastLoginAt` on list endpoint), 4 (SettingsUsersPage Last seen column)
+- Test steps run: Step 1 (`step1_loginThenListUsers_lastLoginAtWithinFiveSeconds`) — passed; Step 2 (`step2_neverLoggedInUser_lastLoginAtIsNull` + `shows Never in last seen column when lastLoginAt is null`) — passed; Step 3 (`shows relative last seen when lastLoginAt is set`) — passed
+- Open TO-DOs created (with PRD reference): none
+- Commits: e6a3197
+- Completed through TASK-129 (feat/missing-apis-refactor)

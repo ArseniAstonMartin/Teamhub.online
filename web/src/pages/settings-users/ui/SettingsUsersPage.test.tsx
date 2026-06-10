@@ -117,6 +117,7 @@ function makeUser(overrides: Partial<UserResponse> = {}): UserResponse {
     role: 'ADMIN',
     deactivatedAt: null,
     createdAt: '2026-01-15T10:00:00Z',
+    lastLoginAt: null,
     ...overrides,
   };
 }
@@ -385,7 +386,33 @@ describe('SettingsUsersPage', () => {
     );
   });
 
-  // ── 10. Non-admin sees no page (redirected) ───────────────────────────────
+  // ── 10. Last seen column ──────────────────────────────────────────────────
+  it('shows relative last seen when lastLoginAt is set', () => {
+    const recentLogin = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    const users = [
+      makeUser({ email: 'active@example.com', lastLoginAt: recentLogin }),
+    ];
+    mockUseUsers.mockReturnValue({ data: makePageResponse(users), isLoading: false, isError: false });
+
+    renderPage();
+
+    expect(screen.getByText('Last seen')).toBeInTheDocument();
+    expect(screen.getByText(/minutes ago/i)).toBeInTheDocument();
+  });
+
+  it('shows Never in last seen column when lastLoginAt is null', () => {
+    const users = [
+      makeUser({ email: 'never@example.com', lastLoginAt: null }),
+    ];
+    mockUseUsers.mockReturnValue({ data: makePageResponse(users), isLoading: false, isError: false });
+
+    renderPage();
+
+    const row = screen.getByText('never@example.com').closest('tr')!;
+    expect(within(row).getByText('Never')).toBeInTheDocument();
+  });
+
+  // ── 11. Non-admin sees no page (redirected) ───────────────────────────────
   it('redirects non-admin users away from the page', () => {
     setupNonAdminUser('DISPATCHER');
     mockUseUsers.mockReturnValue({ data: undefined, isLoading: false, isError: false });

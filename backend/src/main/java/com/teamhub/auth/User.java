@@ -57,6 +57,9 @@ public class User {
   @Column(name = "created_at", nullable = false, updatable = false)
   private Instant createdAt = Instant.now();
 
+  @Column(name = "last_login_at")
+  private Instant lastLoginAt;
+
   public User(Tenant tenant, String email, UserRole role, String name) {
     this.tenant = tenant;
     this.email = email;

@@ -7,6 +7,8 @@ export interface UserResponse {
   /** null = active user; non-null = deactivated */
   deactivatedAt: string | null;
   createdAt: string;
+  /** null when the user has never logged in */
+  lastLoginAt: string | null;
 }
 
 /** Spring Page<UserResponse> wrapper. */
