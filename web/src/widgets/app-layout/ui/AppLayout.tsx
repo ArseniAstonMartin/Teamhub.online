@@ -68,9 +68,8 @@ export default function AppLayout() {
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
   const isInSettings = useMatch('/settings/*');
-  const { data: tenant } = useTenant({ enabled: role === 'ADMIN' });
-
   const role = user?.role ?? 'TECHNICIAN';
+  const { data: tenant } = useTenant({ enabled: role === 'ADMIN' });
 
   const visibleItems = NAV_ITEMS.filter((item) =>
     item.allowedRoles.includes(role),
