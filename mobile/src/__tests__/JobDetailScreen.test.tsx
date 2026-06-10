@@ -118,6 +118,7 @@ function renderScreen() {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 describe('JobDetailScreen', () => {
   beforeEach(() => {
+    jest.useFakeTimers();
     jest.clearAllMocks();
     mockGet.mockImplementation((url: string) => {
       if (url === '/api/v1/jobs/job-uuid-1234') {
@@ -133,10 +134,15 @@ describe('JobDetailScreen', () => {
     });
   });
 
+  afterEach(() => {
+    jest.clearAllTimers();
+    jest.useRealTimers();
+  });
+
   // 1. Renders job header with status badge
   it('renders job header with status badge', async () => {
     const { getByText } = renderScreen();
-    await waitFor(() => getByText(/JOB-UUID/i));
+    await waitFor(() => getByText('Job #JOB-UUID'));
     expect(getByText(/Assigned/i)).toBeTruthy();
   });
 

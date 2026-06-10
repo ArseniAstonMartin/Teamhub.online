@@ -132,7 +132,13 @@ function renderScreen() {
 
 describe('TASK-097 Job Transition Buttons', () => {
   beforeEach(() => {
+    jest.useFakeTimers();
     jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    jest.clearAllTimers();
+    jest.useRealTimers();
   });
 
   // 1. "Start the Job" calls startJob and optimistically updates status to IN_PROGRESS
