@@ -5,16 +5,13 @@ import { uploadPhoto } from '../upload/uploadPhoto';
 import { enqueuePhoto, getPendingPhotos, initPhotoQueue } from '../upload/photoQueue';
 
 jest.mock('expo-file-system/legacy', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  uploadAsync: jest.fn<any>().mockResolvedValue({ headers: { etag: '"abc123"' } }),
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  getInfoAsync: jest.fn<any>().mockResolvedValue({ size: 1024 * 1024, exists: true, isDirectory: false, uri: 'file://stripped.jpg' }),
+  uploadAsync: jest.fn<() => Promise<{ headers: { etag: string } }>>().mockResolvedValue({ headers: { etag: '"abc123"' } }),
+  getInfoAsync: jest.fn<() => Promise<unknown>>().mockResolvedValue({ size: 1024 * 1024, exists: true, isDirectory: false, uri: 'file://stripped.jpg' }),
   FileSystemUploadType: { BINARY_CONTENT: 0 },
 }));
 
 jest.mock('expo-image-manipulator', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  manipulateAsync: jest.fn<any>().mockResolvedValue({ uri: 'file://stripped.jpg', width: 1920, height: 1080 }),
+  manipulateAsync: jest.fn<() => Promise<unknown>>().mockResolvedValue({ uri: 'file://stripped.jpg', width: 1920, height: 1080 }),
   SaveFormat: { JPEG: 'JPEG' },
 }));
 
@@ -26,12 +23,9 @@ jest.mock('../api/client', () => ({
 
 // expo-sqlite is globally mocked in jest.setup.js
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mockPost = apiClient.post as jest.MockedFunction<any>;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mockGetInfoAsync = FileSystem.getInfoAsync as jest.MockedFunction<any>;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mockUploadAsync = FileSystem.uploadAsync as jest.MockedFunction<any>;
+const mockPost = apiClient.post as jest.MockedFunction<() => Promise<unknown>>;
+const mockGetInfoAsync = FileSystem.getInfoAsync as jest.MockedFunction<() => Promise<unknown>>;
+const mockUploadAsync = FileSystem.uploadAsync as jest.MockedFunction<() => Promise<unknown>>;
 
 const SMALL_SIZE = 1024 * 1024; // 1 MB — below 5 MB threshold
 const LARGE_SIZE = 6 * 1024 * 1024; // 6 MB — above 5 MB threshold

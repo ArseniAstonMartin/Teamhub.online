@@ -14,6 +14,7 @@ import ProfileScreen from '../screens/ProfileScreen';
 import JobDetailScreen from '../screens/JobDetailScreen';
 import AddNoteScreen from '../screens/AddNoteScreen';
 import AttachImageScreen from '../screens/AttachImageScreen';
+import CustomerDetailScreen from '../screens/CustomerDetailScreen';
 import AuthNavigator from './AuthNavigator';
 import { useAuthStore } from '../stores/authStore';
 import { loadRefreshToken, deleteRefreshToken } from '../utils/secureStore';
@@ -81,6 +82,11 @@ function AuthenticatedStack() {
         name="AttachImage"
         component={AttachImageScreen}
         options={{ headerShown: false, presentation: 'modal' }}
+      />
+      <Stack.Screen
+        name="CustomerDetail"
+        component={CustomerDetailScreen}
+        options={{ headerShown: false, presentation: 'card' }}
       />
     </Stack.Navigator>
   );

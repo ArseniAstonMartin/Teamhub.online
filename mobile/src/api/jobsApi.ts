@@ -182,6 +182,20 @@ export async function defineEta(jobId: string, etaMinutes: number): Promise<JobR
   return { ...data, inProgressSubstatus: 'ON_THE_WAY' };
 }
 
+export function useJobsByCustomer(customerId: string, page = 0, size = 10) {
+  return useQuery({
+    queryKey: ['jobsByCustomer', customerId, page],
+    queryFn: async () => {
+      const { data } = await apiClient.get<JobsPage>('/api/v1/jobs', {
+        params: { customerId, page, size },
+      });
+      return data;
+    },
+    enabled: Boolean(customerId),
+    staleTime: 60_000,
+  });
+}
+
 export async function requestPhotoUploadUrl(
   jobId: string,
   contentType: string,
