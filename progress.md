@@ -2283,5 +2283,5 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Acceptance criteria verified: 1 (`BillingStatusService.getStatus` + `GET /api/v1/billing/status`), 2 (`useBillingStatus` TanStack Query hook), 3 (Billing page `PlanCard` + `UsageBar` from live data), 4 (`Banners` payment-failed alert), 5 (80%/100% quota banners via `Banners`), 6 (Reports `period-tab-custom` enabled for TEAM/ENTERPRISE)
 - Test steps run: Step 1 (`step1_adminGetStatus_allFieldsPresent`) — passed; Step 2 (`renders plan card with usage bars when billing status is loaded`) — passed; Step 3 (`step3_paymentFailedAt_paymentFailedTrue` + `shows payment-failed banner when paymentFailed is true`) — passed; Step 4 (`enables Custom tab when billing plan is TEAM`) — passed
 - Open TO-DOs created (with PRD reference): none
-- Commits: 27cb3c9
+- Commits: 5c658ff
 - Completed through TASK-125 (feat/missing-apis-refactor)
