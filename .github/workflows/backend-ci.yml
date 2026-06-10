@@ -10,8 +10,8 @@
 #
 # Test tiers:
 #   - pull_request: unit tests only (@Tag("unit")) — fast feedback
-#   - push to main: full suite incl. @Tag("integration") — uses GHA service
-#     containers (Postgres/PostGIS, Redis, MinIO), not Testcontainers
+#   - push to main: full suite incl. @Tag("integration") — Postgres/Redis via GHA
+#     service containers; MinIO via docker run step (GHA services cannot pass CMD)
 #
 # Coverage:
 #   - jacocoTestReport runs in CI (feeds SonarCloud new-code gate)
@@ -67,19 +67,6 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-      minio:
-        image: minio/minio:latest
-        env:
-          MINIO_ROOT_USER: minioadmin
-          MINIO_ROOT_PASSWORD: minioadmin
-        ports:
-          - 9000:9000
-        options: >-
-          --health-cmd "curl -f http://localhost:9000/minio/health/live"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -102,6 +89,28 @@ jobs:
           key: gradle-${{ runner.os }}-${{ hashFiles('backend/build.gradle.kts', 'backend/settings.gradle.kts', 'backend/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
             gradle-${{ runner.os }}-
+
+      # GHA service containers cannot pass `server /data`; minio/minio exits with help text.
+      # Integration tests on main need MinIO — PRs skip integration and do not start it.
+      - name: Start MinIO for integration tests
+        if: github.event_name != 'pull_request'
+        run: |
+          docker run -d --name minio \
+            -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin \
+            -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio server /data --console-address ":9001"
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:9000/minio/health/live > /dev/null 2>&1; then
+              echo "MinIO is ready"
+              exit 0
+            fi
+            echo "Waiting for MinIO... ($i/30)"
+            sleep 2
+          done
+          echo "MinIO failed to start"
+          docker logs minio
+          exit 1
 
       - name: Spotless, Checkstyle, tests, JaCoCo report, SonarCloud
         working-directory: backend
