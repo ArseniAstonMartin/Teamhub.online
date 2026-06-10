@@ -3,11 +3,10 @@ package com.teamhub.storage;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.Bucket;
 
@@ -17,7 +16,7 @@ import software.amazon.awssdk.services.s3.model.Bucket;
  * TASK-050).
  */
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 class ObjectStorageConfigIT {
 
   @Autowired S3Client s3Client;

@@ -17,7 +17,7 @@ import com.stripe.net.RequestOptions;
 import com.stripe.param.CustomerCreateParams;
 import com.stripe.param.checkout.SessionCreateParams;
 import com.teamhub.auth.UserRepository;
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import com.teamhub.tenancy.InternalTenantService;
 import com.teamhub.tenancy.Tenant;
 import com.teamhub.tenancy.TenantRepository;
@@ -30,7 +30,6 @@ import org.mockito.MockedStatic;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
@@ -57,7 +56,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 @Transactional
 class BillingCheckoutIT {
 

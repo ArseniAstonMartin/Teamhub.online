@@ -2,7 +2,7 @@ package com.teamhub.eventing;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import com.teamhub.tenancy.InternalTenantService;
 import com.teamhub.tenancy.Tenant;
 import java.time.Instant;
@@ -16,7 +16,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -39,7 +38,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * LOCAL setting is transaction-scoped.
  */
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 class EventingTablesIT {
 
   @Autowired private InternalTenantService tenantService;

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 import java.util.UUID;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.Test;
  *
  * <p>No Spring context or database required — all assertions are on in-memory objects.
  */
+@Tag("unit")
 class AuditLogTest {
 
   private static final UUID TENANT = UUID.randomUUID();

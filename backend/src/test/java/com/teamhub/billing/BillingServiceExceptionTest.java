@@ -3,6 +3,7 @@ package com.teamhub.billing;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.stripe.exception.ApiConnectionException;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 
@@ -12,6 +13,7 @@ import org.springframework.http.HttpStatus;
  * <p>Validates both constructors: the two-arg variant (wrapping a {@link
  * com.stripe.exception.StripeException}) and the single-message variant.
  */
+@Tag("unit")
 class BillingServiceExceptionTest {
 
   @Test

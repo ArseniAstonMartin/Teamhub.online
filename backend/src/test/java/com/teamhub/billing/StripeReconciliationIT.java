@@ -16,7 +16,7 @@ import com.stripe.model.Subscription;
 import com.stripe.model.SubscriptionItem;
 import com.stripe.model.SubscriptionItemCollection;
 import com.stripe.net.RequestOptions;
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import com.teamhub.tenancy.Plan;
 import com.teamhub.tenancy.Tenant;
 import com.teamhub.tenancy.TenantRepository;
@@ -30,7 +30,6 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
@@ -51,7 +50,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
  * </ul>
  */
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 class StripeReconciliationIT {
 
   private static final String SUB_DRIFT = "sub_drift_test";

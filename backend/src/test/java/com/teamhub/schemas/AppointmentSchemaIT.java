@@ -3,7 +3,7 @@ package com.teamhub.schemas;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import com.teamhub.tenancy.InternalTenantService;
 import com.teamhub.tenancy.Tenant;
 import java.util.List;
@@ -12,7 +12,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -27,7 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
  * </ul>
  */
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 @Transactional
 class AppointmentSchemaIT {
 

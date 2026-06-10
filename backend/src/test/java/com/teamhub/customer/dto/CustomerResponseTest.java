@@ -4,12 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.teamhub.customer.Customer;
 import java.util.UUID;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.PrecisionModel;
 
 /** Unit tests for {@link CustomerResponse} DTO and its phone-masking logic (PRD §11.2). */
+@Tag("unit")
 class CustomerResponseTest {
 
   private static final GeometryFactory GF = new GeometryFactory(new PrecisionModel(), 4326);

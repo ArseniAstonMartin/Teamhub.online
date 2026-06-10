@@ -12,7 +12,7 @@ import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.teamhub.auth.dto.LoginRequest;
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import com.teamhub.tenancy.Tenant;
 import com.teamhub.tenancy.TenantRepository;
 import java.security.KeyPair;
@@ -26,7 +26,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
@@ -40,7 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
 /** End-to-end HTTP tests for the auth endpoints and JWT-protected security chain (TASK-019). */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 @Transactional
 class AuthControllerIT {
 

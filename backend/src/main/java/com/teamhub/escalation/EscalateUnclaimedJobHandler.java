@@ -141,6 +141,7 @@ public class EscalateUnclaimedJobHandler implements DelayedJobHandler {
     adminTokens.stream()
         .map(DeviceToken::getUserId)
         .distinct()
-        .forEach(adminUserId -> alertService.createJobNotHandledAlert(tenantId, adminUserId, jobId));
+        .forEach(
+            adminUserId -> alertService.createJobNotHandledAlert(tenantId, adminUserId, jobId));
   }
 }

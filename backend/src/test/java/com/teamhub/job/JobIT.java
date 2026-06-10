@@ -3,7 +3,7 @@ package com.teamhub.job;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import com.teamhub.customer.Customer;
 import com.teamhub.customer.CustomerRepository;
 import com.teamhub.schemas.AppointmentSchema;
@@ -20,7 +20,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -43,7 +42,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * Step 3 commits real transactions and cleans up in {@code @AfterEach}.
  */
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 class JobIT {
 
   private static final String SCHEMA_NAME = "Test Job Schema";

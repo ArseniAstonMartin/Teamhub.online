@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 import java.util.UUID;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Test;
  * {@link ProcessedEventId} equality/hash, and the {@link DelayedJobStatus} enum to ensure new-code
  * coverage exceeds the 80% Sonar gate.
  */
+@Tag("unit")
 class EventingEntityTest {
 
   // =========================================================================

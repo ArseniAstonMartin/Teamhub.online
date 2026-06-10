@@ -10,7 +10,7 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.teamhub.auth.User;
 import com.teamhub.auth.UserRole;
 import com.teamhub.auth.UserService;
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import com.teamhub.push.dto.RegisterDeviceRequest;
 import com.teamhub.push.dto.UnregisterDeviceRequest;
 import com.teamhub.tenancy.Tenant;
@@ -24,7 +24,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
@@ -50,7 +49,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 @Transactional
 class DeviceTokenIT {
 

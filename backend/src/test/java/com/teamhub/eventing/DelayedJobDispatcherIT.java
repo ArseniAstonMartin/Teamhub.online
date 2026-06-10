@@ -3,7 +3,7 @@ package com.teamhub.eventing;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import com.teamhub.shared.TenantContext;
 import com.teamhub.tenancy.InternalTenantService;
 import com.teamhub.tenancy.Tenant;
@@ -47,7 +47,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * for deterministic, fast test execution.
  */
 @SpringBootTest
-@Import({TestcontainersConfiguration.class, DelayedJobDispatcherIT.TestHandlers.class})
+@IntegrationTest
+@Import(DelayedJobDispatcherIT.TestHandlers.class)
 class DelayedJobDispatcherIT {
 
   // =========================================================================

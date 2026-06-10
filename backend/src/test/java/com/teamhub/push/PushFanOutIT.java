@@ -11,7 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.teamhub.auth.User;
 import com.teamhub.auth.UserRole;
 import com.teamhub.auth.UserService;
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import com.teamhub.eventing.OutboxPublisher;
 import com.teamhub.eventing.payloads.JobSubmitted;
 import com.teamhub.shared.TenantContext;
@@ -30,7 +30,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.mock.mockito.SpyBean;
-import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
@@ -54,7 +53,7 @@ import org.springframework.web.client.RestClient;
  * </ol>
  */
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class PushFanOutIT {
 

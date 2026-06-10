@@ -7,10 +7,12 @@ import io.sentry.Hint;
 import io.sentry.SentryEvent;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
 
 /** Unit tests for {@link SentryConfig#mdcTagsEventProcessor()} MDC tag attachment (TASK-012). */
+@Tag("unit")
 class SentryConfigTest {
 
   private EventProcessor processor;

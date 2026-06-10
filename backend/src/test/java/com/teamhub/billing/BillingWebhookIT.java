@@ -16,7 +16,7 @@ import com.stripe.model.Subscription;
 import com.stripe.model.SubscriptionItem;
 import com.stripe.model.SubscriptionItemCollection;
 import com.stripe.net.Webhook;
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import com.teamhub.tenancy.InternalTenantService;
 import com.teamhub.tenancy.Plan;
 import com.teamhub.tenancy.Tenant;
@@ -32,7 +32,6 @@ import org.mockito.MockedStatic;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -56,7 +55,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 @Transactional
 class BillingWebhookIT {
 

@@ -8,6 +8,16 @@
 #   pass before merging", search for and add the job named  `backend-ci`.
 #   This ensures no PR can land on main without passing all steps below.
 #
+# Test tiers:
+#   - pull_request: unit tests only (@Tag("unit")) — fast feedback
+#   - push to main: full suite incl. @Tag("integration") — uses GHA service
+#     containers (Postgres/PostGIS, Redis, MinIO), not Testcontainers
+#
+# Coverage:
+#   - jacocoTestReport runs in CI (feeds SonarCloud new-code gate)
+#   - jacocoTestCoverageVerification is NOT run in CI; run locally via
+#     `./gradlew jacocoTestCoverageVerification` when you need a full report
+#
 # =============================================================================
 
 name: Backend CI
@@ -57,6 +67,19 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      minio:
+        image: minio/minio:latest
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd "curl -f http://localhost:9000/minio/health/live"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -80,37 +103,28 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
-      - name: Spotless — check formatting
-        working-directory: backend
-        run: ./gradlew spotlessCheck --no-daemon
-
-      - name: Checkstyle — check style (main sources)
-        working-directory: backend
-        run: ./gradlew checkstyleMain --no-daemon
-
-      - name: Test + JaCoCo coverage report
+      - name: Spotless, Checkstyle, tests, JaCoCo report, SonarCloud
         working-directory: backend
         env:
+          SPRING_PROFILES_ACTIVE: ci
           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/teamhub_test
           SPRING_DATASOURCE_USERNAME: teamhub
           SPRING_DATASOURCE_PASSWORD: teamhub_secret
           SPRING_DATA_REDIS_HOST: localhost
           SPRING_DATA_REDIS_PORT: 6379
-          # Disable Testcontainers startup checks; actual containers come from
-          # the GitHub Actions service containers declared above.
+          MINIO_ENDPOINT: http://localhost:9000
+          MINIO_ACCESS_KEY: minioadmin
+          MINIO_SECRET_KEY: minioadmin
+          MINIO_BUCKET: teamhub
           TESTCONTAINERS_CHECKS_DISABLE: "true"
-        run: ./gradlew test jacocoTestReport --no-daemon
-
-      - name: Enforce 70 % line coverage (jacocoTestCoverageVerification)
-        working-directory: backend
-        env:
-          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/teamhub_test
-          SPRING_DATASOURCE_USERNAME: teamhub
-          SPRING_DATASOURCE_PASSWORD: teamhub_secret
-          SPRING_DATA_REDIS_HOST: localhost
-          SPRING_DATA_REDIS_PORT: 6379
-          TESTCONTAINERS_CHECKS_DISABLE: "true"
-        run: ./gradlew jacocoTestCoverageVerification --no-daemon
+          SONAR_TOKEN: ${{ secrets.TEAMHUB_SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          GRADLE_ARGS=""
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            GRADLE_ARGS="-PexcludeIntegration=true"
+          fi
+          ./gradlew spotlessCheck checkstyleMain test jacocoTestReport sonar --no-daemon $GRADLE_ARGS
 
       - name: Upload JaCoCo coverage report
         if: always()
@@ -125,13 +139,6 @@ jobs:
       # GitHub events). Go to:
       #   https://sonarcloud.io/project/administration?id=ArseniAstonMartin_Teamhub.online
       #   Administration → Analysis Method → turn off "Automatic Analysis".
-      - name: SonarCloud analysis
-        working-directory: backend
-        env:
-          SONAR_TOKEN: ${{ secrets.TEAMHUB_SONAR_TOKEN }}
-          # Expose GitHub context so the scanner decorates PRs and links commits.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./gradlew sonar --no-daemon
 
       - name: Scan for secrets (gitleaks)
         uses: gitleaks/gitleaks-action@v2

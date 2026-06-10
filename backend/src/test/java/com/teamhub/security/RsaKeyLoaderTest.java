@@ -9,10 +9,12 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.time.Duration;
 import java.util.Base64;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /** Verifies RS256 key loading from PEM paths and the ephemeral fallback (PRD §6.2, TASK-019). */
+@Tag("unit")
 class RsaKeyLoaderTest {
 
   @Test

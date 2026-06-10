@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import com.teamhub.eventing.OutboxPublisher;
 import com.teamhub.eventing.payloads.JobClaimed;
 import com.teamhub.eventing.payloads.JobCompleted;
@@ -26,7 +26,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -56,7 +55,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * completeness (PRD §19.2, Sonar ≥ 80%).
  */
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 class AuditEventConsumerIT {
 
   @Autowired private OutboxPublisher publisher;

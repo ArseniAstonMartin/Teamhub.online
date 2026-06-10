@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.Test;
  *
  * <p>Uses {@link SimpleMeterRegistry} — no Spring context required.
  */
+@Tag("unit")
 class JobMetricsTest {
 
   private SimpleMeterRegistry registry;

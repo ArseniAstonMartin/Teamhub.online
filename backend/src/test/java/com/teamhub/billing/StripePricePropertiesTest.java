@@ -2,6 +2,7 @@ package com.teamhub.billing;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
@@ -13,6 +14,7 @@ import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
  * <p>Uses {@link ApplicationContextRunner} so the test does not spin up the full Spring context
  * (avoiding the need for real external services such as Postgres, Redis, or Stripe).
  */
+@Tag("unit")
 class StripePricePropertiesTest {
 
   private final ApplicationContextRunner contextRunner =

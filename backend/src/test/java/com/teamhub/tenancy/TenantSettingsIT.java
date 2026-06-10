@@ -12,7 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.teamhub.auth.UserRepository;
 import com.teamhub.auth.UserRole;
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import com.teamhub.customer.Customer;
 import com.teamhub.customer.CustomerRepository;
 import com.teamhub.job.CloseJobsDisabledException;
@@ -36,7 +36,6 @@ import org.locationtech.jts.geom.PrecisionModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
@@ -64,7 +63,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 class TenantSettingsIT {
 
   private static final String SETTINGS_URL = "/api/v1/tenant/settings";

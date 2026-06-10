@@ -10,7 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.teamhub.auth.User;
 import com.teamhub.auth.UserRole;
 import com.teamhub.auth.UserService;
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import com.teamhub.eventing.payloads.JobClaimed;
 import com.teamhub.shared.TenantContext;
 import com.teamhub.tenancy.InternalTenantService;
@@ -30,7 +30,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -50,7 +49,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * </ol>
  */
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 class SilentPushIT {
 
   @MockBean private ExpoPushClient expoPushClient;

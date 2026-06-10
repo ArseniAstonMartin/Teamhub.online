@@ -7,6 +7,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -21,6 +22,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * Postgres instance.
  */
 @ExtendWith(MockitoExtension.class)
+@Tag("unit")
 class MaterializedViewRefreshJobUnitTest {
 
   @Mock private JdbcTemplate jdbc;

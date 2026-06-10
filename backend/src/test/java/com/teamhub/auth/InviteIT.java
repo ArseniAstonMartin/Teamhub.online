@@ -13,7 +13,7 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.teamhub.auth.dto.AcceptInviteRequest;
 import com.teamhub.auth.dto.CreateInviteRequest;
 import com.teamhub.auth.dto.LoginRequest;
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import com.teamhub.eventing.OutboxEventRepository;
 import com.teamhub.tenancy.Plan;
 import com.teamhub.tenancy.Tenant;
@@ -30,7 +30,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mail.SimpleMailMessage;
@@ -53,7 +52,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 @Transactional
 @TestMethodOrder(MethodOrderer.MethodName.class)
 class InviteIT {

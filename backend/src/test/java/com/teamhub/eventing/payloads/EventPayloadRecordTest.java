@@ -10,6 +10,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.Test;
  * forward-compatibility (unknown fields do not throw), and append-only evolution (old payload
  * without a new field deserializes successfully with the field null/default).
  */
+@Tag("unit")
 class EventPayloadRecordTest {
 
   private ObjectMapper mapper;

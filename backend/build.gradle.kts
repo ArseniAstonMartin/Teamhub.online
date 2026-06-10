@@ -103,7 +103,13 @@ checkstyle {
 }
 
 tasks.withType<Test> {
-  useJUnitPlatform()
+  useJUnitPlatform {
+    // CI PRs: ./gradlew test -PexcludeIntegration=true  (unit/@Tag("unit") only)
+    // CI main:  ./gradlew test                         (full suite incl. @Tag("integration"))
+    if (project.findProperty("excludeIntegration") == "true") {
+      excludeTags("integration")
+    }
+  }
   finalizedBy(tasks.jacocoTestReport)
 }
 
@@ -140,6 +146,8 @@ tasks.jacocoTestCoverageVerification {
   }
 }
 
+// JaCoCo coverage gate is enforced by SonarCloud (new-code quality gate) in CI.
+// Run `./gradlew jacocoTestCoverageVerification` locally for a full line-coverage report.
 tasks.check {
   dependsOn(tasks.jacocoTestCoverageVerification)
 }

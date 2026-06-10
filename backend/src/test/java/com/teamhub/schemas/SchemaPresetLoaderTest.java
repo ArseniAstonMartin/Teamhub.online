@@ -8,6 +8,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.InputStream;
 import java.util.List;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -21,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  * Spring context or a database.
  */
 @ExtendWith(MockitoExtension.class)
+@Tag("unit")
 class SchemaPresetLoaderTest {
 
   @Mock private ObjectMapper objectMapper;

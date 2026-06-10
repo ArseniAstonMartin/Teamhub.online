@@ -2,13 +2,12 @@ package com.teamhub.security.rbac;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 
 /**
  * Verifies the seeded role -> permission model (TASK-023 acceptance criteria 1, 2, 4 and test step
@@ -16,7 +15,7 @@ import org.springframework.context.annotation.Import;
  * admin-only/dispatcher-only sensitivities from PRD §5.3 hold.
  */
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 class PermissionResolverIT {
 
   @Autowired private PermissionResolver permissionResolver;

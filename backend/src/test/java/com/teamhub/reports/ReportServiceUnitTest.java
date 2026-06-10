@@ -18,6 +18,7 @@ import com.teamhub.reports.dto.JobCountsResponse;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -32,6 +33,7 @@ import org.springframework.data.redis.core.ValueOperations;
  * <p>All collaborators are mocked so no Testcontainers or Spring context is needed.
  */
 @ExtendWith(MockitoExtension.class)
+@Tag("unit")
 class ReportServiceUnitTest {
 
   @Mock private ReportRepository reportRepository;

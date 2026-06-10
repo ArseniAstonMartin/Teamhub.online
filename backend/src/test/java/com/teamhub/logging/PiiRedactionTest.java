@@ -5,9 +5,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import ch.qos.logback.classic.spi.ILoggingEvent;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /** Unit tests for PII redaction rules (PRD §24.6, TASK-013 acceptance criterion 3). */
+@Tag("unit")
 class PiiRedactionTest {
 
   private final PiiRedactingConverter converter = new PiiRedactingConverter();

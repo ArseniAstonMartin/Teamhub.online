@@ -3,7 +3,7 @@ package com.teamhub.customer;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import com.teamhub.tenancy.InternalTenantService;
 import com.teamhub.tenancy.Tenant;
 import jakarta.persistence.EntityManager;
@@ -18,7 +18,6 @@ import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.PrecisionModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,7 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
  * Spring-managed transaction (same pattern as {@code RowLevelSecurityIT}).
  */
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 @Transactional
 class CustomerIT {
 

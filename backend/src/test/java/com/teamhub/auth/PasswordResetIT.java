@@ -12,7 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.teamhub.auth.dto.ForgotPasswordRequest;
 import com.teamhub.auth.dto.LoginRequest;
 import com.teamhub.auth.dto.ResetPasswordRequest;
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import com.teamhub.tenancy.Tenant;
 import com.teamhub.tenancy.TenantRepository;
 import java.util.concurrent.atomic.AtomicReference;
@@ -24,7 +24,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mail.SimpleMailMessage;
@@ -40,7 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 @Transactional
 @TestMethodOrder(MethodOrderer.MethodName.class)
 class PasswordResetIT {

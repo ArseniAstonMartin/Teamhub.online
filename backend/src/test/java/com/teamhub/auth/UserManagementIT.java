@@ -11,7 +11,7 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.teamhub.auth.dto.ChangeRoleRequest;
 import com.teamhub.auth.dto.LoginRequest;
 import com.teamhub.auth.dto.RefreshRequest;
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import com.teamhub.tenancy.Tenant;
 import com.teamhub.tenancy.TenantRepository;
 import java.time.Instant;
@@ -22,7 +22,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
@@ -47,7 +46,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 @Transactional
 class UserManagementIT {
 

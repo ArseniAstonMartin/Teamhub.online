@@ -6,17 +6,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.teamhub.auth.User;
 import com.teamhub.auth.UserRepository;
 import com.teamhub.auth.UserRole;
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 @Transactional
 class InternalTenantServiceIT {
 

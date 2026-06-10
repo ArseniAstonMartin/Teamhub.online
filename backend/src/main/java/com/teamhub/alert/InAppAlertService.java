@@ -11,8 +11,8 @@ import org.springframework.web.server.ResponseStatusException;
 /**
  * Business logic for in-app alert banners (PRD §28, TASK-118).
  *
- * <p>Alerts are created by {@link com.teamhub.escalation.EscalateUnclaimedJobHandler} and
- * dismissed by the authenticated Admin through {@code POST /api/v1/alerts/{id}/dismiss}.
+ * <p>Alerts are created by {@link com.teamhub.escalation.EscalateUnclaimedJobHandler} and dismissed
+ * by the authenticated Admin through {@code POST /api/v1/alerts/{id}/dismiss}.
  */
 @Service
 @Transactional
@@ -36,13 +36,12 @@ public class InAppAlertService {
   }
 
   /**
-   * Marks the alert as dismissed. Throws {@code 404} if the alert does not exist and {@code 403}
-   * if the caller is not the alert's owner.
+   * Marks the alert as dismissed. Throws {@code 404} if the alert does not exist and {@code 403} if
+   * the caller is not the alert's owner.
    */
   public void dismiss(UUID alertId, UUID userId) {
     InAppAlert alert =
-        repo.findById(alertId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        repo.findById(alertId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     if (!alert.getUserId().equals(userId)) {
       throw new ResponseStatusException(HttpStatus.FORBIDDEN);
     }

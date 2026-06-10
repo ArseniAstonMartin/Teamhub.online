@@ -2,7 +2,7 @@ package com.teamhub.eventing;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import com.teamhub.shared.TenantContext;
 import com.teamhub.tenancy.InternalTenantService;
 import com.teamhub.tenancy.Tenant;
@@ -16,7 +16,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Range;
 import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.PendingMessages;
@@ -49,7 +48,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * from other test classes cannot pollute the assertions.
  */
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 @SuppressWarnings("unchecked")
 class AbstractOutboxConsumerIT {
 

@@ -8,7 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.nimbusds.jose.jwk.RSAKey;
 import com.teamhub.auth.UserRole;
 import com.teamhub.billing.PlanFeatureLockedException;
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import com.teamhub.customer.Customer;
 import com.teamhub.customer.CustomerRepository;
 import com.teamhub.tenancy.InternalTenantService;
@@ -27,7 +27,6 @@ import org.locationtech.jts.geom.PrecisionModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
@@ -53,7 +52,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 class ReportIT {
 
   private static final String BASE_URL = "/api/v1/reports";

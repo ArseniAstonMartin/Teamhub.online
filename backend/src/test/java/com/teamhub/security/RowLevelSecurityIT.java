@@ -2,7 +2,7 @@ package com.teamhub.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import com.teamhub.tenancy.InternalTenantService;
 import com.teamhub.tenancy.Tenant;
 import jakarta.persistence.EntityManager;
@@ -12,7 +12,6 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,7 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
  * transaction-bound connection, so the flushed rows are visible to subsequent native SQL queries.
  */
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 @Transactional
 class RowLevelSecurityIT {
 

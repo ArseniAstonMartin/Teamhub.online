@@ -9,7 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import com.teamhub.exception.ErrorEnvelopeTestController.ValidatedRequest;
 import com.teamhub.security.RestAuthenticationEntryPoint;
 import org.junit.jupiter.api.Test;
@@ -34,7 +34,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import({TestcontainersConfiguration.class, ErrorEnvelopeTestController.class})
+@IntegrationTest
+@Import(ErrorEnvelopeTestController.class)
 @Transactional
 class GlobalExceptionHandlerIT {
 

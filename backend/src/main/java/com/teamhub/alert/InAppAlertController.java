@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
  * REST endpoints for in-app alert banners (PRD §28, TASK-118).
  *
  * <ul>
- *   <li>{@code GET  /api/v1/alerts}          — pending (undismissed) alerts for the caller
+ *   <li>{@code GET /api/v1/alerts} — pending (undismissed) alerts for the caller
  *   <li>{@code POST /api/v1/alerts/{id}/dismiss} — dismiss a specific alert
  * </ul>
  */
@@ -40,8 +40,7 @@ public class InAppAlertController {
 
   @PostMapping("/{id}/dismiss")
   @PreAuthorize("hasAuthority('PERM_alert.read')")
-  public ResponseEntity<Void> dismiss(
-      @PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+  public ResponseEntity<Void> dismiss(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
     service.dismiss(id, UUID.fromString(jwt.getSubject()));
     return ResponseEntity.noContent().build();
   }

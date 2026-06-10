@@ -3,7 +3,7 @@ package com.teamhub.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.teamhub.config.TestcontainersConfiguration;
+import com.teamhub.config.IntegrationTest;
 import com.teamhub.tenancy.Tenant;
 import com.teamhub.tenancy.TenantRepository;
 import java.nio.charset.StandardCharsets;
@@ -16,14 +16,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Verifies the password-login, refresh-rotation, and logout flows (PRD §6.2, TASK-019). */
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 @Transactional
 class AuthServiceIT {
 
