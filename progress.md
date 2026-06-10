@@ -2331,5 +2331,5 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Acceptance criteria verified: 1 (V33 migration `last_login_at timestamptz`), 2 (`recordLastLogin` in login + issueTokensFor/OAuth), 3 (`UserResponse.lastLoginAt` on list endpoint), 4 (SettingsUsersPage Last seen column)
 - Test steps run: Step 1 (`step1_loginThenListUsers_lastLoginAtWithinFiveSeconds`) — passed; Step 2 (`step2_neverLoggedInUser_lastLoginAtIsNull` + `shows Never in last seen column when lastLoginAt is null`) — passed; Step 3 (`shows relative last seen when lastLoginAt is set`) — passed
 - Open TO-DOs created (with PRD reference): none
-- Commits: e6a3197
+- Commits: 0fbcbb5
 - Completed through TASK-129 (feat/missing-apis-refactor)
