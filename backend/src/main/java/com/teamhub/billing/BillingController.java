@@ -1,6 +1,7 @@
 package com.teamhub.billing;
 
 import com.stripe.exception.SignatureVerificationException;
+import com.teamhub.billing.dto.BillingStatusResponse;
 import com.teamhub.billing.dto.CheckoutSessionResponse;
 import com.teamhub.billing.dto.PortalSessionResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -10,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -33,12 +35,31 @@ public class BillingController {
 
   private final BillingService billingService;
 
+  private final BillingStatusService billingStatusService;
+
   private final WebhookHandlerService webhookHandlerService;
 
   public BillingController(
-      BillingService billingService, WebhookHandlerService webhookHandlerService) {
+      BillingService billingService,
+      BillingStatusService billingStatusService,
+      WebhookHandlerService webhookHandlerService) {
     this.billingService = billingService;
+    this.billingStatusService = billingStatusService;
     this.webhookHandlerService = webhookHandlerService;
+  }
+
+  /**
+   * Returns the tenant's current plan, usage counters, and payment state (PRD §17, TASK-125).
+   *
+   * @return 200 with plan, periodEnd, paymentFailed, paymentFailedAt, jobsThisPeriod, seats
+   */
+  @GetMapping("/status")
+  @PreAuthorize("hasAuthority('PERM_billing.manage')")
+  @Operation(summary = "Get tenant billing status and quota usage")
+  public ResponseEntity<BillingStatusResponse> getStatus(Authentication authentication) {
+    JwtAuthenticationToken jwtAuth = (JwtAuthenticationToken) authentication;
+    UUID tenantId = UUID.fromString(jwtAuth.getToken().getClaimAsString("tenant_id"));
+    return ResponseEntity.ok(billingStatusService.getStatus(tenantId));
   }
 
   /**

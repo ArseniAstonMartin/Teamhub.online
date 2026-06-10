@@ -72,6 +72,23 @@ vi.mock('@/entities/report/api/reportsApi', () => ({
   usePerTechnician: mockUsePerTechnician,
 }));
 
+const { mockUseBillingStatus } = vi.hoisted(() => ({
+  mockUseBillingStatus: vi.fn(),
+}));
+
+vi.mock('@/entities/billing/api/billingApi', () => ({
+  useBillingStatus: mockUseBillingStatus,
+}));
+
+const { mockUseAuthStore } = vi.hoisted(() => ({
+  mockUseAuthStore: vi.fn(),
+}));
+
+vi.mock('@/entities/user/model/authStore', () => ({
+  useAuthStore: (selector: (s: { role: string }) => unknown) =>
+    selector(mockUseAuthStore()),
+}));
+
 // ── Default stubs ─────────────────────────────────────────────────────────────
 
 const SAMPLE_BUCKETS = [
@@ -110,6 +127,8 @@ beforeEach(() => {
     new URLSearchParams('period=month&from=2026-05-04&to=2026-06-03'),
     mockSetSearchParams,
   ]);
+  mockUseAuthStore.mockReturnValue({ role: 'ADMIN' });
+  mockUseBillingStatus.mockReturnValue({ data: undefined, isLoading: false });
   mockUseJobCounts.mockReturnValue(makeQuery({ data: { buckets: SAMPLE_BUCKETS } }));
   mockUseAvgTimes.mockReturnValue(makeQuery({ data: SAMPLE_AVG_TIMES }));
   mockUsePerTechnician.mockReturnValue(makeQuery({ data: SAMPLE_TECH }));
@@ -204,12 +223,38 @@ describe('ReportsPage', () => {
     expect(link).toHaveAttribute('href', '/settings/billing');
   });
 
-  // 8. Custom date range tab is rendered (disabled; Team+ gate)
-  it('renders Custom tab in disabled state', () => {
+  // 8. Custom date range tab is disabled for non-Team plans
+  it('renders Custom tab in disabled state when plan is not Team+', () => {
+    mockUseBillingStatus.mockReturnValue({
+      data: { plan: 'STARTER', jobsThisPeriod: 0, periodEnd: '2026-07-01', paymentFailed: false, paymentFailedAt: null, seats: 1 },
+      isLoading: false,
+    });
+    mockUsePerTechnician.mockReturnValue(makeQuery({ data: null }));
+
     renderPage();
 
     const customTab = screen.getByTestId('period-tab-custom');
     expect(customTab).toBeDisabled();
     expect(customTab).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  // 9. Custom date range tab enabled for TEAM plan
+  it('enables Custom tab when billing plan is TEAM', async () => {
+    mockUseBillingStatus.mockReturnValue({
+      data: { plan: 'TEAM', jobsThisPeriod: 10, periodEnd: '2026-07-01', paymentFailed: false, paymentFailedAt: null, seats: 5 },
+      isLoading: false,
+    });
+
+    renderPage();
+
+    const customTab = screen.getByTestId('period-tab-custom');
+    expect(customTab).not.toBeDisabled();
+    expect(customTab).toHaveAttribute('aria-selected', 'false');
+
+    await userEvent.click(customTab);
+
+    expect(mockSetSearchParams).toHaveBeenCalledWith(
+      expect.objectContaining({ period: 'custom' }),
+    );
   });
 });

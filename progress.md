@@ -2273,3 +2273,15 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Open TO-DOs created (with PRD reference): none
 - Commits: b5e6721
 - Completed through TASK-124 (feat/missing-apis-refactor)
+
+### 2026-06-10 — TASK-125 — Billing status API + UI wiring
+- Agent: Composer
+- Status change: pending → done
+- PRD sections consulted: §17, §18.2
+- Files touched: backend/src/main/java/com/teamhub/billing/BillingController.java, backend/src/main/java/com/teamhub/billing/BillingStatusService.java, backend/src/main/java/com/teamhub/billing/dto/BillingStatusResponse.java, backend/src/test/java/com/teamhub/billing/BillingStatusIT.java, web/src/entities/billing/api/billingApi.ts, web/src/entities/billing/model/types.ts, web/src/entities/report/model/types.ts, web/src/pages/settings-billing/ui/SettingsBillingPage.tsx, web/src/pages/settings-billing/ui/SettingsBillingPage.test.tsx, web/src/pages/reports/ui/ReportsPage.tsx, web/src/pages/reports/ui/ReportsPage.test.tsx, tasks.json, progress.md
+- Summary: Added `GET /api/v1/billing/status` (PERM_billing.manage) returning plan, periodEnd, paymentFailed, paymentFailedAt, jobsThisPeriod, and seats from `tenants` + `tenant_quota_state`. Wired `useBillingStatus()` to the real endpoint; the Billing page plan card, quota bars, and payment/quota banners now render from live data. Enabled the Reports Custom date-range tab for Team+ plans with from/to date inputs.
+- Acceptance criteria verified: 1 (`BillingStatusService.getStatus` + `GET /api/v1/billing/status`), 2 (`useBillingStatus` TanStack Query hook), 3 (Billing page `PlanCard` + `UsageBar` from live data), 4 (`Banners` payment-failed alert), 5 (80%/100% quota banners via `Banners`), 6 (Reports `period-tab-custom` enabled for TEAM/ENTERPRISE)
+- Test steps run: Step 1 (`step1_adminGetStatus_allFieldsPresent`) — passed; Step 2 (`renders plan card with usage bars when billing status is loaded`) — passed; Step 3 (`step3_paymentFailedAt_paymentFailedTrue` + `shows payment-failed banner when paymentFailed is true`) — passed; Step 4 (`enables Custom tab when billing plan is TEAM`) — passed
+- Open TO-DOs created (with PRD reference): none
+- Commits: 27cb3c9
+- Completed through TASK-125 (feat/missing-apis-refactor)

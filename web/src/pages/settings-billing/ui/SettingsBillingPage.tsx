@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { CreditCard, ExternalLink, AlertTriangle, AlertCircle, ChevronDown, Loader2 } from 'lucide-react';
 
 import { useAuthStore } from '@/entities/user/model/authStore';
 import {
+  BILLING_STATUS_QUERY_KEY,
   useBillingStatus,
   useCreateCheckout,
   useCreatePortal,
@@ -47,8 +49,6 @@ function PlanCardSkeleton() {
           <div className="h-4 w-24 bg-brand-bg rounded animate-pulse" />
         </div>
       </div>
-      {/* TO-DO: wire to GET /api/v1/billing/status when endpoint is added */}
-      <p className="mt-4 text-xs text-brand-muted italic">Loading plan info…</p>
     </div>
   );
 }
@@ -139,13 +139,12 @@ function PlanCard({ status }: { status: BillingStatus }) {
 // ── Banners ───────────────────────────────────────────────────────────────────
 
 interface BannersProps {
-  // TO-DO: replace mock with real API data from GET /api/v1/billing/status
-  billingStatus: BillingStatus | null;
+  billingStatus: BillingStatus | null | undefined;
   onOpenPortal: () => void;
 }
 
 function Banners({ billingStatus, onOpenPortal }: BannersProps) {
-  if (billingStatus === null) return null;
+  if (!billingStatus) return null;
 
   const limits = PLAN_LIMITS[billingStatus.plan];
   const jobsPct =
@@ -289,9 +288,9 @@ export default function SettingsBillingPage() {
 
 function SettingsBillingPageInner() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
 
-  // TO-DO: replace mock with real API data from GET /api/v1/billing/status
-  const billingStatus = useBillingStatus();
+  const { data: billingStatus, isLoading: billingLoading } = useBillingStatus();
 
   const checkoutMutation = useCreateCheckout();
   const portalMutation = useCreatePortal();
@@ -300,6 +299,7 @@ function SettingsBillingPageInner() {
   useEffect(() => {
     if (searchParams.get('checkout') === 'success') {
       toast.success('Subscription updated successfully!');
+      void queryClient.invalidateQueries({ queryKey: BILLING_STATUS_QUERY_KEY });
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.delete('checkout');
@@ -343,7 +343,7 @@ function SettingsBillingPageInner() {
       />
 
       {/* Plan card */}
-      {billingStatus === null ? (
+      {billingLoading || !billingStatus ? (
         <PlanCardSkeleton />
       ) : (
         <PlanCard status={billingStatus} />
