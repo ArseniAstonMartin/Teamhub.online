@@ -1983,23 +1983,27 @@
       "id": "TASK-088",
       "category": "ui",
       "priority": "high",
-      "description": "Build the internal Teamhub-staff-only admin console per PRD §6.4 and §26.1: separate routes under `/__internal/...` with IP-allow-list and Teamhub-staff-only role check",
+      "description": "Build the internal Teamhub-staff-only admin console per PRD §6.4 and §26.1: routes under `/__internal/...`, staff JWT login, IP allow-list, tenant provision with schema preset and first-Admin invite",
       "acceptance_criteria": [
-        "Routes: /__internal/tenants (list, create), /__internal/tenants/{id} (detail, choose schema preset, create first Admin user, trigger invite)",
-        "Backend access control: a `TEAMHUB_STAFF` role exists outside the tenant model; users with this role can read/write across tenants",
-        "Backend IP allow-list applied via filter; non-allow-listed requests return 404 (not 403, to avoid leaking the surface's existence)",
-        "Routes do NOT appear on `app.teamhub.online` for normal tenant users (front-end gates on TEAMHUB_STAFF claim)"
+        "Staff login page at `/__internal/login` calls `POST /api/v1/internal/auth/login`; stores TEAMHUB_STAFF JWT separately from tenant session",
+        "Routes: `/__internal/tenants` (list + create form with schema-preset dropdown from internal API), `/__internal/tenants/{id}` (detail + resend-invite)",
+        "Create-tenant form posts to `POST /api/v1/internal/tenants`; success shows invite status and MailHog hint in dev",
+        "Front-end gates all `/__internal/*` on `role === TEAMHUB_STAFF` in JWT; normal tenant users see generic 404 (not an access-denied page)",
+        "Backend IP allow-list from TASK-131 still applies; web app only deployed on staff-accessible network in production",
+        "No `/__internal` links in tenant app nav or sitemap"
       ],
       "test_steps": [
-        "Step 1: A non-staff user navigating to /__internal/anything sees a generic 404",
-        "Step 2: A staff user from an allow-listed IP can provision a tenant end-to-end (with schema preset selected) and the new Admin receives the invite email",
-        "Step 3: Same staff user from a non-allow-listed IP receives 404"
+        "Step 1: Tenant ADMIN navigates to `/__internal/tenants` — generic 404",
+        "Step 2: Staff login at `/__internal/login` then provision tenant with plumber preset — invite email in MailHog",
+        "Step 3: Tenant Admin accepts invite and logs in at `/login` — normal app works",
+        "Step 4: Staff session expired — redirect to `/__internal/login`"
       ],
       "dependencies": [
-        "TASK-016",
         "TASK-040",
         "TASK-054",
-        "TASK-072"
+        "TASK-072",
+        "TASK-131",
+        "TASK-133"
       ],
       "status": "pending"
     },
@@ -2733,6 +2737,316 @@
         "TASK-088",
         "TASK-095",
         "TASK-100"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-123",
+      "category": "functional",
+      "priority": "high",
+      "description": "Expose `GET /api/v1/jobs/{id}/photos` and wire the Job Detail photo grid in the web app per PRD §14.2",
+      "acceptance_criteria": [
+        "Add `findByJobIdAndTenantIdOrderByCreatedAtDesc` to `JobPhotoRepository`",
+        "`GET /api/v1/jobs/{id}/photos` returns `[ JobPhotoResponse ]` (empty array when no photos); requires `PERM_photo.upload` (same permission as upload)",
+        "Each item includes a short-lived S3 pre-signed GET URL (`downloadUrl`, 5-min TTL)",
+        "Job Detail page replaces the photos placeholder with a thumbnail grid and lightbox on click",
+        "Empty state shows an upload icon with 'No photos yet' copy"
+      ],
+      "test_steps": [
+        "Step 1: Upload a photo to a job; GET /api/v1/jobs/{id}/photos — one item with a valid downloadUrl",
+        "Step 2: Open Job Detail — thumbnail grid shows the uploaded photo",
+        "Step 3: Click the thumbnail — lightbox renders the full image",
+        "Step 4: Job with no photos — endpoint returns [] and the page shows 'No photos yet'"
+      ],
+      "dependencies": [
+        "TASK-049",
+        "TASK-079"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-124",
+      "category": "functional",
+      "priority": "medium",
+      "description": "Expose `GET /api/v1/jobs/{id}/status-history` and wire the Job Detail sidebar status timeline per PRD §9",
+      "acceptance_criteria": [
+        "`GET /api/v1/jobs/{id}/status-history` returns `[ { fromStatus, toStatus, actorRole, transitionNote, createdAt } ]` oldest-first; requires `PERM_job.read.own` or `PERM_job.read.tenant`",
+        "Query enforces tenant isolation on `job_status_history` (no RLS on that table — filter by job tenant in service layer)",
+        "Job Detail sidebar replaces the status-history placeholder with a vertical timeline (icon, label, relative time, optional note)"
+      ],
+      "test_steps": [
+        "Step 1: Transition a job SUBMITTED → ASSIGNED → IN_PROGRESS; GET .../status-history — 3 rows in order",
+        "Step 2: Open Job Detail — sidebar shows a 3-step timeline",
+        "Step 3: Call with another tenant's JWT — 404"
+      ],
+      "dependencies": [
+        "TASK-043",
+        "TASK-079"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-125",
+      "category": "integration",
+      "priority": "high",
+      "description": "Implement `GET /api/v1/billing/status` and wire it to the web Billing page banners, plan card, and Reports custom date-range tab per PRD §17",
+      "acceptance_criteria": [
+        "`GET /api/v1/billing/status` (PERM_billing.manage, ADMIN) returns `{ plan, periodEnd, paymentFailed, paymentFailedAt, jobsThisPeriod, seats }` from `tenants` + `tenant_quota_state` (limits derived from plan on the client via existing `PLAN_LIMITS`)",
+        "`useBillingStatus()` in `billingApi.ts` calls the real endpoint (remove hard-coded `return null` stub)",
+        "Billing page plan card and quota bars populate from live data (no skeleton-only placeholder)",
+        "Payment-failed banner when `paymentFailed` is true",
+        "80% / 100% quota banners when usage crosses thresholds",
+        "Reports page Custom date-range tab enabled when plan is TEAM or ENTERPRISE"
+      ],
+      "test_steps": [
+        "Step 1: GET /api/v1/billing/status as Admin — all fields present",
+        "Step 2: Settings → Billing — plan card and usage bars populated",
+        "Step 3: Set `payment_failed_at` on tenant — payment-failed banner appears",
+        "Step 4: TEAM plan tenant — Reports Custom tab is enabled"
+      ],
+      "dependencies": [
+        "TASK-061",
+        "TASK-065",
+        "TASK-085",
+        "TASK-087"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-126",
+      "category": "functional",
+      "priority": "low",
+      "description": "Add `POST /api/v1/customers/{id}/restore` and wire restore actions in the web Customer List and Detail pages",
+      "acceptance_criteria": [
+        "`POST /api/v1/customers/{id}/restore` clears `archived_at`; requires `PERM_job.create` (same guard as soft-archive DELETE); returns 200 with `CustomerResponse`",
+        "404 when customer is not archived or not in caller's tenant",
+        "Customer List: Restore button on archived rows when `?include_archived=true`",
+        "Customer Detail: Restore button in header when `archivedAt` is set"
+      ],
+      "test_steps": [
+        "Step 1: Archive then restore — `archived_at` is null in DB",
+        "Step 2: List with include_archived=true — Restore works and badge clears",
+        "Step 3: Detail page of archived customer — Restore works",
+        "Step 4: Restore on non-archived customer — 404"
+      ],
+      "dependencies": [
+        "TASK-037",
+        "TASK-081"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-127",
+      "category": "functional",
+      "priority": "medium",
+      "description": "Add `POST /api/v1/jobs/{id}/cancel` and `POST /api/v1/jobs/{id}/reopen` and wire Kanban + Job Detail per PRD §9.4",
+      "acceptance_criteria": [
+        "`POST /api/v1/jobs/{id}/cancel` body `{ reason: CancellationReason }` (DISPATCHER/ADMIN) — any non-terminal → CANCELED via `JobStateMachineService`; publishes `JobStatusChanged`",
+        "`POST /api/v1/jobs/{id}/reopen` (ADMIN) — CANCELED → SUBMITTED; publishes `JobStatusChanged`",
+        "Both write `job_status_history` rows",
+        "Kanban drag to CANCELED calls `/cancel` (no info toast); ADMIN reopen on CANCELED cards",
+        "Job Detail: Cancel for DISPATCHER/ADMIN; Reopen for ADMIN on CANCELED",
+        "`TRANSITION_ENDPOINT` in `transitions.ts` maps cancel/reopen keys to the new endpoints"
+      ],
+      "test_steps": [
+        "Step 1: Cancel IN_PROGRESS job — status CANCELED, history row written",
+        "Step 2: Reopen — status SUBMITTED",
+        "Step 3: DISPATCHER calls reopen — 403",
+        "Step 4: Kanban drag to CANCELED — card moves without toast"
+      ],
+      "dependencies": [
+        "TASK-047",
+        "TASK-078",
+        "TASK-079"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-128",
+      "category": "functional",
+      "priority": "medium",
+      "description": "Add `GET/PATCH /api/v1/tenant`, `timezone` on tenant settings, and wire Settings → Tenant page",
+      "acceptance_criteria": [
+        "Flyway migration adds `timezone text NOT NULL DEFAULT 'America/New_York'` to `tenants`",
+        "`GET /api/v1/tenant` (ADMIN) returns `{ id, name, plan, timezone }`",
+        "`PATCH /api/v1/tenant { name }` (ADMIN) updates display name; audited",
+        "`GET /api/v1/tenant/settings` includes `timezone`; `PATCH` accepts IANA tz from the 7 US zones already in the UI; audited",
+        "Settings → Tenant: team name and timezone inputs enabled (remove local-only TO-DO stubs)",
+        "Schedule page reads tenant timezone for calendar display (replace hard-coded default TO-DO)"
+      ],
+      "test_steps": [
+        "Step 1: GET /api/v1/tenant — name and timezone returned",
+        "Step 2: PATCH name and timezone — GET confirms updates",
+        "Step 3: Invalid timezone — 422",
+        "Step 4: UI save — sidebar/header reflects new team name"
+      ],
+      "dependencies": [
+        "TASK-053",
+        "TASK-086"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-129",
+      "category": "functional",
+      "priority": "medium",
+      "description": "Add `last_login_at` on `users`, expose in `UserResponse`, and wire Settings → Users 'Last seen' column",
+      "acceptance_criteria": [
+        "Flyway migration adds nullable `last_login_at timestamptz` to `users`",
+        "`AuthService.login()` and OAuth success paths set `lastLoginAt = now()`",
+        "`UserResponse` includes `lastLoginAt`; `GET /api/v1/users` returns it",
+        "Settings → Users 'Last seen' column uses `lastLoginAt` (relative time); 'Never' when null"
+      ],
+      "test_steps": [
+        "Step 1: Login then GET /api/v1/users — caller's `lastLoginAt` within last 5 s",
+        "Step 2: Invited-but-never-logged-in user — null; UI shows 'Never'",
+        "Step 3: Settings → Users — column populated"
+      ],
+      "dependencies": [
+        "TASK-019",
+        "TASK-084"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-130",
+      "category": "functional",
+      "priority": "high",
+      "description": "Enrich `JobResponse` with `customerName` and `assigneeName` to remove UUID fallbacks in web job views per PRD §11",
+      "acceptance_criteria": [
+        "`JobResponse` adds nullable `customerName` and `assigneeName` (`@JsonInclude NON_NULL`)",
+        "`JobService.getById()` and `list()` resolve names in-query (no N+1)",
+        "Web `JobDto` / `JobResponse` types updated; Kanban and Job Detail use flat name fields",
+        "Remove TO-DO fallbacks like `Customer #${uuid}` and `Tech #${uuid}` in job UI"
+      ],
+      "test_steps": [
+        "Step 1: Job with customer + assignee — GET /jobs/{id} has both names",
+        "Step 2: GET /jobs list — each row has `customerName`",
+        "Step 3: Unassigned job — `assigneeName` omitted",
+        "Step 4: Job Detail header shows human-readable names"
+      ],
+      "dependencies": [
+        "TASK-044",
+        "TASK-079"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-131",
+      "category": "security",
+      "priority": "critical",
+      "description": "Staff onboarding backend: global `staff_users`, TEAMHUB_STAFF JWT auth, `/api/v1/internal/*` REST API, IP allow-list, fixed provision→invite flow — full prerequisite for TASK-088 per PRD §6.4",
+      "acceptance_criteria": [
+        "Flyway migration creates `staff_users` (id, email citext unique, password_hash, name, role, is_active, created_at) — global table, no tenant_id, no RLS",
+        "Same migration seeds root staff: email `dev@teamhub.online`, BCrypt password hash for local dev credential documented in `infra/runbooks/local-dev.md` (plaintext password never committed); role `TEAMHUB_STAFF`; TO-DO marker — human must rotate before production",
+        "`POST /api/v1/internal/auth/login` (permitAll, IP-filtered) returns RS256 JWT with `sub`, `role=TEAMHUB_STAFF`, no `tenant_id` claim",
+        "`InternalIpAllowListFilter` on `/api/v1/internal/**`: non-allow-listed clients get 404 (not 403); allow-list from `teamhub.internal.allowed-ips` (default `127.0.0.1,::1`)",
+        "All `/api/v1/internal/**` except login require Bearer TEAMHUB_STAFF JWT; tenant JWTs rejected with 401",
+        "Fix onboarding: `InternalTenantService.provision` must not leave an unloginable admin — either skip user creation and rely on invite-only, or `acceptInvite` sets `password_hash` when user exists with null hash",
+        "`GET /api/v1/internal/schema-presets` — `[ { presetKey, schemaName } ]` for TASK-088 create form",
+        "`POST /api/v1/internal/tenants` body `{ name, ownerEmail, presetKey? }` — provisions tenant, creates ADMIN invite, sends email; returns `{ tenantId, inviteId, ownerEmail }`",
+        "`GET /api/v1/internal/tenants` — paginated `{ id, name, plan, createdAt, userCount }`",
+        "`GET /api/v1/internal/tenants/{id}` — detail + `{ userCount, jobCount, plan, currentPeriodEnd, activeSchemaName }`",
+        "`POST /api/v1/internal/tenants/{id}/resend-invite` — resend pending owner invite (5-min cooldown)",
+        "TO-DO comment: `POST /api/v1/internal/staff/invites` for root staff inviting additional TEAMHUB_STAFF (follow-up; not in this task)",
+        "Internal routes excluded from public Springdoc `/openapi.json`"
+      ],
+      "test_steps": [
+        "Step 1: POST /internal/auth/login as dev@teamhub.online — TEAMHUB_STAFF JWT returned",
+        "Step 2: POST /internal/tenants with preset plumber — tenant + pending invite; no duplicate-user accept failure",
+        "Step 3: Accept invite link — tenant Admin can log in at /login",
+        "Step 4: GET /internal/tenants — includes new tenant",
+        "Step 5: Tenant ADMIN JWT on /internal/tenants — 401",
+        "Step 6: Request from non-allow-listed IP — 404"
+      ],
+      "dependencies": [
+        "TASK-016",
+        "TASK-019",
+        "TASK-040",
+        "TASK-054"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-132",
+      "category": "functional",
+      "priority": "medium",
+      "description": "Add `GET /api/v1/users/me` and wire web/mobile profile surfaces to real user data per PRD §6.2",
+      "acceptance_criteria": [
+        "`GET /api/v1/users/me` returns `{ id, email, name, role, tenantId, lastLoginAt }` for the authenticated JWT subject",
+        "Requires any valid tenant JWT (TECHNICIAN, DISPATCHER, ADMIN)",
+        "Mobile `ProfileScreen` shows name and email from `/me` instead of JWT claim stubs",
+        "Web can use `/me` where sidebar or settings need the current user's display name"
+      ],
+      "test_steps": [
+        "Step 1: GET /api/v1/users/me with valid JWT — email and role match logged-in user",
+        "Step 2: No JWT — 401",
+        "Step 3: Mobile Profile — name and email visible after login",
+        "Step 4: Deactivated user — 403"
+      ],
+      "dependencies": [
+        "TASK-019",
+        "TASK-103"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-133",
+      "category": "infrastructure",
+      "priority": "critical",
+      "description": "Local dev bootstrap: documented one-command path to create a test tenant and preview web + mobile main flows",
+      "acceptance_criteria": [
+        "`infra/runbooks/local-dev.md` documents full stack startup: `docker compose -f infra/docker-compose.dev.yml up -d`, backend `bootRun`, web `npm run dev`, mobile Expo",
+        "Documents staff login (`dev@teamhub.online`) and internal console URL after TASK-131",
+        "`infra/scripts/bootstrap-dev-tenant.sh` (or equivalent) provisions a sample tenant via internal API: name, plumber preset, admin email/password for local testing",
+        "Script prints accept-invite URL from MailHog when invite flow is used, or prints tenant Admin credentials when bootstrap sets password directly",
+        "Root `README.md` links to `infra/runbooks/local-dev.md` under a 'Local preview' section",
+        "Runbook lists the smoke path: staff provision → admin login → create customer → create job → Kanban claim → mobile technician login"
+      ],
+      "test_steps": [
+        "Step 1: Fresh clone + docker up + run bootstrap script — tenant exists",
+        "Step 2: Web login as tenant Admin — Schedule and Jobs load",
+        "Step 3: Mobile login as technician — Home shows shared-pool jobs",
+        "Step 4: Follow runbook without agent help — teammate can reproduce"
+      ],
+      "dependencies": [
+        "TASK-131"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-134",
+      "category": "ui",
+      "priority": "high",
+      "description": "Replace remaining web and mobile API stubs, placeholders, and TO-DO wiring with real logic after backend gap tasks land",
+      "acceptance_criteria": [
+        "Audit `web/src` and `mobile/src` for TO-DO/mock/placeholder patterns tied to backend gaps; each resolved or explicitly deferred with PRD reference",
+        "`billingApi.useBillingStatus` calls live API (TASK-125)",
+        "Job Detail photos + status history wired (TASK-123, TASK-124)",
+        "Kanban cancel/reopen + `transitions.ts` endpoints wired (TASK-127)",
+        "Customer restore buttons wired (TASK-126)",
+        "Settings Tenant name/timezone wired (TASK-128); Users last-seen wired (TASK-129)",
+        "Job list/detail use `customerName`/`assigneeName` (TASK-130)",
+        "Mobile Profile uses `/users/me` (TASK-132)",
+        "No hard-coded `return null` API stubs remain in production UI code paths (test mocks exempt)",
+        "Deferred v1.2 surfaces (Messages, Calls, ETA SMS, Apple login) stay behind existing TO-DO/feature flags — not in scope"
+      ],
+      "test_steps": [
+        "Step 1: `rg 'TO-DO.*endpoint|return null' web/src mobile/src` — only deferred v1.2 items remain",
+        "Step 2: Manual walkthrough on bootstrap tenant — Billing, Job Detail, Kanban cancel, Customer restore, Settings Tenant/Users all functional",
+        "Step 3: Mobile Profile shows real name/email",
+        "Step 4: `npm test` and `npm run typecheck` in web and mobile — green"
+      ],
+      "dependencies": [
+        "TASK-123",
+        "TASK-124",
+        "TASK-125",
+        "TASK-126",
+        "TASK-127",
+        "TASK-128",
+        "TASK-129",
+        "TASK-130",
+        "TASK-132"
       ],
       "status": "pending"
     }
