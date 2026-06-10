@@ -1,6 +1,7 @@
 package com.teamhub.escalation;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.teamhub.alert.InAppAlertService;
 import com.teamhub.eventing.DelayedJob;
 import com.teamhub.eventing.DelayedJobHandler;
 import com.teamhub.job.Job;
@@ -50,15 +51,19 @@ public class EscalateUnclaimedJobHandler implements DelayedJobHandler {
 
   private final ObjectMapper objectMapper;
 
+  private final InAppAlertService alertService;
+
   public EscalateUnclaimedJobHandler(
       JobRepository jobRepository,
       DeviceTokenRepository deviceTokenRepository,
       ExpoPushClient expoPushClient,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      InAppAlertService alertService) {
     this.jobRepository = jobRepository;
     this.deviceTokenRepository = deviceTokenRepository;
     this.expoPushClient = expoPushClient;
     this.objectMapper = objectMapper;
+    this.alertService = alertService;
   }
 
   @Override
@@ -130,5 +135,12 @@ public class EscalateUnclaimedJobHandler implements DelayedJobHandler {
         jobId,
         tenantId,
         tickets.size());
+
+    // Also create in-app alerts for admins who may not have a push token registered
+    // TO-DO: also alert Admins without push tokens by querying the users table directly — PRD §28
+    adminTokens.stream()
+        .map(DeviceToken::getUserId)
+        .distinct()
+        .forEach(adminUserId -> alertService.createJobNotHandledAlert(tenantId, adminUserId, jobId));
   }
 }

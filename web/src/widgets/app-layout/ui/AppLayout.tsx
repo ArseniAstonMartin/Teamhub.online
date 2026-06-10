@@ -14,6 +14,7 @@ import { cn } from '@/shared/lib/utils';
 import { useAuthStore, type UserRole } from '@/entities/user/model/authStore';
 import { UnsavedChangesGuard } from '@/app/UnsavedChangesGuard';
 import apiClient from '@/shared/api/client';
+import { AlertBanner } from '@/widgets/AlertBanner';
 
 interface NavItem {
   label: string;
@@ -181,6 +182,9 @@ export default function AppLayout() {
               </div>
             )}
           </header>
+
+          {/* Escalation alert banners — visible to ADMINs only (PRD §28, TASK-118) */}
+          <AlertBanner />
 
           {/* Content */}
           <main className="flex-1 overflow-y-auto px-6 py-6 bg-brand-bg">

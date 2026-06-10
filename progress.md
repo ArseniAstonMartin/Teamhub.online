@@ -2213,3 +2213,26 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Acceptance criteria verified: 1 (refetchInterval + refetchIntervalInBackground: false), 2 (refetchOnWindowFocus: true), 3 (TO-DO comment present in source)
 - Test steps run: 271 tests passed (19 test files), lint clean, typecheck clean
 - Open TO-DOs created (with PRD reference): `TO-DO: when WebSocket push arrives (v1.2) call queryClient.invalidateQueries({ queryKey: JOBS_QUERY_KEY }) instead — PRD §22.5.5`
+
+## TASK-118 — Web "JOB NOT HANDLED" escalation alert banner (2026-06-10)
+- Branch: mobile
+- Files created:
+  - `backend/src/main/resources/db/migration/V31__in_app_alerts.sql` (new — creates `in_app_alerts` table + `alert.read` permission seeded to ADMIN)
+  - `backend/src/main/java/com/teamhub/alert/InAppAlert.java` (new — JPA entity)
+  - `backend/src/main/java/com/teamhub/alert/InAppAlertRepository.java` (new — Spring Data repo)
+  - `backend/src/main/java/com/teamhub/alert/InAppAlertResponse.java` (new — record DTO)
+  - `backend/src/main/java/com/teamhub/alert/InAppAlertService.java` (new — CRUD service)
+  - `backend/src/main/java/com/teamhub/alert/InAppAlertController.java` (new — GET /api/v1/alerts + POST /api/v1/alerts/{id}/dismiss)
+  - `backend/src/test/java/com/teamhub/alert/InAppAlertIT.java` (new — 3 IT tests)
+  - `web/src/entities/alert/api/alertsApi.ts` (new — useAlerts + useDismissAlert hooks)
+  - `web/src/widgets/AlertBanner/AlertBanner.tsx` (new — red banner component)
+  - `web/src/widgets/AlertBanner/index.ts` (new — re-export)
+  - `web/src/widgets/AlertBanner/AlertBanner.test.tsx` (new — 5 unit tests)
+- Files modified:
+  - `backend/src/main/java/com/teamhub/escalation/EscalateUnclaimedJobHandler.java` (wires InAppAlertService; creates in-app alerts after push)
+  - `backend/src/test/java/com/teamhub/escalation/EscalationIT.java` (cleanUp now deletes in_app_alerts before jobs)
+  - `web/src/widgets/app-layout/ui/AppLayout.tsx` (adds <AlertBanner /> above main content)
+- Summary: Full-stack in-app alert feature. Backend stores undismissed banners per Admin; escalation handler creates them after Expo push. Web polls every 30 s (window-focused), renders stacked red banners with "View Job" (navigates to /jobs/:id) and "Dismiss" (POST dismiss). Only rendered for ADMIN role. TO-DO comment added for alerting Admins without push tokens (PRD §28).
+- Acceptance criteria verified: 1 (GET /api/v1/alerts returns pending alerts, protected by PERM_alert.read), 2 (30 s poll, window-focus only, red banner), 3 (dismiss POST clears banner permanently)
+- Test results: backend 504 tests passed (0 failures), frontend 276 tests passed (20 test files), lint clean, typecheck clean
+- TO-DO created: alert Admins without push tokens via users table query — PRD §28
