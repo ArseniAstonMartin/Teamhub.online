@@ -25,6 +25,19 @@ vi.mock('@/entities/job/api/jobsApi', () => ({
   updateJobSchedule: mockUpdateJobSchedule,
 }));
 
+vi.mock('@/entities/tenant/api/tenantApi', () => ({
+  useTenantSettings: vi.fn(() => ({
+    data: { closeJobsEnabled: false, timezone: 'America/New_York' },
+    isLoading: false,
+    isError: false,
+  })),
+}));
+
+vi.mock('@/shared/lib/timezone', () => ({
+  utcToZonedDate: (iso: string) => new Date(iso),
+  zonedDateToUtcIso: (date: Date) => date.toISOString(),
+}));
+
 // Mock TanStack Query's useQueryClient
 vi.mock('@tanstack/react-query', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@tanstack/react-query')>();

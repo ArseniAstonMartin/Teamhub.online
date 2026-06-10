@@ -7,5 +7,6 @@ package com.teamhub.tenancy.dto;
  * when more settings are added.
  *
  * @param closeJobsEnabled when non-null, sets the tenant's Close Jobs toggle
+ * @param timezone when non-null, sets the tenant's IANA time zone (allowed US zones only)
  */
-public record UpdateTenantSettingsRequest(Boolean closeJobsEnabled) {}
+public record UpdateTenantSettingsRequest(Boolean closeJobsEnabled, String timezone) {}

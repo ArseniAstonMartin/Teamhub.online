@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import SettingsTenantPage from './SettingsTenantPage';
-import type { TenantSettingsResponse } from '@/entities/tenant/model/types';
+import type { TenantResponse, TenantSettingsResponse } from '@/entities/tenant/model/types';
 
 // ── Radix UI pointer capture polyfills ───────────────────────────────────────
 if (!Element.prototype.hasPointerCapture) {
@@ -60,14 +60,23 @@ vi.mock('sonner', () => ({
 }));
 
 // ── Mock API hooks ────────────────────────────────────────────────────────────
-const { mockUseTenantSettings, mockUseUpdateTenantSettings } = vi.hoisted(() => ({
+const {
+  mockUseTenantSettings,
+  mockUseUpdateTenantSettings,
+  mockUseTenant,
+  mockUseUpdateTenant,
+} = vi.hoisted(() => ({
   mockUseTenantSettings: vi.fn(),
   mockUseUpdateTenantSettings: vi.fn(),
+  mockUseTenant: vi.fn(),
+  mockUseUpdateTenant: vi.fn(),
 }));
 
 vi.mock('@/entities/tenant/api/tenantApi', () => ({
   useTenantSettings: mockUseTenantSettings,
   useUpdateTenantSettings: mockUseUpdateTenantSettings,
+  useTenant: mockUseTenant,
+  useUpdateTenant: mockUseUpdateTenant,
 }));
 
 // ── Mock authStore ────────────────────────────────────────────────────────────
@@ -83,7 +92,17 @@ vi.mock('@/entities/user/model/authStore', () => ({
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeSettings(overrides: Partial<TenantSettingsResponse> = {}): TenantSettingsResponse {
-  return { closeJobsEnabled: false, ...overrides };
+  return { closeJobsEnabled: false, timezone: 'America/New_York', ...overrides };
+}
+
+function makeTenant(overrides: Partial<TenantResponse> = {}): TenantResponse {
+  return {
+    id: 'tenant-1',
+    name: 'Acme Plumbing',
+    plan: 'FREE',
+    timezone: 'America/New_York',
+    ...overrides,
+  };
 }
 
 function makeUpdateMutation(overrides: {
@@ -129,7 +148,13 @@ describe('SettingsTenantPage', () => {
       isLoading: false,
       isError: false,
     });
+    mockUseTenant.mockReturnValue({
+      data: makeTenant(),
+      isLoading: false,
+      isError: false,
+    });
     mockUseUpdateTenantSettings.mockReturnValue(makeUpdateMutation());
+    mockUseUpdateTenant.mockReturnValue(makeUpdateMutation());
   });
 
   // ── 1. Renders the page with Close Jobs toggle ────────────────────────────
@@ -242,22 +267,53 @@ describe('SettingsTenantPage', () => {
     expect(mockToastError).toHaveBeenCalledWith('Failed to update setting. Please try again.');
   });
 
-  // ── 7. Team display name field is rendered (but save disabled) ────────────
-  it('renders team display name field with disabled Save button', () => {
+  // ── 7. Team display name field is editable ────────────────────────────────
+  it('renders team display name prefilled from GET /api/v1/tenant', () => {
     renderPage();
 
-    expect(screen.getByLabelText(/Team display name/i)).toBeInTheDocument();
-    const saveButtons = screen.getAllByRole('button', { name: /save team name/i });
-    expect(saveButtons[0]).toBeDisabled();
+    expect(screen.getByLabelText(/Team display name/i)).toHaveValue('Acme Plumbing');
   });
 
-  // ── 8. Time zone select is rendered (but save disabled) ───────────────────
-  it('renders time zone select with disabled Save button', () => {
+  it('calls PATCH /api/v1/tenant when team name is saved', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue(makeTenant({ name: 'New Team Name' }));
+    mockUseUpdateTenant.mockReturnValue(makeUpdateMutation({ mutateAsync }));
+
     renderPage();
 
-    expect(screen.getByTestId('select-root')).toBeInTheDocument();
-    const saveButtons = screen.getAllByRole('button', { name: /save time zone/i });
-    expect(saveButtons[0]).toBeDisabled();
+    const input = screen.getByLabelText(/Team display name/i);
+    await userEvent.clear(input);
+    await userEvent.type(input, 'New Team Name');
+    await userEvent.click(screen.getByRole('button', { name: /save team name/i }));
+
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({ name: 'New Team Name' }),
+    );
+  });
+
+  // ── 8. Time zone select is editable ───────────────────────────────────────
+  it('renders time zone select enabled with Save button when changed', async () => {
+    renderPage();
+
+    expect(screen.getByTestId('select-root')).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /save time zone/i })).toBeDisabled();
+
+    await userEvent.selectOptions(screen.getByTestId('select-root'), 'America/Chicago');
+
+    expect(screen.getByRole('button', { name: /save time zone/i })).not.toBeDisabled();
+  });
+
+  it('calls PATCH /api/v1/tenant/settings with timezone when saved', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue(makeSettings({ timezone: 'America/Chicago' }));
+    mockUseUpdateTenantSettings.mockReturnValue(makeUpdateMutation({ mutateAsync }));
+
+    renderPage();
+
+    await userEvent.selectOptions(screen.getByTestId('select-root'), 'America/Chicago');
+    await userEvent.click(screen.getByRole('button', { name: /save time zone/i }));
+
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({ timezone: 'America/Chicago' }),
+    );
   });
 
   // ── 9. Non-admin is redirected away from the page ─────────────────────────
@@ -280,6 +336,11 @@ describe('SettingsTenantPage', () => {
   // ── 11. Loading state is shown ────────────────────────────────────────────
   it('shows loading state while fetching settings', () => {
     mockUseTenantSettings.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+    });
+    mockUseTenant.mockReturnValue({
       data: undefined,
       isLoading: true,
       isError: false,

@@ -2309,3 +2309,15 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Open TO-DOs created (with PRD reference): Kanban/Detail cancel uses default `OTHER` reason — human may add reason picker UI later (PRD §9.1)
 - Commits: f928d9f
 - Completed through TASK-127 (feat/missing-apis-refactor)
+
+### 2026-06-10 — TASK-128 — Tenant profile API + timezone wiring
+- Agent: Composer
+- Status change: pending → done
+- PRD sections consulted: §5.2, §20.5
+- Files touched: backend/src/main/resources/db/migration/V32__tenant_timezone.sql, backend/src/main/java/com/teamhub/tenancy/Tenant.java, TenantController.java, TenantService.java, TenantTimezones.java, InvalidTenantTimezoneException.java, TenantSettingsService.java, TenantSettingsController.java, backend/src/main/java/com/teamhub/tenancy/dto/TenantResponse.java, UpdateTenantRequest.java, TenantSettingsResponse.java, UpdateTenantSettingsRequest.java, backend/src/test/java/com/teamhub/tenancy/TenantProfileIT.java, TenantSettingsIT.java, web/src/entities/tenant/model/types.ts, web/src/entities/tenant/api/tenantApi.ts, web/src/shared/lib/timezone.ts, web/src/shared/lib/timezone.test.ts, web/src/pages/settings-tenant/ui/SettingsTenantPage.tsx, SettingsTenantPage.test.tsx, web/src/pages/schedule/ui/SchedulePage.tsx, SchedulePage.test.tsx, web/src/widgets/app-layout/ui/AppLayout.tsx, tasks.json, progress.md
+- Summary: Added Flyway V32 `timezone` column on `tenants`, Admin-only `GET/PATCH /api/v1/tenant` for profile (name/plan/timezone), and extended tenant settings GET/PATCH with audited timezone updates validated against the seven US zones in the UI. Wired Settings → Tenant team name and timezone saves, Schedule calendar display via tenant timezone, and Admin sidebar/header team name from `GET /api/v1/tenant`.
+- Acceptance criteria verified: 1 (V32 migration + default `America/New_York`), 2 (`TenantController.getTenant` + `TenantResponse`), 3 (`TenantService.updateName` audited), 4 (`TenantSettingsResponse.timezone` + `setTimezone`), 5 (SettingsTenantPage enabled inputs), 6 (SchedulePage `useTenantSettings` + timezone helpers)
+- Test steps run: Step 1 (`step1_getTenant_returnsNameAndTimezone`) — passed; Step 2 (`step2_patchNameAndTimezone_getConfirmsUpdates`) — passed; Step 3 (`step3_patchInvalidTimezone_returns422`) — passed; Step 4 (`calls PATCH /api/v1/tenant when team name is saved` + AppLayout tenant name display) — passed
+- Open TO-DOs created (with PRD reference): non-Admin users do not fetch `GET /api/v1/tenant` — sidebar/header team name visible to Admin only until a read path exists for all roles (PRD §5.2)
+- Commits: 79ebd85
+- Completed through TASK-128 (feat/missing-apis-refactor)

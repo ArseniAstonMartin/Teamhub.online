@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { useAuthStore, type UserRole } from '@/entities/user/model/authStore';
+import { useTenant } from '@/entities/tenant/api/tenantApi';
 import { UnsavedChangesGuard } from '@/app/UnsavedChangesGuard';
 import apiClient from '@/shared/api/client';
 import { AlertBanner } from '@/widgets/AlertBanner';
@@ -67,6 +68,7 @@ export default function AppLayout() {
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
   const isInSettings = useMatch('/settings/*');
+  const { data: tenant } = useTenant({ enabled: role === 'ADMIN' });
 
   const role = user?.role ?? 'TECHNICIAN';
 
@@ -94,9 +96,16 @@ export default function AppLayout() {
         <aside className="flex flex-col w-60 shrink-0 bg-brand-surface border-r border-border">
           {/* Logo */}
           <div className="h-16 flex items-center px-5 border-b border-border">
-            <span className="text-lg font-bold text-brand-blue tracking-tight">
-              Teamhub
-            </span>
+            <div className="min-w-0">
+              <span className="text-lg font-bold text-brand-blue tracking-tight block">
+                Teamhub
+              </span>
+              {tenant?.name && (
+                <span className="text-xs text-brand-muted truncate block" data-testid="tenant-name">
+                  {tenant.name}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Nav */}
@@ -171,6 +180,11 @@ export default function AppLayout() {
         <div className="flex flex-col flex-1 overflow-hidden">
           {/* Header */}
           <header className="h-16 shrink-0 flex items-center px-6 bg-brand-surface border-b border-border">
+            {tenant?.name && (
+              <p className="text-sm font-semibold text-brand-navy truncate" data-testid="header-tenant-name">
+                {tenant.name}
+              </p>
+            )}
             <div className="flex-1" />
             {user && (
               <div className="flex items-center gap-2">

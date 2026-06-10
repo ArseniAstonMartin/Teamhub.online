@@ -251,7 +251,7 @@ class TenantSettingsIT {
    */
   @Test
   void step3_patchSettings_asDispatcher_returns403() throws Exception {
-    UpdateTenantSettingsRequest request = new UpdateTenantSettingsRequest(true);
+    UpdateTenantSettingsRequest request = new UpdateTenantSettingsRequest(true, null);
 
     mockMvc
         .perform(
@@ -276,7 +276,8 @@ class TenantSettingsIT {
     mockMvc
         .perform(get(SETTINGS_URL).header("Authorization", "Bearer " + technicianToken))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.closeJobsEnabled").value(false));
+        .andExpect(jsonPath("$.closeJobsEnabled").value(false))
+        .andExpect(jsonPath("$.timezone").value(TenantTimezones.DEFAULT));
   }
 
   // =========================================================================
@@ -289,7 +290,7 @@ class TenantSettingsIT {
    */
   @Test
   void patchSettings_asAdmin_updatesToggleAndEmitsAudit() throws Exception {
-    UpdateTenantSettingsRequest request = new UpdateTenantSettingsRequest(true);
+    UpdateTenantSettingsRequest request = new UpdateTenantSettingsRequest(true, null);
 
     mockMvc
         .perform(

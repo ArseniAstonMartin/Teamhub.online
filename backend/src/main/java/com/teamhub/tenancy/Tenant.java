@@ -52,6 +52,9 @@ public class Tenant {
   @Column(name = "close_jobs_enabled", nullable = false)
   private boolean closeJobsEnabled = false;
 
+  @Column(nullable = false)
+  private String timezone = TenantTimezones.DEFAULT;
+
   public Tenant(String name) {
     this.name = name;
   }

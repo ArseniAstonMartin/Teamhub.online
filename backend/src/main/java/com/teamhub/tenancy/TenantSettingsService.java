@@ -39,7 +39,7 @@ public class TenantSettingsService {
   @Transactional(readOnly = true)
   public TenantSettingsResponse getSettings(UUID tenantId) {
     Tenant tenant = loadTenant(tenantId);
-    return new TenantSettingsResponse(tenant.isCloseJobsEnabled());
+    return toResponse(tenant);
   }
 
   /**
@@ -72,7 +72,47 @@ public class TenantSettingsService {
             .afterState("{\"closeJobsEnabled\":" + enabled + "}")
             .build());
 
-    return new TenantSettingsResponse(tenant.isCloseJobsEnabled());
+    return toResponse(tenant);
+  }
+
+  /**
+   * Updates the tenant time zone and emits an async audit event.
+   *
+   * <p>Audit action: {@code tenant.timezone.updated}; resource type: {@code tenant}.
+   *
+   * @param tenantId the tenant to update
+   * @param timezone IANA time zone from the allowed US set
+   * @param actorUserId the Admin user performing the change
+   * @throws InvalidTenantTimezoneException HTTP 422 when the zone is not allowed
+   * @throws DomainException HTTP 404 if the tenant does not exist
+   */
+  @Transactional
+  public TenantSettingsResponse setTimezone(UUID tenantId, String timezone, UUID actorUserId) {
+    if (!TenantTimezones.isAllowed(timezone)) {
+      throw new InvalidTenantTimezoneException(timezone);
+    }
+
+    Tenant tenant = loadTenant(tenantId);
+    String previous = tenant.getTimezone();
+    tenant.setTimezone(timezone);
+    tenantRepository.save(tenant);
+
+    asyncAuditService.recordAsync(
+        AuditLog.builder()
+            .tenantId(tenantId)
+            .actorUserId(actorUserId)
+            .action("tenant.timezone.updated")
+            .resourceType("tenant")
+            .resourceId(tenantId)
+            .beforeState("{\"timezone\":\"" + previous + "\"}")
+            .afterState("{\"timezone\":\"" + timezone + "\"}")
+            .build());
+
+    return toResponse(tenant);
+  }
+
+  private static TenantSettingsResponse toResponse(Tenant tenant) {
+    return new TenantSettingsResponse(tenant.isCloseJobsEnabled(), tenant.getTimezone());
   }
 
   private Tenant loadTenant(UUID tenantId) {
