@@ -87,10 +87,14 @@ export async function createNote(jobId: string, body: string): Promise<JobNoteRe
 
 /**
  * POST /api/v1/jobs/{id}/{endpoint} — fires a named transition on a job
- * (claim, start, pending, done-pending-approval, complete).
+ * (claim, start, pending, done-pending-approval, complete, cancel, reopen).
  */
-export async function fireTransition(id: string, endpoint: string): Promise<JobDto> {
-  const { data } = await apiClient.post<JobDto>(`/api/v1/jobs/${id}/${endpoint}`, {});
+export async function fireTransition(
+  id: string,
+  endpoint: string,
+  body?: Record<string, unknown>,
+): Promise<JobDto> {
+  const { data } = await apiClient.post<JobDto>(`/api/v1/jobs/${id}/${endpoint}`, body ?? {});
   return data;
 }
 

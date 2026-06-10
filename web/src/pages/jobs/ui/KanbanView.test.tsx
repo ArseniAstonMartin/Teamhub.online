@@ -13,12 +13,14 @@ const {
   mockSetQueryData,
   mockToastError,
   mockToastInfo,
+  mockUseAuthStore,
 } = vi.hoisted(() => ({
   mockUseJobs:         vi.fn(),
   mockFireTransition:  vi.fn(),
   mockSetQueryData:    vi.fn(),
   mockToastError:      vi.fn(),
   mockToastInfo:       vi.fn(),
+  mockUseAuthStore:    vi.fn(),
 }));
 
 vi.mock('@/entities/job/api/jobsApi', () => ({
@@ -36,6 +38,10 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
 
 vi.mock('sonner', () => ({
   toast: { error: mockToastError, info: mockToastInfo, success: vi.fn() },
+}));
+
+vi.mock('@/entities/user/model/authStore', () => ({
+  useAuthStore: mockUseAuthStore,
 }));
 
 // ── @hello-pangea/dnd mock ───────────────────────────────────────────────────
@@ -163,6 +169,9 @@ describe('KanbanView', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     capturedOnDragEnd = null;
+    mockUseAuthStore.mockImplementation((selector: (s: { user: { role: string } }) => unknown) =>
+      selector({ user: { role: 'DISPATCHER' } }),
+    );
   });
 
   // ── State machine map (unit tests — no render needed) ─────────────────────
@@ -220,6 +229,15 @@ describe('KanbanView', () => {
 
     it('maps DONE_PENDING_APPROVAL→COMPLETED to "complete"', () => {
       expect(TRANSITION_ENDPOINT['DONE_PENDING_APPROVAL→COMPLETED']).toBe('complete');
+    });
+
+    it('maps *→CANCELED transitions to "cancel"', () => {
+      expect(TRANSITION_ENDPOINT['SUBMITTED→CANCELED']).toBe('cancel');
+      expect(TRANSITION_ENDPOINT['IN_PROGRESS→CANCELED']).toBe('cancel');
+    });
+
+    it('maps CANCELED→SUBMITTED to "reopen"', () => {
+      expect(TRANSITION_ENDPOINT['CANCELED→SUBMITTED']).toBe('reopen');
     });
   });
 
@@ -331,13 +349,18 @@ describe('KanbanView', () => {
     expect(mockToastError).toHaveBeenCalled();
   });
 
-  it('shows info toast for cancel transition (no backend endpoint yet)', () => {
-    mockJobsSuccess([makeJob({ id: 'j1', status: 'SUBMITTED' })]);
+  it('Step 4: SUBMITTED → CANCELED calls fireTransition with "cancel" and no info toast', async () => {
+    const job = makeJob({ id: 'j1', status: 'SUBMITTED' });
+    mockJobsSuccess([job]);
+    mockFireTransition.mockResolvedValueOnce({ ...job, status: 'CANCELED' });
     renderKanban();
+
     simulateDrag('j1', 'SUBMITTED', 'CANCELED');
-    // SUBMITTED→CANCELED is allowed but has no endpoint → info toast
-    expect(mockFireTransition).not.toHaveBeenCalled();
-    expect(mockToastInfo).toHaveBeenCalledWith(expect.stringMatching(/not yet available/i));
+
+    await waitFor(() => {
+      expect(mockFireTransition).toHaveBeenCalledWith('j1', 'cancel', { reason: 'OTHER' });
+    });
+    expect(mockToastInfo).not.toHaveBeenCalled();
   });
 
   // ── AC1: successful drag ──────────────────────────────────────────────────
@@ -351,7 +374,7 @@ describe('KanbanView', () => {
     simulateDrag('j1', 'SUBMITTED', 'ASSIGNED');
 
     await waitFor(() => {
-      expect(mockFireTransition).toHaveBeenCalledWith('j1', 'claim');
+      expect(mockFireTransition).toHaveBeenCalledWith('j1', 'claim', undefined);
     });
   });
 
@@ -371,12 +394,15 @@ describe('KanbanView', () => {
     const job = makeJob({ id: 'j1', status: 'ASSIGNED' });
     mockJobsSuccess([job]);
     mockFireTransition.mockResolvedValueOnce({ ...job, status: 'IN_PROGRESS' });
+    mockUseAuthStore.mockImplementation((selector: (s: { user: { role: string } }) => unknown) =>
+      selector({ user: { role: 'TECHNICIAN' } }),
+    );
     renderKanban();
 
     simulateDrag('j1', 'ASSIGNED', 'IN_PROGRESS');
 
     await waitFor(() => {
-      expect(mockFireTransition).toHaveBeenCalledWith('j1', 'start');
+      expect(mockFireTransition).toHaveBeenCalledWith('j1', 'start', undefined);
     });
   });
 

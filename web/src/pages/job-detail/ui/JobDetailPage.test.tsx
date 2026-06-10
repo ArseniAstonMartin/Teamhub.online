@@ -366,8 +366,38 @@ describe('JobDetailPage', () => {
     );
 
     await waitFor(() => {
-      expect(mockFireTransition).toHaveBeenCalledWith('job-123', 'claim');
+      expect(mockFireTransition).toHaveBeenCalledWith('job-123', 'claim', undefined);
     });
+  });
+
+  it('clicking Cancel fires fireTransition with "cancel" and reason body', async () => {
+    mockJobSuccess(makeJob({ status: 'IN_PROGRESS' }));
+    mockNotesSuccess([]);
+    setUser('DISPATCHER');
+    mockFireTransition.mockResolvedValueOnce(makeJob({ status: 'CANCELED' }));
+    renderPage();
+
+    await userEvent.click(screen.getByTestId('action-CANCELED'));
+
+    await waitFor(() => {
+      expect(mockFireTransition).toHaveBeenCalledWith('job-123', 'cancel', { reason: 'OTHER' });
+    });
+  });
+
+  it('shows Re-open for Admin on CANCELED jobs only', () => {
+    mockJobSuccess(makeJob({ status: 'CANCELED' }));
+    mockNotesSuccess([]);
+    setUser('ADMIN');
+    renderPage();
+    expect(screen.getByTestId('action-SUBMITTED')).toHaveTextContent('Re-open');
+  });
+
+  it('hides Re-open for Dispatcher on CANCELED jobs', () => {
+    mockJobSuccess(makeJob({ status: 'CANCELED' }));
+    mockNotesSuccess([]);
+    setUser('DISPATCHER');
+    renderPage();
+    expect(screen.queryByTestId('action-SUBMITTED')).not.toBeInTheDocument();
   });
 
   it('409 on transition rolls back status via second setQueryData and shows toast', async () => {

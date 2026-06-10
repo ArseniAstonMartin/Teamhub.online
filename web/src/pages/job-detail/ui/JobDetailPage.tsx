@@ -249,7 +249,8 @@ export default function JobDetailPage() {
     });
 
     try {
-      await fireTransition(job.id, action.endpoint);
+      const body = action.endpoint === 'cancel' ? { reason: 'OTHER' } : undefined;
+      await fireTransition(job.id, action.endpoint, body);
       await queryClient.invalidateQueries({ queryKey: ['job', id] });
     } catch (err) {
       // Rollback on error — handles 409 conflicts (AC5)

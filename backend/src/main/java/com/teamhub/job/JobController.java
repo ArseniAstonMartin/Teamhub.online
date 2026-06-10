@@ -1,5 +1,6 @@
 package com.teamhub.job;
 
+import com.teamhub.job.dto.CancelJobRequest;
 import com.teamhub.job.dto.CompleteJobRequest;
 import com.teamhub.job.dto.CreateJobNoteRequest;
 import com.teamhub.job.dto.CreateJobRequest;
@@ -307,6 +308,46 @@ public class JobController {
     String actorRole = extractRole(authentication);
     String note = request != null ? request.note() : null;
     return jobService.completeJob(tenantId, id, note, actorUserId, actorRole);
+  }
+
+  /**
+   * Cancels a job from any non-terminal status (PRD §9.2, §9.4; TASK-127).
+   *
+   * <p>Requires {@code PERM_job.edit} (Dispatcher / Admin). Body must include a {@link
+   * com.teamhub.job.CancellationReason}.
+   */
+  @PostMapping("/{id}/cancel")
+  @PreAuthorize("hasAuthority('PERM_job.edit')")
+  @Operation(
+      summary = "Cancel a job",
+      description =
+          "Dispatcher or Admin transitions a non-terminal job to CANCELED with a cancellation"
+              + " reason (PRD §9.4).")
+  public JobResponse cancel(
+      @PathVariable UUID id,
+      @Valid @RequestBody CancelJobRequest request,
+      Authentication authentication) {
+    UUID tenantId = TenantContext.get();
+    UUID actorUserId = extractUserId(authentication);
+    String actorRole = extractRole(authentication);
+    return jobService.cancelJob(tenantId, id, request.reason(), actorUserId, actorRole);
+  }
+
+  /**
+   * Reopens a canceled job back to {@code SUBMITTED} (PRD §9.2, §9.4; TASK-127).
+   *
+   * <p>Admin only — enforced via {@code PERM_job.hard_delete}.
+   */
+  @PostMapping("/{id}/reopen")
+  @PreAuthorize("hasAuthority('PERM_job.hard_delete')")
+  @Operation(
+      summary = "Reopen a canceled job",
+      description = "Admin transitions a CANCELED job back to SUBMITTED (PRD §9.4).")
+  public JobResponse reopen(@PathVariable UUID id, Authentication authentication) {
+    UUID tenantId = TenantContext.get();
+    UUID actorUserId = extractUserId(authentication);
+    String actorRole = extractRole(authentication);
+    return jobService.reopenJob(tenantId, id, actorUserId, actorRole);
   }
 
   // =========================================================================

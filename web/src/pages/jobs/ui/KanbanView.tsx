@@ -24,8 +24,10 @@ import type { JobDto, JobStatus, JobsPageResponse, JobsQueryParams } from '@/ent
 import {
   ALLOWED_TRANSITIONS,
   TRANSITION_ENDPOINT,
+  isTransitionAllowedForRole,
   type TransitionKey,
 } from '@/entities/job/model/transitions';
+import { useAuthStore } from '@/entities/user/model/authStore';
 // Re-export for backward compatibility — tests import these from KanbanView.
 export { ALLOWED_TRANSITIONS, TRANSITION_ENDPOINT };
 import { cn } from '@/shared/lib/utils';
@@ -117,6 +119,7 @@ const KANBAN_QUERY_PARAMS: JobsQueryParams = { size: 200 };
 export default function KanbanView() {
   const queryClient = useQueryClient();
   const [shakingIds, setShakingIds] = useState<ReadonlySet<string>>(new Set());
+  const userRole = useAuthStore((s) => s.user?.role);
 
   const { data, isLoading } = useJobs(KANBAN_QUERY_PARAMS);
 
@@ -142,9 +145,13 @@ export default function KanbanView() {
       return;
     }
 
+    if (!userRole || !isTransitionAllowedForRole(key, userRole)) {
+      toast.error('You do not have permission to perform this transition.');
+      return;
+    }
+
     const endpoint = TRANSITION_ENDPOINT[key];
     if (!endpoint) {
-      // TO-DO: backend cancel/reopen endpoints not yet available (PRD §9.4)
       toast.info('This transition is not yet available in Kanban. Please use the job detail view.');
       return;
     }
@@ -167,7 +174,8 @@ export default function KanbanView() {
     );
 
     try {
-      await fireTransition(jobId, endpoint);
+      const body = endpoint === 'cancel' ? { reason: 'OTHER' } : undefined;
+      await fireTransition(jobId, endpoint, body);
     } catch (err) {
       // ── Rollback on backend rejection (AC1 + AC2 backend path) ───────────
       queryClient.setQueryData(

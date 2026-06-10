@@ -2297,3 +2297,15 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Open TO-DOs created (with PRD reference): none
 - Commits: 7c1a231
 - Completed through TASK-126 (feat/missing-apis-refactor)
+
+### 2026-06-10 — TASK-127 — Job cancel/reopen API + Kanban/Detail wiring
+- Agent: Composer
+- Status change: pending → done
+- PRD sections consulted: §9.1, §9.2, §9.4
+- Files touched: backend/src/main/java/com/teamhub/job/dto/CancelJobRequest.java, backend/src/main/java/com/teamhub/job/JobService.java, backend/src/main/java/com/teamhub/job/JobController.java, backend/src/test/java/com/teamhub/job/JobCancelReopenIT.java, web/src/entities/job/model/transitions.ts, web/src/entities/job/api/jobsApi.ts, web/src/pages/jobs/ui/KanbanView.tsx, web/src/pages/jobs/ui/KanbanView.test.tsx, web/src/pages/job-detail/ui/JobDetailPage.tsx, web/src/pages/job-detail/ui/JobDetailPage.test.tsx, tasks.json, progress.md
+- Summary: Added `POST /api/v1/jobs/{id}/cancel` (PERM_job.edit, body `{ reason }`) and `POST /api/v1/jobs/{id}/reopen` (PERM_job.hard_delete / Admin only). Both delegate to `JobStateMachineService`, write `job_status_history`, and publish `JobStatusChanged`. Wired Kanban drag-to-CANCELED and Job Detail Cancel/Re-open buttons via `TRANSITION_ENDPOINT` with role guards.
+- Acceptance criteria verified: 1 (`JobService.cancelJob` + `POST /{id}/cancel` with reason, DISPATCHER/ADMIN), 2 (`JobService.reopenJob` + `POST /{id}/reopen` Admin-only CANCELED→SUBMITTED), 3 (history rows + outbox in IT), 4 (Kanban cancel drag calls `/cancel` without info toast), 5 (Job Detail Cancel for DISPATCHER/ADMIN, Re-open for ADMIN), 6 (`TRANSITION_ENDPOINT` maps cancel/reopen keys)
+- Test steps run: Step 1 (`step1_cancelInProgressJob_statusCanceled_historyRowWritten`) — passed; Step 2 (`step2_reopenCanceledJob_statusSubmitted`) — passed; Step 3 (`step3_dispatcherReopen_returns403`) — passed; Step 4 (`Step 4: SUBMITTED → CANCELED calls fireTransition with "cancel" and no info toast`) — passed
+- Open TO-DOs created (with PRD reference): Kanban/Detail cancel uses default `OTHER` reason — human may add reason picker UI later (PRD §9.1)
+- Commits: 1df1a1b
+- Completed through TASK-127 (feat/missing-apis-refactor)

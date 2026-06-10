@@ -477,6 +477,37 @@ public class JobService {
     return JobResponse.from(job);
   }
 
+  /**
+   * Cancels a job from any non-terminal status (PRD §9.2, §9.4; TASK-127).
+   *
+   * <p>Dispatcher and Admin callers only (enforced at controller via {@code PERM_job.edit}).
+   * Records {@code cancellationReason} and transitions to {@code CANCELED}.
+   */
+  @Transactional
+  public JobResponse cancelJob(
+      UUID tenantId, UUID jobId, CancellationReason reason, UUID actorUserId, String actorRole) {
+    Job job = loadActive(tenantId, jobId);
+    job.setCancellationReason(reason);
+    jobStateMachineService.transition(jobId, JobStatus.CANCELED, actorUserId, actorRole, null);
+    return JobResponse.from(job);
+  }
+
+  /**
+   * Reopens a canceled job back to {@code SUBMITTED} (PRD §9.2, §9.4; TASK-127).
+   *
+   * <p>Admin callers only (enforced at controller via {@code PERM_job.hard_delete}). Clears
+   * cancellation, pending, and in-progress sub-status fields per PRD §9.
+   */
+  @Transactional
+  public JobResponse reopenJob(UUID tenantId, UUID jobId, UUID actorUserId, String actorRole) {
+    Job job = loadActive(tenantId, jobId);
+    job.setCancellationReason(null);
+    job.setPendingReason(null);
+    job.setInProgressSubstatus(null);
+    jobStateMachineService.transition(jobId, JobStatus.SUBMITTED, actorUserId, actorRole, null);
+    return JobResponse.from(job);
+  }
+
   // =========================================================================
   // Private helpers
   // =========================================================================
