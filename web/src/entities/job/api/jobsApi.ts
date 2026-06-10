@@ -23,11 +23,6 @@ export function useJobs(params: JobsQueryParams) {
       });
       return data;
     },
-    // Poll every 30 s when window is focused; pauses automatically when unfocused.
-    // TO-DO: when WebSocket push arrives (v1.2) call queryClient.invalidateQueries({ queryKey: JOBS_QUERY_KEY }) instead — PRD §22.5.5
-    refetchInterval: 30_000,
-    refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
   });
 }
 
