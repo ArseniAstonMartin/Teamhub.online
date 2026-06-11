@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  ActivityIndicator,
   Alert,
   ScrollView,
   StyleSheet,
@@ -10,23 +11,25 @@ import {
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import { apiClient } from '../api/client';
+import { useCurrentUser } from '../api/usersApi';
 import { useAuthStore } from '../stores/authStore';
 import { loadRefreshToken } from '../utils/secureStore';
 import { colors } from '../theme/colors';
-
-// TO-DO: add GET /api/v1/users/me endpoint to expose name and email
 
 type Row = { label: string; value: string };
 type Section = { title: string; rows: Row[] };
 
 export default function ProfileScreen() {
   const user = useAuthStore((s) => s.user);
+  const { data: profile, isLoading, isError } = useCurrentUser();
 
   const sections: Section[] = [
     {
       title: 'ACCOUNT',
       rows: [
-        { label: 'Role', value: user?.role ?? '—' },
+        { label: 'Name', value: profile?.name ?? (isLoading ? '…' : '—') },
+        { label: 'Email', value: profile?.email ?? (isLoading ? '…' : '—') },
+        { label: 'Role', value: profile?.role ?? user?.role ?? '—' },
         { label: 'Team', value: user ? `${user.tenantId.slice(0, 8)}…` : '—' },
         { label: 'User ID', value: user ? `${user.id.slice(0, 8)}…` : '—' },
       ],
@@ -64,6 +67,20 @@ export default function ProfileScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.screenTitle}>Profile</Text>
+
+      {isLoading && (
+        <ActivityIndicator
+          testID="profile-loading"
+          color={colors.primary}
+          style={styles.loader}
+        />
+      )}
+
+      {isError && (
+        <Text style={styles.errorText} testID="profile-error">
+          Could not load profile. Pull to refresh or sign in again.
+        </Text>
+      )}
 
       {sections.map((section) => (
         <View key={section.title} style={styles.section}>
@@ -113,6 +130,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
     marginBottom: 24,
+  },
+  loader: {
+    marginBottom: 16,
+  },
+  errorText: {
+    fontSize: 14,
+    color: DANGER,
+    marginBottom: 16,
   },
   section: {
     marginBottom: 24,

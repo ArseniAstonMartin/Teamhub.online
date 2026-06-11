@@ -2345,3 +2345,15 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Open TO-DOs created (with PRD reference): none
 - Commits: a820a0c
 - Completed through TASK-130 (feat/missing-apis-refactor)
+
+### 2026-06-11 — TASK-132 — GET /users/me + profile wiring
+- Agent: Composer
+- Status change: pending → done
+- PRD sections consulted: §6.2
+- Files touched: backend/src/main/java/com/teamhub/auth/UserController.java, backend/src/main/java/com/teamhub/auth/CurrentUserService.java, backend/src/main/java/com/teamhub/auth/AccountDeactivatedException.java, backend/src/main/java/com/teamhub/auth/dto/CurrentUserResponse.java, backend/src/test/java/com/teamhub/auth/CurrentUserIT.java, backend/src/test/java/com/teamhub/auth/CurrentUserServiceTest.java, backend/src/test/java/com/teamhub/auth/dto/CurrentUserResponseTest.java, mobile/src/api/usersApi.ts, mobile/src/screens/ProfileScreen.tsx, mobile/src/__tests__/ProfileScreen.test.tsx, web/src/entities/user/model/userTypes.ts, web/src/entities/user/api/usersApi.ts, web/src/entities/user/api/usersApi.test.ts, web/src/widgets/app-layout/ui/AppLayout.tsx, web/src/widgets/app-layout/ui/AppLayout.test.tsx, tasks.json, progress.md
+- Summary: Added `GET /api/v1/users/me` returning `{ id, email, name, role, tenantId, lastLoginAt }` for any authenticated tenant JWT; deactivated users receive 403 `ACCOUNT_DEACTIVATED`. Reused `last_login_at` from TASK-129 (Flyway V33 on main); dropped duplicate TASK-132 V32 migration. Mobile ProfileScreen and web AppLayout sidebar/header now fetch and display real name and email via `useCurrentUser`, merged with TASK-128 tenant name in sidebar/header for Admin.
+- Acceptance criteria verified: 1 (`CurrentUserResponse` fields + `UserController.getCurrentUser`), 2 (no `@PreAuthorize` — any tenant role), 3 (mobile Profile name/email from `/me`), 4 (web sidebar/header display name from `/me`)
+- Test steps run: Step 1 (`step1_getMe_withValidJwt_returnsEmailAndRole`) — passed; Step 2 (`step2_getMe_withoutJwt_returns401`) — passed; Step 3 (`ProfileScreen renders name and email from /users/me`) — passed; Step 4 (`step4_getMe_deactivatedUser_returns403`) — passed
+- Open TO-DOs created (with PRD reference): none
+- Commits: pending rebase
+- Completed through TASK-132 (feat/task-132-users-me)

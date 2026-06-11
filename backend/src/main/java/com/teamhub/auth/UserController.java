@@ -1,6 +1,7 @@
 package com.teamhub.auth;
 
 import com.teamhub.auth.dto.ChangeRoleRequest;
+import com.teamhub.auth.dto.CurrentUserResponse;
 import com.teamhub.auth.dto.UserResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -28,8 +29,23 @@ public class UserController {
 
   private final UserManagementService userManagementService;
 
-  public UserController(UserManagementService userManagementService) {
+  private final CurrentUserService currentUserService;
+
+  public UserController(
+      UserManagementService userManagementService, CurrentUserService currentUserService) {
     this.userManagementService = userManagementService;
+    this.currentUserService = currentUserService;
+  }
+
+  /**
+   * Returns the authenticated caller's profile. Any valid tenant JWT (TECHNICIAN, DISPATCHER, or
+   * ADMIN) is accepted (TASK-132, PRD §6.2).
+   */
+  @GetMapping("/me")
+  public CurrentUserResponse getCurrentUser(@AuthenticationPrincipal Jwt jwt) {
+    UUID tenantId = UUID.fromString(jwt.getClaimAsString("tenant_id"));
+    UUID userId = UUID.fromString(jwt.getSubject());
+    return currentUserService.getCurrentUser(tenantId, userId);
   }
 
   /**

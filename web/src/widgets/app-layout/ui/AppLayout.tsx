@@ -13,6 +13,7 @@ import {
 import { cn } from '@/shared/lib/utils';
 import { useAuthStore, type UserRole } from '@/entities/user/model/authStore';
 import { useTenant } from '@/entities/tenant/api/tenantApi';
+import { useCurrentUser } from '@/entities/user/api/usersApi';
 import { UnsavedChangesGuard } from '@/app/UnsavedChangesGuard';
 import apiClient from '@/shared/api/client';
 import { AlertBanner } from '@/widgets/AlertBanner';
@@ -70,6 +71,8 @@ export default function AppLayout() {
   const isInSettings = useMatch('/settings/*');
   const role = user?.role ?? 'TECHNICIAN';
   const { data: tenant } = useTenant({ enabled: role === 'ADMIN' });
+  const { data: currentUser } = useCurrentUser();
+  const displayName = currentUser?.name ?? currentUser?.email ?? user?.id;
 
   const visibleItems = NAV_ITEMS.filter((item) =>
     item.allowedRoles.includes(role),
@@ -156,9 +159,9 @@ export default function AppLayout() {
           {/* User info + Logout */}
           <div className="border-t border-border px-3 py-4 space-y-2">
             {user && (
-              <div className="px-3 py-1">
+              <div className="px-3 py-1" data-testid="sidebar-user-info">
                 <p className="text-xs font-semibold text-brand-navy truncate">
-                  {user.id}
+                  {displayName}
                 </p>
                 <p className="text-xs text-brand-muted capitalize">
                   {user.role.toLowerCase()}
@@ -186,10 +189,17 @@ export default function AppLayout() {
             )}
             <div className="flex-1" />
             {user && (
-              <div className="flex items-center gap-2">
+              <div
+                className="flex items-center gap-2"
+                data-testid="header-user-info"
+                title={currentUser?.email ?? undefined}
+              >
+                <span className="text-sm text-brand-muted hidden sm:inline truncate max-w-[12rem]">
+                  {displayName}
+                </span>
                 <div className="h-8 w-8 rounded-full bg-brand-blue/10 flex items-center justify-center">
                   <span className="text-xs font-semibold text-brand-blue">
-                    {user.role.charAt(0)}
+                    {(currentUser?.name ?? user.role).charAt(0).toUpperCase()}
                   </span>
                 </div>
               </div>

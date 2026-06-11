@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/shared/api/client';
 import type {
+  CurrentUserResponse,
   UserResponse,
   UsersPageResponse,
   InviteResponse,
@@ -8,8 +9,21 @@ import type {
   ChangeRoleRequest,
 } from '../model/userTypes';
 
+export const currentUserQueryKey = ['currentUser'] as const;
+
 export const usersQueryKey = (page: number, size: number) =>
   ['users', { page, size }] as const;
+
+export function useCurrentUser() {
+  return useQuery({
+    queryKey: currentUserQueryKey,
+    queryFn: async () => {
+      const { data } = await apiClient.get<CurrentUserResponse>('/api/v1/users/me');
+      return data;
+    },
+    staleTime: 60_000,
+  });
+}
 
 export function useUsers(page = 0, size = 20) {
   return useQuery({
