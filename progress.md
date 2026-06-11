@@ -2367,5 +2367,5 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Acceptance criteria verified: 1 (`DefineEtaRequest` @Min/@Max), 2 (`PERM_job.eta.set` + `JOB_NOT_ASSIGNED_TO_CALLER`), 3 (ASSIGNED → IN_PROGRESS/ON_THE_WAY + scheduledEnd), 4 (IN_PROGRESS update without FSM), 5 (200 `JobResponse`), 6 (422/404/409 paths), 7 (TO-DO SMS marker in service), 8 (mobile POST `/eta`), 9 (`JobEtaIT` + `JobServiceUnitTest`)
 - Test steps run: Step 1 (`step1_assignedJob_defineEta_returns200_inProgressOnTheWay`) — passed; Step 2 (`step2_inProgressJob_defineEta_updatesSubstatusAndScheduledEnd`) — passed; Step 3 (`step3_unassignedTechnician_defineEta_returns403`) — passed; Step 4 (`step4_etaMinutesBelowMin_returns422`) — passed; Step 5 (`./gradlew test --tests '*JobEta*'` + `JobServiceUnitTest`) — passed; Step 6 (mobile `defineEta` POST — verified via API client change; manual device tap not run) — passed; Step 7 (`npm test -- DefineEtaSheet`) — passed (10/10)
 - Open TO-DOs created (with PRD reference): v1.1 SMS notification to customer on ETA set (PRD §13.2) — marker in `JobService.defineEta`
-- Commits: 9abcd6a
+- Commits: 4455147
 - Completed through TASK-135 (feat/task-135-define-eta)
