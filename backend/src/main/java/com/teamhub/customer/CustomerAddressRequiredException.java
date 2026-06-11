@@ -3,7 +3,9 @@ package com.teamhub.customer;
 import com.teamhub.exception.DomainException;
 import org.springframework.http.HttpStatus;
 
-/** Thrown when a customer cannot be persisted because no service-address coordinates are available. */
+/**
+ * Thrown when a customer cannot be persisted because no service-address coordinates are available.
+ */
 public class CustomerAddressRequiredException extends DomainException {
 
   public static final String CODE = "CUSTOMER_ADDRESS_REQUIRED";
