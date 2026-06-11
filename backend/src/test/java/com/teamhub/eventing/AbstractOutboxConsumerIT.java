@@ -73,7 +73,7 @@ class AbstractOutboxConsumerIT {
   @BeforeEach
   void setUp() {
     tenant =
-        tenantService.provision(
+        tenantService.provisionWithAdminUser(
             "Consumer Co " + UUID.randomUUID(), "consumer+" + UUID.randomUUID() + "@test.com");
 
     // Clean up any left-over state from previous runs.

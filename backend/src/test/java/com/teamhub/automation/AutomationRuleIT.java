@@ -106,7 +106,7 @@ class AutomationRuleIT {
   @BeforeEach
   void setUp() {
     String ownerEmail = "auto+" + UUID.randomUUID() + "@test.com";
-    tenant = tenantService.provision("Auto Rules Co " + UUID.randomUUID(), ownerEmail);
+    tenant = tenantService.provisionWithAdminUser("Auto Rules Co " + UUID.randomUUID(), ownerEmail);
     tenant.setPlan(Plan.STARTER);
     tenantRepository.save(tenant);
     adminUserId =

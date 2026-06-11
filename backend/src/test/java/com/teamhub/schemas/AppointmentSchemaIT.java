@@ -42,7 +42,7 @@ class AppointmentSchemaIT {
 
   @BeforeEach
   void setUp() {
-    Tenant tenant = tenantService.provision("Schema Test Co", "admin@schema-test.com");
+    Tenant tenant = tenantService.provisionWithAdminUser("Schema Test Co", "admin@schema-test.com");
     tenantId = tenant.getId();
   }
 

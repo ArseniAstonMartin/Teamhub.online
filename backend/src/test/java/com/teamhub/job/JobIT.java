@@ -98,7 +98,7 @@ class JobIT {
   @Test
   @Transactional
   void step1_insertJobWithValidCustomFields_persistsSuccessfully() {
-    Tenant tenant = tenantService.provision("Job IT Step1", "job-step1@test.com");
+    Tenant tenant = tenantService.provisionWithAdminUser("Job IT Step1", "job-step1@test.com");
     Customer customer = buildCustomer(tenant.getId());
     customerRepository.save(customer);
     em.flush();
@@ -132,7 +132,7 @@ class JobIT {
   @Test
   @Transactional
   void step2_missingRequiredCustomField_throwsCustomFieldValidationException() {
-    Tenant tenant = tenantService.provision("Job IT Step2", "job-step2@test.com");
+    Tenant tenant = tenantService.provisionWithAdminUser("Job IT Step2", "job-step2@test.com");
     AppointmentSchema schema = publishRequiredFieldSchema(tenant.getId());
 
     // Flush so schemaRepository.findById() within the validator can see the row.
@@ -152,7 +152,7 @@ class JobIT {
   @Test
   @Transactional
   void step2_nullCustomFields_throwsCustomFieldValidationException() {
-    Tenant tenant = tenantService.provision("Job IT Step2b", "job-step2b@test.com");
+    Tenant tenant = tenantService.provisionWithAdminUser("Job IT Step2b", "job-step2b@test.com");
     AppointmentSchema schema = publishRequiredFieldSchema(tenant.getId());
     em.flush();
 
@@ -167,7 +167,7 @@ class JobIT {
   @Test
   @Transactional
   void step2_exceptionCarriesCorrectErrorCode() {
-    Tenant tenant = tenantService.provision("Job IT Step2c", "job-step2c@test.com");
+    Tenant tenant = tenantService.provisionWithAdminUser("Job IT Step2c", "job-step2c@test.com");
     AppointmentSchema schema = publishRequiredFieldSchema(tenant.getId());
     em.flush();
 
@@ -197,7 +197,9 @@ class JobIT {
 
     // Arrange: create tenant, customer, schema in separate committed transactions.
     UUID tenantId =
-        tx.execute(s -> tenantService.provision("Job IT Step3", "job-step3@test.com").getId());
+        tx.execute(
+            s ->
+                tenantService.provisionWithAdminUser("Job IT Step3", "job-step3@test.com").getId());
     step3TenantId = tenantId;
 
     UUID customerId =

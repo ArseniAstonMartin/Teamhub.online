@@ -98,7 +98,7 @@ class PushActorIT {
   void setUp() {
     txTemplate = new TransactionTemplate(txManager);
     tenant =
-        tenantService.provision(
+        tenantService.provisionWithAdminUser(
             "PushActor Co " + UUID.randomUUID(), "push-actor+" + UUID.randomUUID() + "@test.com");
     tenantId = tenant.getId();
 

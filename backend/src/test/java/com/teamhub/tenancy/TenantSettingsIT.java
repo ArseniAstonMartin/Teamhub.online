@@ -117,7 +117,10 @@ class TenantSettingsIT {
     tx = new TransactionTemplate(txManager);
     String ownerEmail = "settings+" + UUID.randomUUID() + "@test.com";
     tenant =
-        tx.execute(s -> tenantService.provision("Settings Co " + UUID.randomUUID(), ownerEmail));
+        tx.execute(
+            s ->
+                tenantService.provisionWithAdminUser(
+                    "Settings Co " + UUID.randomUUID(), ownerEmail));
 
     UUID tid = tenant.getId();
     adminUserId =

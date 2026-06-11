@@ -85,7 +85,7 @@ class SilentPushIT {
   void setUp() {
     txTemplate = new TransactionTemplate(txManager);
     tenant =
-        tenantService.provision(
+        tenantService.provisionWithAdminUser(
             "SilentPush Co " + UUID.randomUUID(), "silent-push+" + UUID.randomUUID() + "@test.com");
     tenantId = tenant.getId();
 

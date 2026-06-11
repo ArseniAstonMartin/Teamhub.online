@@ -42,8 +42,8 @@ class RowLevelSecurityIT {
   @Test
   void rlsIsolatesUsersAcrossTenants() {
     // Arrange: provision two tenants as the postgres superuser (BYPASSRLS — RLS not applied).
-    Tenant tenantA = tenantService.provision("Plumbing Co", "admin@plumbing.com");
-    Tenant tenantB = tenantService.provision("Electrical Inc", "admin@electrical.com");
+    Tenant tenantA = tenantService.provisionWithAdminUser("Plumbing Co", "admin@plumbing.com");
+    Tenant tenantB = tenantService.provisionWithAdminUser("Electrical Inc", "admin@electrical.com");
 
     // Flush pending Hibernate INSERTs to DB (as postgres, bypasses RLS) before role switch.
     em.flush();
@@ -72,7 +72,7 @@ class RowLevelSecurityIT {
   @Test
   void withoutGucSetQueriesReturnNoRows() {
     // Arrange: create a tenant with a user as superuser.
-    tenantService.provision("Cleaning Pro", "admin@cleaning.com");
+    tenantService.provisionWithAdminUser("Cleaning Pro", "admin@cleaning.com");
 
     // Flush pending INSERTs to DB (as postgres, bypasses RLS) before switching roles.
     em.flush();

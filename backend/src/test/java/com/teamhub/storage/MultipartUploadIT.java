@@ -114,7 +114,7 @@ class MultipartUploadIT {
     tenant =
         tx.execute(
             s ->
-                tenantService.provision(
+                tenantService.provisionWithAdminUser(
                     "Multipart Upload Co " + UUID.randomUUID(),
                     "multipart+" + UUID.randomUUID() + "@test.com"));
 

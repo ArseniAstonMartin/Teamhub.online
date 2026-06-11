@@ -79,8 +79,12 @@ springdoc:
     enabled: true
   swagger-ui:
     enabled: false
+  paths-to-exclude: /api/v1/internal/**
 
 teamhub:
+  internal:
+    # Comma-separated IPs allowed to reach /api/v1/internal/** (TASK-131).
+    allowed-ips: ${INTERNAL_ALLOWED_IPS:127.0.0.1,::1}
   cors:
     # In production override with https://app.teamhub.online; dev default is the Vite dev server.
     allowed-origin: ${CORS_ALLOWED_ORIGIN:http://localhost:5173}

@@ -74,7 +74,7 @@ class MaterializedViewIT {
     tenant =
         tx.execute(
             s ->
-                tenantService.provision(
+                tenantService.provisionWithAdminUser(
                     "MV Corp " + UUID.randomUUID(), "mv+" + UUID.randomUUID() + "@test.com"));
 
     UUID tid = tenant.getId();

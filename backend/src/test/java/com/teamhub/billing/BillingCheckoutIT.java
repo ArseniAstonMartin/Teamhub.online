@@ -82,7 +82,7 @@ class BillingCheckoutIT {
 
   @BeforeEach
   void setUp() {
-    tenant = tenantService.provision("Acme Corp", "billing-admin@acme.com");
+    tenant = tenantService.provisionWithAdminUser("Acme Corp", "billing-admin@acme.com");
     adminUserId = userRepository.findByEmail("billing-admin@acme.com").orElseThrow().getId();
   }
 

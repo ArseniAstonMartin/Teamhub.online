@@ -17,6 +17,7 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,9 +44,13 @@ public class InviteService {
 
   private final InviteRepository inviteRepository;
 
+  private final UserRepository userRepository;
+
   private final UserService userService;
 
   private final AuthService authService;
+
+  private final PasswordEncoder passwordEncoder;
 
   private final OutboxPublisher outboxPublisher;
 
@@ -59,15 +64,19 @@ public class InviteService {
 
   public InviteService(
       InviteRepository inviteRepository,
+      UserRepository userRepository,
       UserService userService,
       AuthService authService,
+      PasswordEncoder passwordEncoder,
       OutboxPublisher outboxPublisher,
       JavaMailSender mailSender,
       @Value("${teamhub.frontend-url:http://localhost:5173}") String frontendUrl,
       QuotaEnforcementService quotaEnforcementService) {
     this.inviteRepository = inviteRepository;
+    this.userRepository = userRepository;
     this.userService = userService;
     this.authService = authService;
+    this.passwordEncoder = passwordEncoder;
     this.outboxPublisher = outboxPublisher;
     this.mailSender = mailSender;
     this.frontendUrl = frontendUrl;
@@ -143,8 +152,7 @@ public class InviteService {
       throw new InviteUsedOrExpiredException();
     }
 
-    userService.createUser(
-        invite.getTenantId(), invite.getEmail(), password, role, invite.getEmail());
+    activateOrCreateUser(invite, password, role);
 
     invite.setAcceptedAt(Instant.now());
     inviteRepository.save(invite);
@@ -225,6 +233,27 @@ public class InviteService {
   // -------------------------------------------------------------------------
   // Private helpers
   // -------------------------------------------------------------------------
+
+  /**
+   * Creates a new user or sets {@code password_hash} on a placeholder row left by legacy provision
+   * flows (TASK-131).
+   */
+  private void activateOrCreateUser(Invite invite, String password, UserRole role) {
+    userRepository
+        .findByEmail(invite.getEmail())
+        .ifPresentOrElse(
+            existing -> {
+              if (existing.getPasswordHash() != null
+                  || !existing.getTenant().getId().equals(invite.getTenantId())) {
+                throw new InviteUsedOrExpiredException();
+              }
+              existing.setPasswordHash(passwordEncoder.encode(password));
+              userRepository.save(existing);
+            },
+            () ->
+                userService.createUser(
+                    invite.getTenantId(), invite.getEmail(), password, role, invite.getEmail()));
+  }
 
   private void sendInviteEmail(String to, String rawToken) {
     String inviteLink = frontendUrl + "/accept-invite?token=" + rawToken;

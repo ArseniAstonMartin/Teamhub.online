@@ -22,4 +22,8 @@ public interface InviteRepository extends JpaRepository<Invite, UUID> {
   List<Invite> findByEmailAndAcceptedAtIsNull(String email);
 
   Optional<Invite> findByIdAndTenantId(UUID id, UUID tenantId);
+
+  /** Finds the most recent pending invite for a tenant and role (TASK-131 owner resend). */
+  Optional<Invite> findFirstByTenantIdAndRoleAndAcceptedAtIsNullOrderByCreatedAtDesc(
+      UUID tenantId, String role);
 }

@@ -85,7 +85,10 @@ class TenantProfileIT {
     tx = new TransactionTemplate(txManager);
     String ownerEmail = "tenant-profile+" + UUID.randomUUID() + "@test.com";
     tenant =
-        tx.execute(s -> tenantService.provision("Profile Co " + UUID.randomUUID(), ownerEmail));
+        tx.execute(
+            s ->
+                tenantService.provisionWithAdminUser(
+                    "Profile Co " + UUID.randomUUID(), ownerEmail));
 
     adminUserId =
         userRepository

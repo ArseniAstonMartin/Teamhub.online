@@ -98,7 +98,7 @@ class ReportIT {
     tenant =
         tx.execute(
             s ->
-                tenantService.provision(
+                tenantService.provisionWithAdminUser(
                     "Report Corp " + UUID.randomUUID(),
                     "report+" + UUID.randomUUID() + "@test.com"));
 

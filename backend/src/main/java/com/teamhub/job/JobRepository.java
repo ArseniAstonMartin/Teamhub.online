@@ -20,6 +20,9 @@ public interface JobRepository extends JpaRepository<Job, UUID>, JpaSpecificatio
    */
   List<Job> findAllByTenantIdAndArchivedAtIsNull(UUID tenantId);
 
+  /** Counts all jobs for a tenant (TASK-131 internal console detail). */
+  long countByTenantId(UUID tenantId);
+
   /**
    * Returns an active (non-archived) job for the given tenant and id.
    *

@@ -113,14 +113,14 @@ class JobNotesIT {
     tenant =
         tx.execute(
             s ->
-                tenantService.provision(
+                tenantService.provisionWithAdminUser(
                     "Notes Co " + UUID.randomUUID(),
                     "notes-owner+" + UUID.randomUUID() + "@test.com"));
 
     otherTenant =
         tx.execute(
             s ->
-                tenantService.provision(
+                tenantService.provisionWithAdminUser(
                     "Other Co " + UUID.randomUUID(),
                     "other-owner+" + UUID.randomUUID() + "@test.com"));
 

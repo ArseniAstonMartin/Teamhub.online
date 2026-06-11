@@ -59,7 +59,8 @@ class CustomerIT {
 
   @Test
   void insertCustomer_locationStoredAndReturnedAsPoint() {
-    Tenant tenant = tenantService.provision("Hillsboro Plumbing", "admin@hillsboro.com");
+    Tenant tenant =
+        tenantService.provisionWithAdminUser("Hillsboro Plumbing", "admin@hillsboro.com");
 
     Customer customer = buildCustomer(tenant.getId(), HILLSBORO_LON, HILLSBORO_LAT);
     customerRepository.save(customer);
@@ -89,7 +90,7 @@ class CustomerIT {
 
   @Test
   void spatialQuery_stDWithinFindsNearbyCustomer_andGistIndexIsUsed() {
-    Tenant tenant = tenantService.provision("Beaverton HVAC", "admin@beaverton.com");
+    Tenant tenant = tenantService.provisionWithAdminUser("Beaverton HVAC", "admin@beaverton.com");
 
     // Insert a customer 500 m from Hillsboro reference point (same coords for simplicity).
     Customer nearby = buildCustomer(tenant.getId(), HILLSBORO_LON, HILLSBORO_LAT);
@@ -131,7 +132,7 @@ class CustomerIT {
 
   @Test
   void crossTenantSelect_returnsZeroRows() {
-    Tenant tenantA = tenantService.provision("Alpha Plumbing", "admin@alpha.com");
+    Tenant tenantA = tenantService.provisionWithAdminUser("Alpha Plumbing", "admin@alpha.com");
     em.flush();
 
     // Insert a customer for tenant A directly via JDBC (postgres has BYPASSRLS).

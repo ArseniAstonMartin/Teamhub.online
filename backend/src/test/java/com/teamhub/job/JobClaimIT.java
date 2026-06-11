@@ -109,7 +109,7 @@ class JobClaimIT {
     tenant =
         tx.execute(
             s ->
-                tenantService.provision(
+                tenantService.provisionWithAdminUser(
                     "Claim Co " + UUID.randomUUID(), "claim+" + UUID.randomUUID() + "@test.com"));
 
     UUID tid = tenant.getId();

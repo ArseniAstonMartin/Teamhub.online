@@ -51,7 +51,7 @@ class AuthAuditIT {
     // InternalTenantService.provision auto-commits; the tenant row is visible to the async
     // audit thread when it fires its REQUIRES_NEW transaction.
     tenant =
-        tenantService.provision(
+        tenantService.provisionWithAdminUser(
             "Audit Test Co " + UUID.randomUUID(), "audituser+" + UUID.randomUUID() + "@test.com");
     user =
         userService.createUser(

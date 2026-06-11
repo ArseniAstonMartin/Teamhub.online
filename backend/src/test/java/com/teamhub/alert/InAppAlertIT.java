@@ -87,7 +87,7 @@ class InAppAlertIT {
   void setUp() {
     tx = new TransactionTemplate(txManager);
     tenant =
-        tenantService.provision(
+        tenantService.provisionWithAdminUser(
             "Alert Co " + UUID.randomUUID(), "alert+" + UUID.randomUUID() + "@test.com");
     tenantId = tenant.getId();
 

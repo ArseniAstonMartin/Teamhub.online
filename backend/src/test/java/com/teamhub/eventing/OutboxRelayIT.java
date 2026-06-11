@@ -77,7 +77,7 @@ class OutboxRelayIT {
   void setUp() {
     txTemplate = new TransactionTemplate(txManager);
     tenant =
-        tenantService.provision(
+        tenantService.provisionWithAdminUser(
             "Relay Co " + UUID.randomUUID(), "relay+" + UUID.randomUUID() + "@test.com");
     streamKeysToClean.clear();
 

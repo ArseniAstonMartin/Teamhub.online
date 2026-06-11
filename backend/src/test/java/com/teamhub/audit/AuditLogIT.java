@@ -56,7 +56,7 @@ class AuditLogIT {
     txTemplate = new TransactionTemplate(txManager);
     // Provision a tenant; InternalTenantService.provision auto-commits.
     tenant =
-        tenantService.provision(
+        tenantService.provisionWithAdminUser(
             "Audit Co " + UUID.randomUUID(), "audit+" + UUID.randomUUID() + "@test.com");
   }
 

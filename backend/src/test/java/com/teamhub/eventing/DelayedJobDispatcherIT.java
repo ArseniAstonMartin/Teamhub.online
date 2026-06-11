@@ -127,7 +127,7 @@ class DelayedJobDispatcherIT {
     TestHandlers.NOOP_COUNT.set(0);
     TestHandlers.CANCELLABLE_COUNT.set(0);
     tenant =
-        tenantService.provision(
+        tenantService.provisionWithAdminUser(
             "Dispatcher Co " + UUID.randomUUID(), "dispatcher+" + UUID.randomUUID() + "@test.com");
   }
 

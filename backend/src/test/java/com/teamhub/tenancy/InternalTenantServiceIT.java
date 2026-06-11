@@ -3,11 +3,8 @@ package com.teamhub.tenancy;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.teamhub.auth.User;
 import com.teamhub.auth.UserRepository;
-import com.teamhub.auth.UserRole;
 import com.teamhub.config.IntegrationTest;
-import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,19 +23,14 @@ class InternalTenantServiceIT {
   @Autowired private UserRepository userRepository;
 
   @Test
-  void provision_createsTenantAndAdminUser() {
+  void provision_createsTenantWithoutUser() {
+    long usersBefore = userRepository.count();
+
     Tenant tenant = service.provision("Acme Plumbing", "owner@acme.com");
 
     assertThat(tenant.getId()).isNotNull();
     assertThat(tenant.getName()).isEqualTo("Acme Plumbing");
-
-    List<User> users = userRepository.findAll();
-    assertThat(users).hasSize(1);
-
-    User admin = users.get(0);
-    assertThat(admin.getTenant().getId()).isEqualTo(tenant.getId());
-    assertThat(admin.getEmail()).isEqualTo("owner@acme.com");
-    assertThat(admin.getRole()).isEqualTo(UserRole.ADMIN);
+    assertThat(userRepository.count()).isEqualTo(usersBefore);
   }
 
   @Test
@@ -51,7 +43,7 @@ class InternalTenantServiceIT {
 
   @Test
   void provision_duplicateEmailThrowsDomainException() {
-    service.provision("First Org", "shared@example.com");
+    service.provisionWithAdminUser("First Org", "shared@example.com");
 
     assertThatThrownBy(() -> service.provision("Second Org", "shared@example.com"))
         .isInstanceOf(TenantProvisionException.class)

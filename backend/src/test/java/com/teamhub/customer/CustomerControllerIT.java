@@ -79,7 +79,7 @@ class CustomerControllerIT {
 
   @BeforeEach
   void setUp() {
-    Tenant tenant = tenantService.provision("Test HVAC Co", "admin@test-hvac.com");
+    Tenant tenant = tenantService.provisionWithAdminUser("Test HVAC Co", "admin@test-hvac.com");
     tenantId = tenant.getId();
     dispatcherToken = mintToken(tenantId, UserRole.DISPATCHER.name());
     technicianToken = mintToken(tenantId, UserRole.TECHNICIAN.name());

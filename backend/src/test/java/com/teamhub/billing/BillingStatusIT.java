@@ -62,7 +62,7 @@ class BillingStatusIT {
 
   @BeforeEach
   void setUp() {
-    tenant = tenantService.provision("Status Corp", "billing-status@status.com");
+    tenant = tenantService.provisionWithAdminUser("Status Corp", "billing-status@status.com");
     adminUserId = userRepository.findByEmail("billing-status@status.com").orElseThrow().getId();
   }
 
