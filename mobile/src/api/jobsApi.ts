@@ -170,16 +170,11 @@ export async function updateJobSchedule(id: string, scheduledEnd: string): Promi
   return data;
 }
 
-// TO-DO: backend needs to implement POST /api/v1/jobs/{id}/eta
-// → sets inProgressSubstatus = ON_THE_WAY (PRD §13.2)
 export async function defineEta(jobId: string, etaMinutes: number): Promise<JobResponse> {
-  const scheduledEnd = new Date(Date.now() + etaMinutes * 60_000).toISOString();
-  // Partial workaround: update scheduledEnd via PATCH until /eta endpoint exists
-  const { data } = await apiClient.patch<JobResponse>(`/api/v1/jobs/${jobId}`, {
-    scheduledEnd,
+  const { data } = await apiClient.post<JobResponse>(`/api/v1/jobs/${jobId}/eta`, {
+    etaMinutes,
   });
-  // Return with optimistic ON_THE_WAY substatus override
-  return { ...data, inProgressSubstatus: 'ON_THE_WAY' };
+  return data;
 }
 
 export function useJobsByCustomer(customerId: string, page = 0, size = 10) {

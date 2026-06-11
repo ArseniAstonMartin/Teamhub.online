@@ -16,6 +16,7 @@ import com.teamhub.shared.IdNameProjection;
 import com.teamhub.shared.TenantContext;
 import jakarta.persistence.criteria.Predicate;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -589,6 +590,47 @@ public class JobService {
     job.setPendingReason(null);
     job.setInProgressSubstatus(null);
     jobStateMachineService.transition(jobId, JobStatus.SUBMITTED, actorUserId, actorRole, null);
+    return JobResponse.from(job);
+  }
+
+  /**
+   * Sets the technician's ETA for a job (PRD §13.2; TASK-135).
+   *
+   * <p>When status is {@code ASSIGNED_TO_TECHNICIAN}, transitions to {@code IN_PROGRESS} via the
+   * state machine. When already {@code IN_PROGRESS}, updates sub-status and scheduled end without
+   * an invalid FSM transition.
+   *
+   * <p>The calling technician must be assigned to the job.
+   * <!-- TO-DO (v1.1): SMS notification to customer on ETA set (PRD §13.2) — not implemented in
+   * MVP -->
+   *
+   * @param tenantId the owning tenant
+   * @param jobId the job to update
+   * @param etaMinutes minutes until arrival (5–480, validated at controller)
+   * @param actorUserId UUID of the calling technician
+   * @param actorRole JWT {@code role} claim
+   * @return the updated job as a response DTO
+   * @throws JobNotAssignedToCallerException if the technician is not assigned to this job
+   * @throws IllegalStateTransitionException if the current status does not allow defining ETA
+   */
+  @Transactional
+  public JobResponse defineEta(
+      UUID tenantId, UUID jobId, int etaMinutes, UUID actorUserId, String actorRole) {
+    Job job = loadActive(tenantId, jobId);
+    requireAssigned(job, actorUserId);
+
+    job.setInProgressSubstatus(InProgressSubstatus.ON_THE_WAY);
+    job.setScheduledEnd(Instant.now().plus(etaMinutes, ChronoUnit.MINUTES));
+
+    JobStatus status = job.getStatus();
+    if (status == JobStatus.ASSIGNED_TO_TECHNICIAN) {
+      jobStateMachineService.transition(jobId, JobStatus.IN_PROGRESS, actorUserId, actorRole, null);
+    } else if (status == JobStatus.IN_PROGRESS) {
+      jobRepository.save(job);
+    } else {
+      throw new IllegalStateTransitionException(status, JobStatus.IN_PROGRESS);
+    }
+
     return JobResponse.from(job);
   }
 

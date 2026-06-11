@@ -4,6 +4,7 @@ import com.teamhub.job.dto.CancelJobRequest;
 import com.teamhub.job.dto.CompleteJobRequest;
 import com.teamhub.job.dto.CreateJobNoteRequest;
 import com.teamhub.job.dto.CreateJobRequest;
+import com.teamhub.job.dto.DefineEtaRequest;
 import com.teamhub.job.dto.DonePendingApprovalRequest;
 import com.teamhub.job.dto.JobNoteResponse;
 import com.teamhub.job.dto.JobResponse;
@@ -308,6 +309,32 @@ public class JobController {
     String actorRole = extractRole(authentication);
     String note = request != null ? request.note() : null;
     return jobService.completeJob(tenantId, id, note, actorUserId, actorRole);
+  }
+
+  /**
+   * Defines the technician's ETA: sets sub-status {@code ON_THE_WAY} and {@code scheduledEnd} (PRD
+   * §13.2; TASK-135).
+   *
+   * <p>When the job is {@code ASSIGNED_TO_TECHNICIAN}, transitions to {@code IN_PROGRESS}. When
+   * already {@code IN_PROGRESS}, updates fields without an invalid FSM transition.
+   *
+   * <p>Returns 403 {@code JOB_NOT_ASSIGNED_TO_CALLER} when the caller is not the assigned
+   * technician. Returns 409 when the current status does not allow defining ETA.
+   */
+  @PostMapping("/{id}/eta")
+  @PreAuthorize("hasAuthority('PERM_job.eta.set')")
+  @Operation(
+      summary = "Define ETA for a job",
+      description =
+          "Assigned technician sets ETA minutes; job moves to IN_PROGRESS / ON_THE_WAY (PRD §13.2).")
+  public JobResponse defineEta(
+      @PathVariable UUID id,
+      @Valid @RequestBody DefineEtaRequest request,
+      Authentication authentication) {
+    UUID tenantId = TenantContext.get();
+    UUID actorUserId = extractUserId(authentication);
+    String actorRole = extractRole(authentication);
+    return jobService.defineEta(tenantId, id, request.etaMinutes(), actorUserId, actorRole);
   }
 
   /**
