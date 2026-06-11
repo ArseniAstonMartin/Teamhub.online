@@ -111,6 +111,65 @@ export function makeJobsPage(jobs: JobDto[] = []): JobsPage {
   };
 }
 
+// ── Customer fixtures ────────────────────────────────────────────────────────
+
+export interface CustomerDto {
+  id: string;
+  tenantId: string;
+  name: string;
+  companyName: string | null;
+  phone: string;
+  email: string | null;
+  addressLine: string;
+  city: string;
+  state: string;
+  zip: string;
+  lat: number | null;
+  lon: number | null;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt: string | null;
+}
+
+export interface CustomersPage {
+  content: CustomerDto[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+}
+
+export function makeCustomer(overrides: Partial<CustomerDto> = {}): CustomerDto {
+  return {
+    id: 'cust-1',
+    tenantId: 'tenant-456',
+    name: 'Alice Smith',
+    companyName: 'Acme Corp',
+    phone: '+15035551234',
+    email: 'alice@example.com',
+    addressLine: '123 Main St',
+    city: 'Portland',
+    state: 'OR',
+    zip: '97201',
+    lat: 45.5,
+    lon: -122.6,
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+    archivedAt: null,
+    ...overrides,
+  };
+}
+
+export function makeCustomersPage(customers: CustomerDto[] = []): CustomersPage {
+  return {
+    content: customers,
+    totalElements: customers.length,
+    totalPages: customers.length > 0 ? 1 : 0,
+    number: 0,
+    size: 8,
+  };
+}
+
 // ── Schema fixture ───────────────────────────────────────────────────────────
 
 export function makeSchema(id: string = 'schema-1') {
