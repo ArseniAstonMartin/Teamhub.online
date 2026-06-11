@@ -160,7 +160,9 @@ public class SecurityConfig {
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
             auth ->
-                auth.requestMatchers("/api/v1/auth/**")
+                auth.requestMatchers("/error")
+                    .permitAll()
+                    .requestMatchers("/api/v1/auth/**")
                     .permitAll()
                     .requestMatchers("/api/v1/invites/accept")
                     .permitAll()
