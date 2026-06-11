@@ -2381,3 +2381,15 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Open TO-DOs created (with PRD reference): rotate `dev@teamhub.online` before production (PRD §6.4); `POST /api/v1/internal/staff/invites` follow-up (PRD §6.4)
 - Commits: 36fedd2
 - Completed through TASK-131 (feat/task-131-staff-onboarding-backend)
+
+### 2026-06-11 — TASK-088 — Internal admin console UI
+- Agent: Composer
+- Status change: pending → done
+- PRD sections consulted: §6.4, §26.1
+- Files touched: web/src/app/InternalGate.tsx, web/src/app/InternalGate.test.tsx, web/src/app/router.tsx, web/src/entities/staff/**, web/src/shared/api/internalClient.ts, web/src/shared/lib/jwt.ts, web/src/pages/internal-login/**, web/src/pages/internal-tenants/**, web/src/pages/internal-tenant-detail/**, web/src/pages/not-found/ui/NotFoundPage.tsx, web/src/widgets/internal-layout/ui/InternalLayout.tsx, tasks.json, progress.md
+- Summary: Built the Teamhub-staff-only internal admin console under `/__internal/*` with a separate staff JWT session (sessionStorage), staff login calling `POST /api/v1/internal/auth/login`, tenant list/create with schema-preset dropdown, tenant detail with resend-invite, and front-end gating that shows a generic 404 to tenant users while redirecting expired staff sessions to `/__internal/login`. Dev provisioning success surfaces a MailHog hint.
+- Acceptance criteria verified: 1 (staff login + separate JWT store), 2 (tenants list/create/detail routes), 3 (create posts to internal API + invite success + MailHog hint in dev), 4 (TEAMHUB_STAFF gate; tenant users see 404), 5 (backend IP allow-list unchanged; UI uses internal API only), 6 (no `/__internal` links in tenant nav)
+- Test steps run: Step 1 (InternalGate.test — tenant ADMIN sees 404) — passed; Step 2 (InternalLoginPage + InternalTenantsPage unit tests for login/provision flow) — passed; Step 3 (accept-invite unchanged; covered by existing backend TASK-131 tests) — passed; Step 4 (internalClient 401 → `/__internal/login`; InternalGate redirect for unauthenticated staff) — passed
+- Open TO-DOs created (with PRD reference): none (staff credential rotation and staff-invites API remain from TASK-131)
+- Commits: f4973bb
+- Completed through TASK-088 (feat/task-088-134-internal-admin-ui)

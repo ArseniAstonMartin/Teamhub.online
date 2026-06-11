@@ -1,7 +1,12 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import AuthGate from '@/app/AuthGate';
+import InternalGate from '@/app/InternalGate';
 import AppLayout from '@/widgets/app-layout/ui/AppLayout';
+import InternalLayout from '@/widgets/internal-layout/ui/InternalLayout';
 import LoginPage from '@/pages/login/ui/LoginPage';
+import InternalLoginPage from '@/pages/internal-login/ui/InternalLoginPage';
+import InternalTenantsPage from '@/pages/internal-tenants/ui/InternalTenantsPage';
+import InternalTenantDetailPage from '@/pages/internal-tenant-detail/ui/InternalTenantDetailPage';
 import ForgotPasswordPage from '@/pages/forgot-password/ui/ForgotPasswordPage';
 import ResetPasswordPage from '@/pages/reset-password/ui/ResetPasswordPage';
 import AcceptInvitePage from '@/pages/accept-invite/ui/AcceptInvitePage';
@@ -30,6 +35,21 @@ export const router = createBrowserRouter([
   { path: '/design-system', element: <DesignSystemPage /> },
   { path: '/auth/callback', element: <AuthCallbackPage /> },
   { path: '/auth/error', element: <AuthErrorPage /> },
+
+  // ── Internal staff console (PRD §6.4) — not linked from tenant nav ──
+  { path: '/__internal/login', element: <InternalLoginPage /> },
+  {
+    element: <InternalGate />,
+    children: [
+      {
+        element: <InternalLayout />,
+        children: [
+          { path: '/__internal/tenants', element: <InternalTenantsPage /> },
+          { path: '/__internal/tenants/:id', element: <InternalTenantDetailPage /> },
+        ],
+      },
+    ],
+  },
 
   // ── Protected routes ────────────────────────────────────────────────
   {
