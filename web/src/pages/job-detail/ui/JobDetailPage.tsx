@@ -15,13 +15,20 @@ import {
   AlertCircle,
   ImageIcon,
   History,
+  Upload,
 } from 'lucide-react';
 
-import { useJob, useJobNotes, createNote, fireTransition } from '@/entities/job/api/jobsApi';
-import type { JobNoteResponse, JobResponse, JobStatus } from '@/entities/job/model/types';
+import { formatDistanceToNow } from 'date-fns';
+import { useJob, useJobNotes, useJobPhotos, useJobStatusHistory, createNote, fireTransition } from '@/entities/job/api/jobsApi';
+import type { JobNoteResponse, JobPhotoResponse, JobResponse, JobStatus, JobStatusHistoryResponse } from '@/entities/job/model/types';
 import { TRANSITIONS_FROM, type TransitionAction } from '@/entities/job/model/transitions';
 import { useAuthStore } from '@/entities/user/model/authStore';
 import { Button } from '@/shared/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from '@/shared/ui/dialog';
 import { cn } from '@/shared/lib/utils';
 
 // ── Status config ─────────────────────────────────────────────────────────────
@@ -36,7 +43,104 @@ const STATUS_CONFIG: Record<JobStatus, { label: string; Icon: React.ElementType;
   CANCELED:              { label: 'Canceled',               Icon: XCircle,       className: 'bg-red-100    text-red-700    border-red-200' },
 };
 
+/** Maps backend enum names to the frontend JobStatus union. */
+function normalizeStatus(raw: string | null | undefined): JobStatus {
+  if (raw === 'ASSIGNED_TO_TECHNICIAN') return 'ASSIGNED';
+  if (raw && raw in STATUS_CONFIG) return raw as JobStatus;
+  return 'SUBMITTED';
+}
+
+interface TimelineStep {
+  status: JobStatus;
+  createdAt: string;
+  note: string | null;
+}
+
+function buildTimelineSteps(
+  history: JobStatusHistoryResponse[],
+  jobCreatedAt: string,
+): TimelineStep[] {
+  if (history.length === 0) return [];
+
+  const steps: TimelineStep[] = [];
+  const first = history[0];
+  if (first.fromStatus) {
+    steps.push({
+      status: normalizeStatus(first.fromStatus),
+      createdAt: jobCreatedAt,
+      note: null,
+    });
+  }
+  for (const entry of history) {
+    steps.push({
+      status: normalizeStatus(entry.toStatus),
+      createdAt: entry.createdAt,
+      note: entry.transitionNote,
+    });
+  }
+  return steps;
+}
+
 // ── Sub-components ────────────────────────────────────────────────────────────
+
+function StatusTimeline({
+  history,
+  jobCreatedAt,
+}: {
+  history: JobStatusHistoryResponse[];
+  jobCreatedAt: string;
+}) {
+  const steps = buildTimelineSteps(history, jobCreatedAt);
+
+  if (steps.length === 0) {
+    return (
+      <p className="text-xs text-brand-muted" data-testid="status-history-empty">
+        No status changes recorded yet.
+      </p>
+    );
+  }
+
+  return (
+    <ol className="relative space-y-0" data-testid="status-history-timeline">
+      {steps.map((step, index) => {
+        const { label, Icon } = STATUS_CONFIG[step.status] ?? STATUS_CONFIG.SUBMITTED;
+        const isLast = index === steps.length - 1;
+        return (
+          <li
+            key={`${step.status}-${step.createdAt}-${index}`}
+            className="relative flex gap-3 pb-4 last:pb-0"
+            data-testid={`status-timeline-step-${step.status}`}
+          >
+            {!isLast && (
+              <span
+                className="absolute left-[11px] top-6 bottom-0 w-px bg-border"
+                aria-hidden="true"
+              />
+            )}
+            <span
+              className={cn(
+                'relative z-10 flex size-6 shrink-0 items-center justify-center rounded-full border bg-brand-surface',
+                isLast ? 'border-brand-blue text-brand-blue' : 'border-border text-brand-muted',
+              )}
+              aria-hidden="true"
+            >
+              <Icon className="size-3.5" />
+            </span>
+            <div className="min-w-0 flex-1 pt-0.5">
+              <p className="text-sm font-medium text-brand-navy">{label}</p>
+              <p className="text-xs text-brand-muted">
+                {formatDistanceToNow(new Date(step.createdAt), { addSuffix: true })}
+              </p>
+              {step.note && (
+                <p className="mt-1 text-xs text-brand-muted italic">{step.note}</p>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
 
 function StatusBadge({ status }: { status: JobStatus }) {
   const { label, Icon, className } = STATUS_CONFIG[status] ?? STATUS_CONFIG.SUBMITTED;
@@ -100,9 +204,12 @@ export default function JobDetailPage() {
   const [noteText, setNoteText] = useState('');
   const [isSubmittingNote, setIsSubmittingNote] = useState(false);
   const [pendingTransition, setPendingTransition] = useState<string | null>(null);
+  const [lightboxPhoto, setLightboxPhoto] = useState<JobPhotoResponse | null>(null);
 
   const { data: job, isLoading: jobLoading, isError: jobError } = useJob(id);
   const { data: notes = [], isLoading: notesLoading } = useJobNotes(id);
+  const { data: photos = [], isLoading: photosLoading } = useJobPhotos(id);
+  const { data: statusHistory = [], isLoading: statusHistoryLoading } = useJobStatusHistory(id);
 
   // ── Action buttons — only allowed role+state combos (AC2) ────────────────
 
@@ -142,7 +249,8 @@ export default function JobDetailPage() {
     });
 
     try {
-      await fireTransition(job.id, action.endpoint);
+      const body = action.endpoint === 'cancel' ? { reason: 'OTHER' } : undefined;
+      await fireTransition(job.id, action.endpoint, body);
       await queryClient.invalidateQueries({ queryKey: ['job', id] });
     } catch (err) {
       // Rollback on error — handles 409 conflicts (AC5)
@@ -224,13 +332,8 @@ export default function JobDetailPage() {
     </div>
   );
 
-  const customerName =
-    job.customer?.name ??
-    (job.customerId ? `Customer #${job.customerId.slice(0, 8)}` : 'No customer');
-  // TO-DO: fetch assignee name from user service when backend returns only IDs
-  const technicianName =
-    job.assignedTechnician?.name ??
-    (job.assignedTechnicianId ? `Tech #${job.assignedTechnicianId.slice(0, 8)}` : 'Unassigned');
+  const customerName = job.customerName ?? 'No customer';
+  const technicianName = job.assigneeName ?? 'Unassigned';
 
   return (
     <div className="space-y-5 font-sans">
@@ -376,19 +479,85 @@ export default function JobDetailPage() {
             )}
           </section>
 
-          {/* Photos placeholder — TO-DO when GET /api/v1/jobs/{id}/photos is available (PRD §14) */}
+          {/* Photos (PRD §14.2; TASK-123) */}
           <section
-            className="rounded-lg border border-border border-dashed bg-brand-surface p-6 text-center space-y-2"
+            className="rounded-lg border border-border bg-brand-surface p-4 space-y-4"
             aria-label="Photos"
-            data-testid="photos-placeholder"
+            data-testid="photos-section"
           >
-            <ImageIcon className="mx-auto size-8 text-gray-300" aria-hidden="true" />
-            <p className="text-sm text-brand-muted font-medium">Photos</p>
-            <p className="text-xs text-brand-muted">
-              {/* TO-DO: implement thumbnail grid + lightbox when GET /api/v1/jobs/{id}/photos is available */}
-              Photos will appear here once the photos endpoint is available.
-            </p>
+            <h2 className="text-sm font-semibold text-brand-navy">Photos</h2>
+
+            {photosLoading && (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 animate-pulse" data-testid="photos-loading">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="aspect-square rounded-md bg-gray-100" />
+                ))}
+              </div>
+            )}
+
+            {!photosLoading && photos.length === 0 && (
+              <div
+                className="flex flex-col items-center gap-2 py-8 text-center"
+                data-testid="photos-empty"
+              >
+                <Upload className="size-8 text-gray-300" aria-hidden="true" />
+                <p className="text-sm text-brand-muted">No photos yet</p>
+              </div>
+            )}
+
+            {!photosLoading && photos.length > 0 && (
+              <ul
+                className="grid grid-cols-3 sm:grid-cols-4 gap-2"
+                aria-label="Photo thumbnails"
+                data-testid="photos-grid"
+              >
+                {photos.map((photo) => (
+                  <li key={photo.id}>
+                    <button
+                      type="button"
+                      className="group relative aspect-square w-full overflow-hidden rounded-md border border-border bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      data-testid={`photo-thumb-${photo.id}`}
+                      aria-label="View photo"
+                      onClick={() => setLightboxPhoto(photo)}
+                    >
+                      {photo.downloadUrl ? (
+                        <img
+                          src={photo.downloadUrl}
+                          alt=""
+                          className="size-full object-cover transition-transform group-hover:scale-105"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="flex size-full items-center justify-center">
+                          <ImageIcon className="size-6 text-gray-300" aria-hidden="true" />
+                        </div>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
+
+          <Dialog
+            open={lightboxPhoto !== null}
+            onOpenChange={(open) => { if (!open) setLightboxPhoto(null); }}
+          >
+            <DialogContent
+              className="max-w-4xl border-none bg-transparent p-2 shadow-none sm:max-w-5xl"
+              data-testid="photo-lightbox"
+            >
+              <DialogTitle className="sr-only">Photo preview</DialogTitle>
+              {lightboxPhoto?.downloadUrl && (
+                <img
+                  src={lightboxPhoto.downloadUrl}
+                  alt=""
+                  className="mx-auto max-h-[85vh] w-auto max-w-full rounded-md object-contain"
+                  data-testid="photo-lightbox-image"
+                />
+              )}
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* ── SIDEBAR ── */}
@@ -435,20 +604,24 @@ export default function JobDetailPage() {
             )}
           </section>
 
-          {/* Status history placeholder — TO-DO when GET /api/v1/jobs/{id}/status-history is available */}
+          {/* Status history timeline (PRD §9; TASK-124) */}
           <section
-            className="rounded-lg border border-border bg-brand-surface p-4 space-y-2"
+            className="rounded-lg border border-border bg-brand-surface p-4 space-y-3"
             data-testid="status-history"
           >
             <div className="flex items-center gap-1.5">
               <History className="size-3.5 text-brand-muted" aria-hidden="true" />
               <h2 className="text-sm font-semibold text-brand-navy">Status History</h2>
             </div>
-            {/* TO-DO: implement full audit trail when GET /api/v1/jobs/{id}/status-history is available */}
-            <div className="text-sm text-brand-muted space-y-1">
-              <p>Current status: <StatusBadge status={job.status} /></p>
-              <p className="text-xs opacity-60">Full history coming soon.</p>
-            </div>
+            {statusHistoryLoading ? (
+              <div className="space-y-3 animate-pulse" data-testid="status-history-loading">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-10 rounded bg-gray-200" />
+                ))}
+              </div>
+            ) : (
+              <StatusTimeline history={statusHistory} jobCreatedAt={job.createdAt} />
+            )}
           </section>
 
           {/* Metadata */}

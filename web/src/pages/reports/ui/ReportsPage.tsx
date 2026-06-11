@@ -15,6 +15,9 @@ import {
 } from 'recharts';
 import { TrendingUp, Lock } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
+import { useBillingStatus } from '@/entities/billing/api/billingApi';
+import type { PlanKey } from '@/entities/billing/model/types';
+import { useAuthStore } from '@/entities/user/model/authStore';
 import {
   useJobCounts,
   useAvgTimes,
@@ -46,6 +49,8 @@ function defaultRange(period: ReportPeriod): { from: string; to: string } {
       return { from: daysAgo(6), to: today() };
     case 'year':
       return { from: daysAgo(364), to: today() };
+    case 'custom':
+      return { from: daysAgo(29), to: today() };
     case 'month':
     default:
       return { from: daysAgo(29), to: today() };
@@ -78,7 +83,25 @@ function formatXDate(dateStr: string, period: ReportPeriod): string {
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     case 'year':
       return d.toLocaleDateString('en-US', { month: 'short' });
+    case 'custom':
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
+}
+
+const ADVANCED_PLANS: PlanKey[] = ['TEAM', 'ENTERPRISE'];
+
+function hasAdvancedAnalytics(
+  billingPlan: PlanKey | undefined,
+  techData: unknown[] | null | undefined,
+  techLoading: boolean,
+): boolean {
+  if (billingPlan) {
+    return ADVANCED_PLANS.includes(billingPlan);
+  }
+  if (!techLoading) {
+    return techData !== null && techData !== undefined;
+  }
+  return false;
 }
 
 // ── Period tabs ───────────────────────────────────────────────────────────────
@@ -210,13 +233,19 @@ function BarLabel(props: { x?: number; y?: number; width?: number; value?: numbe
 export default function ReportsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const periodParam = (searchParams.get('period') as ReportPeriod | null) ?? 'month';
+  const periodParam = searchParams.get('period');
   const fromParam = searchParams.get('from');
   const toParam = searchParams.get('to');
 
-  const period: ReportPeriod = PERIODS.some((p) => p.id === periodParam)
-    ? periodParam
-    : 'month';
+  const period: ReportPeriod =
+    periodParam === 'custom' || PERIODS.some((p) => p.id === periodParam)
+      ? (periodParam as ReportPeriod)
+      : 'month';
+
+  const user = useAuthStore((s) => s.user);
+  const { data: billingStatus } = useBillingStatus({
+    enabled: user?.role === 'ADMIN',
+  });
 
   // Derive date range: prefer URL params, fall back to period defaults
   const { from, to } = useMemo(() => {
@@ -241,10 +270,22 @@ export default function ReportsPage() {
     setSearchParams({ period: p, from: range.from, to: range.to });
   }
 
+  function updateCustomRange(nextFrom: string, nextTo: string) {
+    setSearchParams({ period: 'custom', from: nextFrom, to: nextTo });
+  }
+
+  const apiPeriod: ReportPeriod = period === 'custom' ? 'day' : period;
+
   // ── API queries ─────────────────────────────────────────────────────────────
-  const jobsQuery = useJobCounts({ period, from, to });
+  const jobsQuery = useJobCounts({ period: apiPeriod, from, to });
   const avgQuery = useAvgTimes({ from, to });
   const techQuery = usePerTechnician({ from, to });
+
+  const customRangeEnabled = hasAdvancedAnalytics(
+    billingStatus?.plan,
+    techQuery.data,
+    techQuery.isLoading,
+  );
 
   // ── Derived chart data ──────────────────────────────────────────────────────
   const jobChartData = useMemo(
@@ -294,20 +335,63 @@ export default function ReportsPage() {
             </button>
           ))}
 
-          {/* Custom range — Team+ only (TO-DO: enable when plan info is available) */}
-          <button
-            role="tab"
-            aria-selected={false}
-            aria-disabled="true"
-            data-testid="period-tab-custom"
-            title="Custom date range is a Team+ feature"
-            className="px-3 py-1.5 rounded-md text-sm font-medium text-brand-muted/50 cursor-not-allowed flex items-center gap-1"
-            disabled
-          >
-            <Lock className="h-3 w-3" aria-hidden="true" />
-            Custom
-          </button>
+          {customRangeEnabled ? (
+            <button
+              role="tab"
+              aria-selected={period === 'custom'}
+              data-testid="period-tab-custom"
+              onClick={() => selectPeriod('custom')}
+              className={cn(
+                'px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+                period === 'custom'
+                  ? 'bg-brand-blue text-white shadow-sm'
+                  : 'text-brand-muted hover:text-brand-navy',
+              )}
+            >
+              Custom
+            </button>
+          ) : (
+            <button
+              role="tab"
+              aria-selected={false}
+              aria-disabled="true"
+              data-testid="period-tab-custom"
+              title="Custom date range is a Team+ feature"
+              className="px-3 py-1.5 rounded-md text-sm font-medium text-brand-muted/50 cursor-not-allowed flex items-center gap-1"
+              disabled
+            >
+              <Lock className="h-3 w-3" aria-hidden="true" />
+              Custom
+            </button>
+          )}
         </div>
+
+        {period === 'custom' && customRangeEnabled && (
+          <div className="flex items-center gap-2 text-sm" data-testid="custom-date-range">
+            <label className="flex items-center gap-1.5 text-brand-muted">
+              From
+              <input
+                type="date"
+                value={from}
+                max={to}
+                onChange={(e) => updateCustomRange(e.target.value, to)}
+                className="rounded-md border border-border px-2 py-1 text-brand-navy"
+                data-testid="custom-from"
+              />
+            </label>
+            <label className="flex items-center gap-1.5 text-brand-muted">
+              To
+              <input
+                type="date"
+                value={to}
+                min={from}
+                onChange={(e) => updateCustomRange(from, e.target.value)}
+                className="rounded-md border border-border px-2 py-1 text-brand-navy"
+                data-testid="custom-to"
+              />
+            </label>
+          </div>
+        )}
       </div>
 
       {/* ── Avg time cards ────────────────────────────────────────────────── */}

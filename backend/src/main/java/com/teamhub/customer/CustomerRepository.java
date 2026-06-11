@@ -1,5 +1,7 @@
 package com.teamhub.customer;
 
+import com.teamhub.shared.IdNameProjection;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -57,4 +59,15 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID> {
       @Param("q") String q,
       @Param("includeArchived") boolean includeArchived,
       Pageable pageable);
+
+  /**
+   * Batch-loads customer display names for job list enrichment (TASK-130, PRD §11).
+   *
+   * <p>Scoped to {@code tenantId} to preserve tenant isolation in a single IN query.
+   */
+  @Query(
+      "SELECT c.id AS id, c.name AS name FROM Customer c"
+          + " WHERE c.tenantId = :tenantId AND c.id IN :ids")
+  List<IdNameProjection> findIdAndNameByTenantIdAndIdIn(
+      @Param("tenantId") UUID tenantId, @Param("ids") Collection<UUID> ids);
 }

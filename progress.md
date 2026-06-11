@@ -2249,3 +2249,99 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Acceptance criteria verified: 1 (GET /api/v1/alerts returns pending alerts, protected by PERM_alert.read), 2 (30 s poll, window-focus only, red banner), 3 (dismiss POST clears banner permanently)
 - Test results: backend 504 tests passed (0 failures), frontend 276 tests passed (20 test files), lint clean, typecheck clean
 - TO-DO created: alert Admins without push tokens via users table query — PRD §28
+
+### 2026-06-10 — TASK-123 — Job photos list API + gallery
+- Agent: Composer
+- Status change: pending → done
+- PRD sections consulted: §14.2
+- Files touched: backend/src/main/java/com/teamhub/storage/JobPhotoRepository.java, backend/src/main/java/com/teamhub/storage/dto/JobPhotoResponse.java, backend/src/main/java/com/teamhub/storage/PhotoUploadService.java, backend/src/main/java/com/teamhub/job/JobController.java, backend/src/test/java/com/teamhub/storage/PhotoUploadIT.java, web/src/entities/job/model/types.ts, web/src/entities/job/api/jobsApi.ts, web/src/pages/job-detail/ui/JobDetailPage.tsx, web/src/pages/job-detail/ui/JobDetailPage.test.tsx, tasks.json, progress.md
+- Summary: Added `GET /api/v1/jobs/{id}/photos` returning `JobPhotoResponse[]` with 5-min pre-signed S3 GET URLs (`downloadUrl`), guarded by `PERM_photo.upload`. Extended `PhotoUploadService.listPhotos` with tenant-scoped job validation and presigned download URL generation. Replaced the Job Detail photos placeholder with a thumbnail grid, Radix lightbox on click, and an empty state showing an upload icon with "No photos yet".
+- Acceptance criteria verified: 1 (`findByJobIdAndTenantIdOrderByCreatedAtDesc` on `JobPhotoRepository`), 2 (`GET /api/v1/jobs/{id}/photos` returns array with `PERM_photo.upload`), 3 (each item includes `downloadUrl` with 5-min TTL), 4 (Job Detail thumbnail grid + lightbox), 5 (empty state with upload icon + "No photos yet")
+- Test steps run: Step 1 (`task123_step1_listPhotos_afterUpload_returnsDownloadUrl`) — passed; Step 2 (Job Detail thumbnail grid — `renders photo thumbnail grid when photos exist`) — passed; Step 3 (lightbox — `opens lightbox with full image when thumbnail is clicked`) — passed; Step 4 (`task123_step4_listPhotos_noPhotos_returnsEmptyArray` + `shows empty photos state when job has no photos`) — passed
+- Open TO-DOs created (with PRD reference): none
+- Commits: b4cf72e
+- Completed through TASK-123 (feat/task-123-job-photos-list)
+
+### 2026-06-10 — TASK-124 — Job status history API + timeline
+- Agent: Composer
+- Status change: pending → done
+- PRD sections consulted: §9
+- Files touched: backend/src/main/java/com/teamhub/job/dto/JobStatusHistoryResponse.java, backend/src/main/java/com/teamhub/job/JobStatusHistoryService.java, backend/src/main/java/com/teamhub/job/JobStatusHistoryRepository.java, backend/src/main/java/com/teamhub/job/JobController.java, backend/src/test/java/com/teamhub/job/JobStatusHistoryIT.java, web/src/entities/job/model/types.ts, web/src/entities/job/api/jobsApi.ts, web/src/pages/job-detail/ui/JobDetailPage.tsx, web/src/pages/job-detail/ui/JobDetailPage.test.tsx, tasks.json, progress.md
+- Summary: Added `GET /api/v1/jobs/{id}/status-history` returning `[ { fromStatus, toStatus, actorRole, transitionNote, createdAt } ]` oldest-first, guarded by `PERM_job.read.own` or `PERM_job.read.tenant`. `JobStatusHistoryService` validates the parent job belongs to the caller's tenant and queries history filtered by `tenant_id`. Replaced the Job Detail sidebar placeholder with a vertical timeline (icon, label, relative time via date-fns, optional note); the UI derives a 3-step progression from two history rows by prepending the initial `fromStatus`.
+- Acceptance criteria verified: 1 (`GET /api/v1/jobs/{id}/status-history` returns documented fields oldest-first with read permissions), 2 (`findByJobIdAndTenantIdOrderByCreatedAtAsc` + job tenant validation in service layer), 3 (Job Detail sidebar `StatusTimeline` replaces placeholder)
+- Test steps run: Step 1 (`step1_submittedAssignedInProgress_returnsHistoryInOrder`) — passed; Step 2 (`renders a 3-step status timeline from history rows`) — passed; Step 3 (`step3_anotherTenant_listStatusHistory_returns404`) — passed
+- Open TO-DOs created (with PRD reference): none
+- Commits: b5e6721
+- Completed through TASK-124 (feat/missing-apis-refactor)
+
+### 2026-06-10 — TASK-125 — Billing status API + UI wiring
+- Agent: Composer
+- Status change: pending → done
+- PRD sections consulted: §17, §18.2
+- Files touched: backend/src/main/java/com/teamhub/billing/BillingController.java, backend/src/main/java/com/teamhub/billing/BillingStatusService.java, backend/src/main/java/com/teamhub/billing/dto/BillingStatusResponse.java, backend/src/test/java/com/teamhub/billing/BillingStatusIT.java, web/src/entities/billing/api/billingApi.ts, web/src/entities/billing/model/types.ts, web/src/entities/report/model/types.ts, web/src/pages/settings-billing/ui/SettingsBillingPage.tsx, web/src/pages/settings-billing/ui/SettingsBillingPage.test.tsx, web/src/pages/reports/ui/ReportsPage.tsx, web/src/pages/reports/ui/ReportsPage.test.tsx, tasks.json, progress.md
+- Summary: Added `GET /api/v1/billing/status` (PERM_billing.manage) returning plan, periodEnd, paymentFailed, paymentFailedAt, jobsThisPeriod, and seats from `tenants` + `tenant_quota_state`. Wired `useBillingStatus()` to the real endpoint; the Billing page plan card, quota bars, and payment/quota banners now render from live data. Enabled the Reports Custom date-range tab for Team+ plans with from/to date inputs.
+- Acceptance criteria verified: 1 (`BillingStatusService.getStatus` + `GET /api/v1/billing/status`), 2 (`useBillingStatus` TanStack Query hook), 3 (Billing page `PlanCard` + `UsageBar` from live data), 4 (`Banners` payment-failed alert), 5 (80%/100% quota banners via `Banners`), 6 (Reports `period-tab-custom` enabled for TEAM/ENTERPRISE)
+- Test steps run: Step 1 (`step1_adminGetStatus_allFieldsPresent`) — passed; Step 2 (`renders plan card with usage bars when billing status is loaded`) — passed; Step 3 (`step3_paymentFailedAt_paymentFailedTrue` + `shows payment-failed banner when paymentFailed is true`) — passed; Step 4 (`enables Custom tab when billing plan is TEAM`) — passed
+- Open TO-DOs created (with PRD reference): none
+- Commits: 5c658ff
+- Completed through TASK-125 (feat/missing-apis-refactor)
+
+### 2026-06-10 — TASK-126 — Customer restore API + UI
+- Agent: Composer
+- Status change: pending → done
+- PRD sections consulted: §11.3
+- Files touched: backend/src/main/java/com/teamhub/customer/CustomerService.java, backend/src/main/java/com/teamhub/customer/CustomerController.java, backend/src/test/java/com/teamhub/customer/CustomerRestoreIT.java, web/src/entities/customer/api/customersApi.ts, web/src/pages/customers/ui/CustomersPage.tsx, web/src/pages/customers/ui/CustomersPage.test.tsx, web/src/pages/customers/ui/CustomerDetailPage.tsx, web/src/pages/customers/ui/CustomerDetailPage.test.tsx, tasks.json, progress.md
+- Summary: Added `POST /api/v1/customers/{id}/restore` (PERM_job.create) clearing `archived_at` and returning `CustomerResponse`; 404 when customer is not archived or cross-tenant. Wired `useRestoreCustomer()` on the Customer List (Restore icon when `include_archived=true`) and Customer Detail header (Restore button when `archivedAt` is set).
+- Acceptance criteria verified: 1 (`CustomerService.restore` + `POST /{id}/restore` with PERM_job.create, 200 + CustomerResponse), 2 (404 for non-archived and cross-tenant via CustomerNotFoundException), 3 (List Restore button on archived rows with include_archived), 4 (Detail Restore button when archivedAt set)
+- Test steps run: Step 1 (`step1_archiveThenRestore_archivedAtIsNull`) — passed; Step 2 (`shows restore button for archived customer when include_archived is true` + `step2_restore_reappearsInDefaultList`) — passed; Step 3 (`step3_detailAfterRestore_returnsActiveCustomer` + `calls restore mutation when restore button is clicked`) — passed; Step 4 (`step4_restoreOnNonArchived_returns404`) — passed
+- Open TO-DOs created (with PRD reference): none
+- Commits: 7c1a231
+- Completed through TASK-126 (feat/missing-apis-refactor)
+
+### 2026-06-10 — TASK-127 — Job cancel/reopen API + Kanban/Detail wiring
+- Agent: Composer
+- Status change: pending → done
+- PRD sections consulted: §9.1, §9.2, §9.4
+- Files touched: backend/src/main/java/com/teamhub/job/dto/CancelJobRequest.java, backend/src/main/java/com/teamhub/job/JobService.java, backend/src/main/java/com/teamhub/job/JobController.java, backend/src/test/java/com/teamhub/job/JobCancelReopenIT.java, web/src/entities/job/model/transitions.ts, web/src/entities/job/api/jobsApi.ts, web/src/pages/jobs/ui/KanbanView.tsx, web/src/pages/jobs/ui/KanbanView.test.tsx, web/src/pages/job-detail/ui/JobDetailPage.tsx, web/src/pages/job-detail/ui/JobDetailPage.test.tsx, tasks.json, progress.md
+- Summary: Added `POST /api/v1/jobs/{id}/cancel` (PERM_job.edit, body `{ reason }`) and `POST /api/v1/jobs/{id}/reopen` (PERM_job.hard_delete / Admin only). Both delegate to `JobStateMachineService`, write `job_status_history`, and publish `JobStatusChanged`. Wired Kanban drag-to-CANCELED and Job Detail Cancel/Re-open buttons via `TRANSITION_ENDPOINT` with role guards.
+- Acceptance criteria verified: 1 (`JobService.cancelJob` + `POST /{id}/cancel` with reason, DISPATCHER/ADMIN), 2 (`JobService.reopenJob` + `POST /{id}/reopen` Admin-only CANCELED→SUBMITTED), 3 (history rows + outbox in IT), 4 (Kanban cancel drag calls `/cancel` without info toast), 5 (Job Detail Cancel for DISPATCHER/ADMIN, Re-open for ADMIN), 6 (`TRANSITION_ENDPOINT` maps cancel/reopen keys)
+- Test steps run: Step 1 (`step1_cancelInProgressJob_statusCanceled_historyRowWritten`) — passed; Step 2 (`step2_reopenCanceledJob_statusSubmitted`) — passed; Step 3 (`step3_dispatcherReopen_returns403`) — passed; Step 4 (`Step 4: SUBMITTED → CANCELED calls fireTransition with "cancel" and no info toast`) — passed
+- Open TO-DOs created (with PRD reference): Kanban/Detail cancel uses default `OTHER` reason — human may add reason picker UI later (PRD §9.1)
+- Commits: f928d9f
+- Completed through TASK-127 (feat/missing-apis-refactor)
+
+### 2026-06-10 — TASK-128 — Tenant profile API + timezone wiring
+- Agent: Composer
+- Status change: pending → done
+- PRD sections consulted: §5.2, §20.5
+- Files touched: backend/src/main/resources/db/migration/V32__tenant_timezone.sql, backend/src/main/java/com/teamhub/tenancy/Tenant.java, TenantController.java, TenantService.java, TenantTimezones.java, InvalidTenantTimezoneException.java, TenantSettingsService.java, TenantSettingsController.java, backend/src/main/java/com/teamhub/tenancy/dto/TenantResponse.java, UpdateTenantRequest.java, TenantSettingsResponse.java, UpdateTenantSettingsRequest.java, backend/src/test/java/com/teamhub/tenancy/TenantProfileIT.java, TenantSettingsIT.java, web/src/entities/tenant/model/types.ts, web/src/entities/tenant/api/tenantApi.ts, web/src/shared/lib/timezone.ts, web/src/shared/lib/timezone.test.ts, web/src/pages/settings-tenant/ui/SettingsTenantPage.tsx, SettingsTenantPage.test.tsx, web/src/pages/schedule/ui/SchedulePage.tsx, SchedulePage.test.tsx, web/src/widgets/app-layout/ui/AppLayout.tsx, tasks.json, progress.md
+- Summary: Added Flyway V32 `timezone` column on `tenants`, Admin-only `GET/PATCH /api/v1/tenant` for profile (name/plan/timezone), and extended tenant settings GET/PATCH with audited timezone updates validated against the seven US zones in the UI. Wired Settings → Tenant team name and timezone saves, Schedule calendar display via tenant timezone, and Admin sidebar/header team name from `GET /api/v1/tenant`.
+- Acceptance criteria verified: 1 (V32 migration + default `America/New_York`), 2 (`TenantController.getTenant` + `TenantResponse`), 3 (`TenantService.updateName` audited), 4 (`TenantSettingsResponse.timezone` + `setTimezone`), 5 (SettingsTenantPage enabled inputs), 6 (SchedulePage `useTenantSettings` + timezone helpers)
+- Test steps run: Step 1 (`step1_getTenant_returnsNameAndTimezone`) — passed; Step 2 (`step2_patchNameAndTimezone_getConfirmsUpdates`) — passed; Step 3 (`step3_patchInvalidTimezone_returns422`) — passed; Step 4 (`calls PATCH /api/v1/tenant when team name is saved` + AppLayout tenant name display) — passed
+- Open TO-DOs created (with PRD reference): non-Admin users do not fetch `GET /api/v1/tenant` — sidebar/header team name visible to Admin only until a read path exists for all roles (PRD §5.2)
+- Commits: 86b9053
+- Completed through TASK-128 (feat/missing-apis-refactor)
+
+### 2026-06-10 — TASK-129 — User last_login_at + Last seen column
+- Agent: Composer
+- Status change: pending → done
+- PRD sections consulted: §5.2, §6.1, §6.2
+- Files touched: backend/src/main/resources/db/migration/V33__user_last_login_at.sql, backend/src/main/java/com/teamhub/auth/User.java, AuthService.java, backend/src/main/java/com/teamhub/auth/dto/UserResponse.java, backend/src/test/java/com/teamhub/auth/UserLastLoginIT.java, AuthServiceIT.java, GoogleOAuth2IT.java, web/src/entities/user/model/userTypes.ts, web/src/pages/settings-users/ui/SettingsUsersPage.tsx, SettingsUsersPage.test.tsx, tasks.json, progress.md
+- Summary: Added nullable `last_login_at` on `users` (Flyway V33). `AuthService.login()` and `issueTokensFor()` (OAuth) set `lastLoginAt = now()`; token refresh does not. `UserResponse` and `GET /api/v1/users` expose `lastLoginAt`. Settings → Users table adds a "Last seen" column with relative time via date-fns, or "Never" when null.
+- Acceptance criteria verified: 1 (V33 migration `last_login_at timestamptz`), 2 (`recordLastLogin` in login + issueTokensFor/OAuth), 3 (`UserResponse.lastLoginAt` on list endpoint), 4 (SettingsUsersPage Last seen column)
+- Test steps run: Step 1 (`step1_loginThenListUsers_lastLoginAtWithinFiveSeconds`) — passed; Step 2 (`step2_neverLoggedInUser_lastLoginAtIsNull` + `shows Never in last seen column when lastLoginAt is null`) — passed; Step 3 (`shows relative last seen when lastLoginAt is set`) — passed
+- Open TO-DOs created (with PRD reference): none
+- Commits: 0fbcbb5
+- Completed through TASK-129 (feat/missing-apis-refactor)
+
+### 2026-06-10 — TASK-130 — Job name enrichment API + UI
+- Agent: Composer
+- Status change: pending → done
+- PRD sections consulted: §11
+- Files touched: backend/src/main/java/com/teamhub/job/dto/JobResponse.java, backend/src/main/java/com/teamhub/job/JobService.java, backend/src/main/java/com/teamhub/customer/CustomerRepository.java, backend/src/main/java/com/teamhub/auth/UserRepository.java, backend/src/main/java/com/teamhub/shared/IdNameProjection.java, backend/src/main/java/com/teamhub/auth/UserNameProjection.java, backend/src/test/java/com/teamhub/job/JobNamesIT.java, backend/src/test/java/com/teamhub/job/JobServiceUnitTest.java, backend/src/test/java/com/teamhub/auth/AuthServiceUnitTest.java, web/src/entities/job/model/types.ts, web/src/pages/jobs/ui/KanbanView.tsx, web/src/pages/jobs/ui/JobsPage.tsx, web/src/pages/job-detail/ui/JobDetailPage.tsx, web/src/pages/schedule/ui/SchedulePage.tsx, web/src/pages/customers/ui/CustomerDetailPage.tsx, web/src/pages/jobs/ui/JobsPage.test.tsx, web/src/pages/jobs/ui/KanbanView.test.tsx, web/src/pages/job-detail/ui/JobDetailPage.test.tsx, web/src/pages/schedule/ui/SchedulePage.test.tsx, web/src/pages/customers/ui/CustomerDetailPage.test.tsx, tasks.json, progress.md
+- Summary: Added nullable `customerName` and `assigneeName` to `JobResponse` (`@JsonInclude NON_NULL`). `JobService.list()` and `getById()` batch-resolve names via tenant-scoped IN queries on `customers` and `users` (no N+1). Web `JobDto`/`JobResponse` types and Kanban, Jobs list, Job Detail, Schedule, and Customer Detail surfaces now use flat name fields; UUID fallbacks removed.
+- Acceptance criteria verified: 1 (`JobResponse.customerName`/`assigneeName` with NON_NULL), 2 (`enrichPage`/`enrichOne` batch IN queries in `JobService`), 3 (web types + Kanban/Job Detail flat fields), 4 (removed `Customer #`/`Tech #` fallbacks in JobDetailPage)
+- Test steps run: Step 1 (`step1_getById_withCustomerAndAssignee_returnsBothNames`) — passed; Step 2 (`step2_listJobs_eachRowHasCustomerName`) — passed; Step 3 (`step3_unassignedJob_omitsAssigneeName`) — passed; Step 4 (`shows assignee name from flat assigneeName field` + `renders job header with customer name and status badge`) — passed
+- Open TO-DOs created (with PRD reference): none
+- Commits: a820a0c
+- Completed through TASK-130 (feat/missing-apis-refactor)

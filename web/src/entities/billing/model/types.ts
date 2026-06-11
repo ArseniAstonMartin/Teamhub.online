@@ -2,7 +2,7 @@ export type PlanKey = 'FREE' | 'STARTER' | 'TEAM' | 'ENTERPRISE';
 
 export type PriceKey = 'free' | 'starter' | 'team' | 'enterprise';
 
-// TO-DO: replace with real GET /api/v1/billing/status response when endpoint is added
+// Response from GET /api/v1/billing/status (TASK-125)
 export interface BillingStatus {
   plan: PlanKey;
   jobsThisPeriod: number;

@@ -4,7 +4,16 @@ import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 
 import { useAuthStore } from '@/entities/user/model/authStore';
-import { useTenantSettings, useUpdateTenantSettings } from '@/entities/tenant/api/tenantApi';
+import {
+  useTenant,
+  useTenantSettings,
+  useUpdateTenant,
+  useUpdateTenantSettings,
+} from '@/entities/tenant/api/tenantApi';
+import {
+  DEFAULT_TENANT_TIMEZONE,
+  US_TIMEZONES,
+} from '@/entities/tenant/model/types';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
 import { Label } from '@/shared/ui/label';
@@ -16,18 +25,6 @@ import {
   SelectValue,
 } from '@/shared/ui/select';
 import { cn } from '@/shared/lib/utils';
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const US_TIMEZONES = [
-  { value: 'America/New_York', label: 'Eastern Time (ET)' },
-  { value: 'America/Chicago', label: 'Central Time (CT)' },
-  { value: 'America/Denver', label: 'Mountain Time (MT)' },
-  { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
-  { value: 'America/Phoenix', label: 'Arizona (no DST)' },
-  { value: 'America/Anchorage', label: 'Alaska Time (AKT)' },
-  { value: 'Pacific/Honolulu', label: 'Hawaii Time (HST)' },
-];
 
 // ── Toggle Switch ─────────────────────────────────────────────────────────────
 
@@ -97,32 +94,66 @@ export default function SettingsTenantPage() {
 }
 
 function SettingsTenantPageInner() {
-  const { data: settings, isLoading, isError } = useTenantSettings();
+  const { data: settings, isLoading: settingsLoading, isError: settingsError } = useTenantSettings();
+  const { data: tenant, isLoading: tenantLoading, isError: tenantError } = useTenant();
   const updateSettings = useUpdateTenantSettings();
+  const updateTenant = useUpdateTenant();
 
-  // Local optimistic state for close jobs toggle
   const [optimisticCloseJobs, setOptimisticCloseJobs] = useState<boolean | null>(null);
+  const [teamNameDraft, setTeamNameDraft] = useState<string | null>(null);
+  const [timezoneDraft, setTimezoneDraft] = useState<string | null>(null);
+  const [savingName, setSavingName] = useState(false);
+  const [savingTimezone, setSavingTimezone] = useState(false);
 
-  // TO-DO: fetch from GET /api/v1/tenant when endpoint exists
-  const [teamName] = useState('');
-
-  // TO-DO: wire to PATCH /api/v1/tenant/settings when timezone field added
-  const [timezone, setTimezone] = useState('America/New_York');
+  const teamName = teamNameDraft ?? tenant?.name ?? '';
+  const timezone = timezoneDraft ?? settings?.timezone ?? DEFAULT_TENANT_TIMEZONE;
 
   const closeJobsEnabled = optimisticCloseJobs ?? settings?.closeJobsEnabled ?? false;
+  const isLoading = settingsLoading || tenantLoading;
+  const isError = settingsError || tenantError;
+  const nameDirty = tenant ? teamName.trim() !== tenant.name : false;
+  const timezoneDirty = settings ? timezone !== settings.timezone : false;
 
   async function handleCloseJobsToggle(newValue: boolean) {
     const previousValue = closeJobsEnabled;
-    // Optimistic update — update UI immediately before response
     setOptimisticCloseJobs(newValue);
     try {
       await updateSettings.mutateAsync({ closeJobsEnabled: newValue });
-      // Success — server confirmed; clear optimistic override (server state in cache now)
       setOptimisticCloseJobs(null);
     } catch {
-      // Rollback on failure
       setOptimisticCloseJobs(previousValue);
       toast.error('Failed to update setting. Please try again.');
+    }
+  }
+
+  async function handleSaveTeamName() {
+    const trimmed = teamName.trim();
+    if (!trimmed || !nameDirty) return;
+
+    setSavingName(true);
+    try {
+      await updateTenant.mutateAsync({ name: trimmed });
+      setTeamNameDraft(null);
+      toast.success('Team name updated.');
+    } catch {
+      toast.error('Failed to save team name. Please try again.');
+    } finally {
+      setSavingName(false);
+    }
+  }
+
+  async function handleSaveTimezone() {
+    if (!timezoneDirty) return;
+
+    setSavingTimezone(true);
+    try {
+      await updateSettings.mutateAsync({ timezone });
+      setTimezoneDraft(null);
+      toast.success('Time zone updated.');
+    } catch {
+      toast.error('Failed to save time zone. Please try again.');
+    } finally {
+      setSavingTimezone(false);
     }
   }
 
@@ -145,10 +176,8 @@ function SettingsTenantPageInner() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      {/* Header */}
       <h1 className="text-2xl font-semibold text-brand-navy">Tenant Settings</h1>
 
-      {/* Jobs Settings */}
       <SectionCard title="Jobs Settings">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-0.5">
@@ -169,46 +198,37 @@ function SettingsTenantPageInner() {
         </div>
       </SectionCard>
 
-      {/* Workspace */}
       <SectionCard title="Workspace">
-        {/* Team display name */}
         <div className="space-y-1.5">
           <Label htmlFor="team-name" className="text-sm font-medium text-brand-navy">
             Team display name
           </Label>
-          {/* TO-DO: wire to PATCH /api/v1/tenant endpoint when available */}
           <div className="flex gap-2">
             <Input
               id="team-name"
               value={teamName}
               placeholder="Your team name"
-              disabled
               className="flex-1"
-              aria-describedby="team-name-hint"
+              onChange={(e) => setTeamNameDraft(e.target.value)}
             />
             <Button
               type="button"
               variant="outline"
-              disabled
-              title="Coming soon"
-              aria-label="Save team name (coming soon)"
+              disabled={!nameDirty || savingName}
+              aria-label="Save team name"
+              onClick={() => void handleSaveTeamName()}
             >
-              Save
+              {savingName ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
             </Button>
           </div>
-          <p id="team-name-hint" className="text-xs text-brand-muted">
-            Coming soon — team name editing will be available in a future update.
-          </p>
         </div>
 
-        {/* Default time zone */}
         <div className="space-y-1.5">
           <Label htmlFor="timezone-select" className="text-sm font-medium text-brand-navy">
             Default time zone
           </Label>
-          {/* TO-DO: wire to PATCH /api/v1/tenant/settings when timezone field added */}
           <div className="flex gap-2">
-            <Select value={timezone} onValueChange={setTimezone} disabled>
+            <Select value={timezone} onValueChange={setTimezoneDraft}>
               <SelectTrigger id="timezone-select" className="flex-1">
                 <SelectValue />
               </SelectTrigger>
@@ -223,16 +243,13 @@ function SettingsTenantPageInner() {
             <Button
               type="button"
               variant="outline"
-              disabled
-              title="Coming soon"
-              aria-label="Save time zone (coming soon)"
+              disabled={!timezoneDirty || savingTimezone}
+              aria-label="Save time zone"
+              onClick={() => void handleSaveTimezone()}
             >
-              Save
+              {savingTimezone ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
             </Button>
           </div>
-          <p className="text-xs text-brand-muted">
-            Coming soon — time zone configuration will be available in a future update.
-          </p>
         </div>
       </SectionCard>
     </div>

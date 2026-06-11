@@ -12,6 +12,7 @@ const {
   mockUseCustomer,
   mockUseUpdateCustomer,
   mockUseArchiveCustomer,
+  mockUseRestoreCustomer,
   mockUseJobs,
   mockUseAuthStore,
   mockUseParams,
@@ -20,6 +21,7 @@ const {
   mockUseCustomer:        vi.fn(),
   mockUseUpdateCustomer:  vi.fn(),
   mockUseArchiveCustomer: vi.fn(),
+  mockUseRestoreCustomer: vi.fn(),
   mockUseJobs:            vi.fn(),
   mockUseAuthStore:       vi.fn(),
   mockUseParams:          vi.fn(() => ({ id: 'cust-1' })),
@@ -30,6 +32,7 @@ vi.mock('@/entities/customer/api/customersApi', () => ({
   useCustomer:        mockUseCustomer,
   useUpdateCustomer:  mockUseUpdateCustomer,
   useArchiveCustomer: mockUseArchiveCustomer,
+  useRestoreCustomer: mockUseRestoreCustomer,
 }));
 
 vi.mock('@/entities/job/api/jobsApi', () => ({
@@ -102,8 +105,9 @@ function makeJob(overrides: Partial<JobDto> = {}): JobDto {
     status: 'SUBMITTED',
     scheduledStart: '2026-06-10T09:00:00Z',
     scheduledEnd: null,
-    customer: { id: 'cust-1', name: 'Alice Johnson', address: '123 Main St' },
-    assignedTechnician: null,
+    customerId: 'cust-1',
+    customerName: 'Alice Johnson',
+    assignedTechnicianId: null,
     createdAt: '2026-01-01T00:00:00Z',
     ...overrides,
   };
@@ -131,6 +135,11 @@ function mockArchiveMutation(mutateFn = vi.fn()) {
   return mutateFn;
 }
 
+function mockRestoreMutation(mutateFn = vi.fn()) {
+  mockUseRestoreCustomer.mockReturnValue({ mutate: mutateFn, isPending: false });
+  return mutateFn;
+}
+
 function setRole(role: string) {
   mockUseAuthStore.mockImplementation((selector: (s: { user: { role: string } }) => unknown) =>
     selector({ user: { role } }),
@@ -153,6 +162,7 @@ describe('CustomerDetailPage', () => {
     setRole('ADMIN');
     mockUpdateMutation();
     mockArchiveMutation();
+    mockRestoreMutation();
     mockJobsSuccess([]);
   });
 
@@ -272,9 +282,24 @@ describe('CustomerDetailPage', () => {
     expect(screen.getByText('Archived')).toBeInTheDocument();
     // Archive button should be hidden for already-archived customer
     expect(screen.queryByTestId('archive-customer-btn')).not.toBeInTheDocument();
+    expect(screen.getByTestId('restore-customer-btn')).toBeInTheDocument();
   });
 
-  // 10. Archive button navigates away after archive
+  // 10. Restore button calls restore mutation
+  it('calls restore mutation when restore button is clicked', async () => {
+    const mutateFn = vi.fn((_id: string, opts?: { onSuccess?: () => void }) => {
+      opts?.onSuccess?.();
+    });
+    mockRestoreMutation(mutateFn);
+    mockCustomerSuccess(makeCustomer({ archivedAt: '2026-02-01T00:00:00Z' }));
+    renderPage();
+
+    await userEvent.click(screen.getByTestId('restore-customer-btn'));
+
+    expect(mutateFn).toHaveBeenCalledWith('cust-1', expect.any(Object));
+  });
+
+  // 11. Archive button navigates away after archive
   it('navigates to /customers after successful archive', async () => {
     const mutateFn = vi.fn((_id: string, opts?: { onSuccess?: () => void }) => {
       opts?.onSuccess?.();

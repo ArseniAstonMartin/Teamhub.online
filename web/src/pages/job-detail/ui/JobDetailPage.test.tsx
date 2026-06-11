@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import JobDetailPage from './JobDetailPage';
-import type { JobNoteResponse, JobResponse } from '@/entities/job/model/types';
+import type { JobNoteResponse, JobPhotoResponse, JobResponse, JobStatusHistoryResponse } from '@/entities/job/model/types';
 import type { UserRole } from '@/entities/user/model/authStore';
 
 // ── Hoisted mocks ─────────────────────────────────────────────────────────────
@@ -11,6 +11,8 @@ import type { UserRole } from '@/entities/user/model/authStore';
 const {
   mockUseJob,
   mockUseJobNotes,
+  mockUseJobPhotos,
+  mockUseJobStatusHistory,
   mockCreateNote,
   mockFireTransition,
   mockSetQueryData,
@@ -22,6 +24,8 @@ const {
 } = vi.hoisted(() => ({
   mockUseJob:            vi.fn(),
   mockUseJobNotes:       vi.fn(),
+  mockUseJobPhotos:      vi.fn(),
+  mockUseJobStatusHistory: vi.fn(),
   mockCreateNote:        vi.fn(),
   mockFireTransition:    vi.fn(),
   mockSetQueryData:      vi.fn(),
@@ -35,6 +39,8 @@ const {
 vi.mock('@/entities/job/api/jobsApi', () => ({
   useJob:         mockUseJob,
   useJobNotes:    mockUseJobNotes,
+  useJobPhotos:   mockUseJobPhotos,
+  useJobStatusHistory: mockUseJobStatusHistory,
   createNote:     mockCreateNote,
   fireTransition: mockFireTransition,
 }));
@@ -90,7 +96,8 @@ function makeJob(overrides: Partial<JobResponse> = {}): JobResponse {
     updatedAt: '2026-01-02T00:00:00Z',
     archivedAt: null,
     customerPhone: null,
-    customer: { id: 'customer-1', name: 'Acme Corp', address: '1 Main St' },
+    customerName: 'Acme Corp',
+    assigneeName: 'Jane Smith',
     ...overrides,
   };
 }
@@ -102,6 +109,30 @@ function makeNote(overrides: Partial<JobNoteResponse> = {}): JobNoteResponse {
     authorUserId: 'user-42',
     body: 'Fixed the issue.',
     createdAt: '2026-06-01T12:00:00Z',
+    ...overrides,
+  };
+}
+
+function makeHistoryEntry(overrides: Partial<JobStatusHistoryResponse> = {}): JobStatusHistoryResponse {
+  return {
+    fromStatus: 'SUBMITTED',
+    toStatus: 'ASSIGNED_TO_TECHNICIAN',
+    actorRole: 'TECHNICIAN',
+    transitionNote: 'Claimed from pool',
+    createdAt: '2026-06-01T10:00:00Z',
+    ...overrides,
+  };
+}
+
+function makePhoto(overrides: Partial<JobPhotoResponse> = {}): JobPhotoResponse {
+  return {
+    id: 'photo-1',
+    jobId: 'job-123',
+    objectKey: 'tenant/jobs/job-123/abc.jpg',
+    contentType: 'image/jpeg',
+    sizeBytes: 1024,
+    createdAt: '2026-06-01T12:00:00Z',
+    downloadUrl: 'https://example.com/photo.jpg?sig=abc',
     ...overrides,
   };
 }
@@ -118,6 +149,22 @@ function mockJobSuccess(job: JobResponse) {
 
 function mockNotesSuccess(notes: JobNoteResponse[]) {
   mockUseJobNotes.mockReturnValue({ data: notes, isLoading: false });
+}
+
+function mockPhotosSuccess(photos: JobPhotoResponse[]) {
+  mockUseJobPhotos.mockReturnValue({ data: photos, isLoading: false });
+}
+
+function mockPhotosEmpty() {
+  mockUseJobPhotos.mockReturnValue({ data: [], isLoading: false });
+}
+
+function mockStatusHistorySuccess(history: JobStatusHistoryResponse[]) {
+  mockUseJobStatusHistory.mockReturnValue({ data: history, isLoading: false });
+}
+
+function mockStatusHistoryEmpty() {
+  mockUseJobStatusHistory.mockReturnValue({ data: [], isLoading: false });
 }
 
 function setUser(role: UserRole, id = 'user-42') {
@@ -141,6 +188,8 @@ describe('JobDetailPage', () => {
     vi.clearAllMocks();
     mockUseParams.mockReturnValue({ id: 'job-123' });
     mockInvalidateQueries.mockResolvedValue(undefined);
+    mockPhotosEmpty();
+    mockStatusHistoryEmpty();
   });
 
   // ── Loading state ─────────────────────────────────────────────────────────
@@ -148,6 +197,8 @@ describe('JobDetailPage', () => {
   it('shows skeleton while loading', () => {
     mockUseJob.mockReturnValue({ data: undefined, isLoading: true, isError: false });
     mockUseJobNotes.mockReturnValue({ data: [], isLoading: true });
+    mockUseJobPhotos.mockReturnValue({ data: [], isLoading: true });
+    mockUseJobStatusHistory.mockReturnValue({ data: [], isLoading: true });
     setUser('ADMIN');
     renderPage();
     expect(screen.getByTestId('job-loading-skeleton')).toBeInTheDocument();
@@ -166,12 +217,20 @@ describe('JobDetailPage', () => {
     expect(screen.getAllByRole('status')[0]).toHaveAttribute('aria-label', 'Submitted');
   });
 
-  it('falls back to customer ID when nested customer object is absent', () => {
-    mockJobSuccess(makeJob({ customer: null, customerId: 'abc-12345678' }));
+  it('shows assignee name from flat assigneeName field (TASK-130 Step 4)', () => {
+    mockJobSuccess(makeJob({ assigneeName: 'Jane Smith' }));
     mockNotesSuccess([]);
     setUser('ADMIN');
     renderPage();
-    expect(screen.getByText(/customer #abc-1234/i)).toBeInTheDocument();
+    expect(screen.getByText('Jane Smith')).toBeInTheDocument();
+  });
+
+  it('shows "No customer" when customerName is absent', () => {
+    mockJobSuccess(makeJob({ customerName: undefined, customerId: 'abc-12345678' }));
+    mockNotesSuccess([]);
+    setUser('ADMIN');
+    renderPage();
+    expect(screen.getByText('No customer')).toBeInTheDocument();
   });
 
   // ── AC2: Action buttons hidden based on role + state ─────────────────────
@@ -316,8 +375,38 @@ describe('JobDetailPage', () => {
     );
 
     await waitFor(() => {
-      expect(mockFireTransition).toHaveBeenCalledWith('job-123', 'claim');
+      expect(mockFireTransition).toHaveBeenCalledWith('job-123', 'claim', undefined);
     });
+  });
+
+  it('clicking Cancel fires fireTransition with "cancel" and reason body', async () => {
+    mockJobSuccess(makeJob({ status: 'IN_PROGRESS' }));
+    mockNotesSuccess([]);
+    setUser('DISPATCHER');
+    mockFireTransition.mockResolvedValueOnce(makeJob({ status: 'CANCELED' }));
+    renderPage();
+
+    await userEvent.click(screen.getByTestId('action-CANCELED'));
+
+    await waitFor(() => {
+      expect(mockFireTransition).toHaveBeenCalledWith('job-123', 'cancel', { reason: 'OTHER' });
+    });
+  });
+
+  it('shows Re-open for Admin on CANCELED jobs only', () => {
+    mockJobSuccess(makeJob({ status: 'CANCELED' }));
+    mockNotesSuccess([]);
+    setUser('ADMIN');
+    renderPage();
+    expect(screen.getByTestId('action-SUBMITTED')).toHaveTextContent('Re-open');
+  });
+
+  it('hides Re-open for Dispatcher on CANCELED jobs', () => {
+    mockJobSuccess(makeJob({ status: 'CANCELED' }));
+    mockNotesSuccess([]);
+    setUser('DISPATCHER');
+    renderPage();
+    expect(screen.queryByTestId('action-SUBMITTED')).not.toBeInTheDocument();
   });
 
   it('409 on transition rolls back status via second setQueryData and shows toast', async () => {
@@ -359,24 +448,81 @@ describe('JobDetailPage', () => {
     expect(restored?.status).toBe('SUBMITTED');
   });
 
-  // ── Placeholders ─────────────────────────────────────────────────────────
+  // ── Photos (TASK-123) ─────────────────────────────────────────────────────
 
-  it('shows photos placeholder (TO-DO)', () => {
+  it('shows empty photos state when job has no photos', () => {
     mockJobSuccess(makeJob());
     mockNotesSuccess([]);
+    mockPhotosEmpty();
     setUser('ADMIN');
     renderPage();
-    expect(screen.getByTestId('photos-placeholder')).toBeInTheDocument();
-    expect(screen.getByTestId('photos-placeholder')).toHaveTextContent(/photos will appear here/i);
+    expect(screen.getByTestId('photos-empty')).toBeInTheDocument();
+    expect(screen.getByText('No photos yet')).toBeInTheDocument();
   });
 
-  it('shows status history placeholder (TO-DO)', () => {
+  it('renders photo thumbnail grid when photos exist', () => {
     mockJobSuccess(makeJob());
     mockNotesSuccess([]);
+    mockPhotosSuccess([makePhoto()]);
     setUser('ADMIN');
     renderPage();
-    expect(screen.getByTestId('status-history')).toBeInTheDocument();
-    expect(screen.getByTestId('status-history')).toHaveTextContent(/full history coming soon/i);
+    expect(screen.getByTestId('photos-grid')).toBeInTheDocument();
+    expect(screen.getByTestId('photo-thumb-photo-1')).toBeInTheDocument();
+  });
+
+  it('opens lightbox with full image when thumbnail is clicked', async () => {
+    mockJobSuccess(makeJob());
+    mockNotesSuccess([]);
+    mockPhotosSuccess([makePhoto()]);
+    setUser('ADMIN');
+    renderPage();
+
+    await userEvent.click(screen.getByTestId('photo-thumb-photo-1'));
+
+    expect(screen.getByTestId('photo-lightbox')).toBeInTheDocument();
+    expect(screen.getByTestId('photo-lightbox-image')).toHaveAttribute(
+      'src',
+      'https://example.com/photo.jpg?sig=abc',
+    );
+  });
+
+  // ── Status history timeline (TASK-124) ────────────────────────────────────
+
+  it('shows empty status history state when no transitions exist', () => {
+    mockJobSuccess(makeJob());
+    mockNotesSuccess([]);
+    mockStatusHistoryEmpty();
+    setUser('ADMIN');
+    renderPage();
+    expect(screen.getByTestId('status-history-empty')).toBeInTheDocument();
+  });
+
+  it('renders a 3-step status timeline from history rows', () => {
+    mockJobSuccess(makeJob({ status: 'IN_PROGRESS', createdAt: '2026-06-01T09:00:00Z' }));
+    mockNotesSuccess([]);
+    mockStatusHistorySuccess([
+      makeHistoryEntry({
+        fromStatus: 'SUBMITTED',
+        toStatus: 'ASSIGNED_TO_TECHNICIAN',
+        createdAt: '2026-06-01T10:00:00Z',
+        transitionNote: 'Claimed from pool',
+      }),
+      makeHistoryEntry({
+        fromStatus: 'ASSIGNED_TO_TECHNICIAN',
+        toStatus: 'IN_PROGRESS',
+        createdAt: '2026-06-01T11:00:00Z',
+        transitionNote: 'Started on site',
+      }),
+    ]);
+    setUser('ADMIN');
+    renderPage();
+
+    expect(screen.getByTestId('status-history-timeline')).toBeInTheDocument();
+    expect(screen.getByTestId('status-timeline-step-SUBMITTED')).toBeInTheDocument();
+    expect(screen.getByTestId('status-timeline-step-ASSIGNED')).toBeInTheDocument();
+    expect(screen.getByTestId('status-timeline-step-IN_PROGRESS')).toBeInTheDocument();
+    expect(screen.getByText('Claimed from pool')).toBeInTheDocument();
+    expect(screen.getByText('Started on site')).toBeInTheDocument();
   });
 
   // ── Sidebar ───────────────────────────────────────────────────────────────

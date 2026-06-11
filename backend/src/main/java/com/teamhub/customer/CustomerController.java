@@ -128,6 +128,19 @@ public class CustomerController {
   }
 
   /**
+   * Restores a soft-archived customer (clears {@code archived_at}). Returns 404 when the customer
+   * is not archived or does not belong to the caller's tenant (TASK-126).
+   */
+  @PostMapping("/{id}/restore")
+  @PreAuthorize("hasAuthority('PERM_job.create')")
+  @Operation(
+      summary = "Restore an archived customer",
+      description = "Clears archived_at; customer reappears in the default list.")
+  public CustomerResponse restore(@PathVariable UUID id) {
+    return CustomerResponse.from(customerService.restore(id), false);
+  }
+
+  /**
    * Returns {@code true} when the authenticated caller holds the TECHNICIAN role.
    *
    * <p>TODO (PRD §11.2): Once the {@code jobs} table exists, pass the customer ID here and check

@@ -42,11 +42,13 @@ public record JobResponse(
     Instant createdAt,
     Instant updatedAt,
     Instant archivedAt,
-    String customerPhone) {
+    String customerPhone,
+    String customerName,
+    String assigneeName) {
 
-  /** Builds a {@link JobResponse} from a {@link Job} entity without customer phone. */
+  /** Builds a {@link JobResponse} from a {@link Job} entity without enrichment. */
   public static JobResponse from(Job job) {
-    return from(job, null);
+    return from(job, null, null, null);
   }
 
   /**
@@ -60,6 +62,17 @@ public record JobResponse(
    *     be {@code null}
    */
   public static JobResponse from(Job job, String customerPhone) {
+    return from(job, customerPhone, null, null);
+  }
+
+  /**
+   * Builds a fully enriched {@link JobResponse} (TASK-130, PRD §11).
+   *
+   * <p>{@code customerName} and {@code assigneeName} are omitted from JSON when {@code null} via
+   * the record-level {@link JsonInclude} annotation.
+   */
+  public static JobResponse from(
+      Job job, String customerPhone, String customerName, String assigneeName) {
     Double lon = job.getLocation() != null ? job.getLocation().getX() : null;
     Double lat = job.getLocation() != null ? job.getLocation().getY() : null;
     String maskedPhone = job.getStatus() == JobStatus.SUBMITTED ? null : customerPhone;
@@ -83,6 +96,8 @@ public record JobResponse(
         job.getCreatedAt(),
         job.getUpdatedAt(),
         job.getArchivedAt(),
-        maskedPhone);
+        maskedPhone,
+        customerName,
+        assigneeName);
   }
 }

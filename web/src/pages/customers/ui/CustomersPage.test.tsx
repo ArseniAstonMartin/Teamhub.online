@@ -10,11 +10,13 @@ import type { CustomerResponse, CustomersPageResponse } from '@/entities/custome
 const {
   mockUseCustomers,
   mockUseArchiveCustomer,
+  mockUseRestoreCustomer,
   mockUseAuthStore,
   mockNavigate,
 } = vi.hoisted(() => ({
   mockUseCustomers:      vi.fn(),
   mockUseArchiveCustomer: vi.fn(),
+  mockUseRestoreCustomer: vi.fn(),
   mockUseAuthStore:      vi.fn(),
   mockNavigate:          vi.fn(),
 }));
@@ -22,6 +24,7 @@ const {
 vi.mock('@/entities/customer/api/customersApi', () => ({
   useCustomers:      mockUseCustomers,
   useArchiveCustomer: mockUseArchiveCustomer,
+  useRestoreCustomer: mockUseRestoreCustomer,
 }));
 
 vi.mock('@/entities/user/model/authStore', () => ({
@@ -98,6 +101,14 @@ function mockArchiveMutation(mutateFn = vi.fn()) {
   return mutateFn;
 }
 
+function mockRestoreMutation(mutateFn = vi.fn()) {
+  mockUseRestoreCustomer.mockReturnValue({
+    mutate: mutateFn,
+    isPending: false,
+  });
+  return mutateFn;
+}
+
 function renderPage(initialPath = '/customers') {
   return render(
     <MemoryRouter initialEntries={[initialPath]}>
@@ -117,6 +128,7 @@ describe('CustomersPage', () => {
       selector({ user: { role: 'ADMIN' } }),
     );
     mockArchiveMutation();
+    mockRestoreMutation();
   });
 
   // 1. Renders table with customer data
@@ -237,5 +249,36 @@ describe('CustomersPage', () => {
     renderPage();
 
     expect(screen.getByText(/no customers found/i)).toBeInTheDocument();
+  });
+
+  // 11. Restore button visible for archived rows when include_archived=true
+  it('shows restore button for archived customer when include_archived is true', () => {
+    mockSuccess([makeCustomer({ id: 'cust-arch', archivedAt: '2026-02-01T00:00:00Z' })]);
+    renderPage('/customers?include_archived=true');
+
+    expect(screen.getByTestId('restore-btn-cust-arch')).toBeInTheDocument();
+    expect(screen.queryByTestId('archive-btn-cust-arch')).not.toBeInTheDocument();
+  });
+
+  // 12. Restore button hidden when include_archived is false
+  it('hides restore button when include_archived is false', () => {
+    mockSuccess([makeCustomer({ id: 'cust-arch', archivedAt: '2026-02-01T00:00:00Z' })]);
+    renderPage();
+
+    expect(screen.queryByTestId('restore-btn-cust-arch')).not.toBeInTheDocument();
+  });
+
+  // 13. Restore button calls restore mutation
+  it('calls restore mutation when restore button is clicked', async () => {
+    const mutateFn = vi.fn((_id: string, opts?: { onSuccess?: () => void }) => {
+      opts?.onSuccess?.();
+    });
+    mockRestoreMutation(mutateFn);
+    mockSuccess([makeCustomer({ id: 'cust-arch', archivedAt: '2026-02-01T00:00:00Z' })]);
+    renderPage('/customers?include_archived=true');
+
+    await userEvent.click(screen.getByTestId('restore-btn-cust-arch'));
+
+    expect(mutateFn).toHaveBeenCalledWith('cust-arch', expect.any(Object));
   });
 });

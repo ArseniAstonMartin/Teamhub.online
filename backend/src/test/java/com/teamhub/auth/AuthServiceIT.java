@@ -9,6 +9,7 @@ import com.teamhub.tenancy.TenantRepository;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
@@ -50,6 +51,30 @@ class AuthServiceIT {
     user =
         userService.createUser(
             tenant.getId(), "owner@plumbing.com", PASSWORD, UserRole.ADMIN, "Owner");
+  }
+
+  @Test
+  void login_setsLastLoginAt() {
+    assertThat(user.getLastLoginAt()).isNull();
+
+    authService.login("owner@plumbing.com", PASSWORD);
+
+    User refreshed = userRepository.findById(user.getId()).orElseThrow();
+    assertThat(refreshed.getLastLoginAt()).isNotNull();
+    assertThat(Duration.between(refreshed.getLastLoginAt(), Instant.now()).getSeconds())
+        .isLessThanOrEqualTo(5);
+  }
+
+  @Test
+  void refresh_doesNotUpdateLastLoginAt() {
+    AuthService.IssuedTokens tokens = authService.login("owner@plumbing.com", PASSWORD);
+    Instant afterLogin = userRepository.findById(user.getId()).orElseThrow().getLastLoginAt();
+    assertThat(afterLogin).isNotNull();
+
+    authService.refresh(tokens.refreshToken());
+
+    User afterRefresh = userRepository.findById(user.getId()).orElseThrow();
+    assertThat(afterRefresh.getLastLoginAt()).isEqualTo(afterLogin);
   }
 
   @Test

@@ -80,6 +80,9 @@ class GoogleOAuth2IT {
         .contains("/auth/callback")
         .contains("access_token=")
         .contains("refresh_token=");
+
+    User user = userRepository.findByEmail("active@acme.com").orElseThrow();
+    assertThat(user.getLastLoginAt()).isNotNull();
   }
 
   /** Step 2 — Deactivated user; handler redirects to failure URL with ACCOUNT_DEACTIVATED. */

@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { formatDistanceToNow } from 'date-fns';
 import { Navigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { UserPlus, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -386,13 +387,14 @@ function SettingsUsersPageInner() {
                 <th className="px-4 py-3 text-left font-medium">Role</th>
                 <th className="px-4 py-3 text-left font-medium">Status</th>
                 <th className="px-4 py-3 text-left font-medium">Joined</th>
+                <th className="px-4 py-3 text-left font-medium">Last seen</th>
                 <th className="px-4 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {data?.content.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-brand-muted">
+                  <td colSpan={6} className="py-12 text-center text-brand-muted">
                     No users found.
                   </td>
                 </tr>
@@ -481,12 +483,15 @@ interface UserRowProps {
 
 function UserRow({ user, onChangeRole, onDeactivate, onReactivate }: UserRowProps) {
   const isActive = user.deactivatedAt === null;
-  // TO-DO: Use lastSeen once backend adds the field; currently showing createdAt as Joined date.
   const joined = new Date(user.createdAt).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
   });
+  const lastSeen =
+    user.lastLoginAt === null
+      ? 'Never'
+      : formatDistanceToNow(new Date(user.lastLoginAt), { addSuffix: true });
 
   return (
     <tr className="hover:bg-brand-bg/50 transition-colors">
@@ -498,6 +503,7 @@ function UserRow({ user, onChangeRole, onDeactivate, onReactivate }: UserRowProp
         <StatusBadge deactivatedAt={user.deactivatedAt} />
       </td>
       <td className="px-4 py-3 text-brand-muted">{joined}</td>
+      <td className="px-4 py-3 text-brand-muted">{lastSeen}</td>
       <td className="px-4 py-3 text-right">
         <div className="flex items-center justify-end gap-2">
           <Button

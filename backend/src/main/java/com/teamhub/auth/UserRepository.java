@@ -1,11 +1,14 @@
 package com.teamhub.auth;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /** Spring Data repository for {@link User} entities. */
 public interface UserRepository extends JpaRepository<User, UUID> {
@@ -38,4 +41,15 @@ public interface UserRepository extends JpaRepository<User, UUID> {
    * <p>Used by {@code QuotaEnforcementService} to enforce seat limits before a new invite is sent.
    */
   long countByTenantIdAndDeactivatedAtIsNull(UUID tenantId);
+
+  /**
+   * Batch-loads assignee display fields for job list enrichment (TASK-130, PRD §11).
+   *
+   * <p>Scoped to {@code tenantId} to preserve tenant isolation in a single IN query.
+   */
+  @Query(
+      "SELECT u.id AS id, u.name AS name, u.email AS email FROM User u"
+          + " WHERE u.tenant.id = :tenantId AND u.id IN :ids")
+  List<UserNameProjection> findIdNameEmailByTenantIdAndIdIn(
+      @Param("tenantId") UUID tenantId, @Param("ids") Collection<UUID> ids);
 }

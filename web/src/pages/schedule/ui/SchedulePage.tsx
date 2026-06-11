@@ -11,11 +11,11 @@ import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 
 import { useJobs, updateJobSchedule } from '@/entities/job/api/jobsApi';
 import type { JobDto, JobStatus, JobsPageResponse, JobsQueryParams } from '@/entities/job/model/types';
+import { useTenantSettings } from '@/entities/tenant/api/tenantApi';
+import { DEFAULT_TENANT_TIMEZONE } from '@/entities/tenant/model/types';
+import { utcToZonedDate, zonedDateToUtcIso } from '@/shared/lib/timezone';
 import { Button } from '@/shared/ui/button';
 import { cn } from '@/shared/lib/utils';
-
-// TO-DO: replace with tenant TZ setting (PRD §20.5)
-// Currently uses browser local timezone.
 
 // ── date-fns localizer ────────────────────────────────────────────────────────
 
@@ -108,6 +108,8 @@ const VIEW_LABELS: Record<View, string> = { day: 'Day', week: 'Week', month: 'Mo
 
 export default function SchedulePage() {
   const queryClient = useQueryClient();
+  const { data: tenantSettings } = useTenantSettings();
+  const tenantTimezone = tenantSettings?.timezone ?? DEFAULT_TENANT_TIMEZONE;
   const [view, setView] = useState<View>('week');
   const [date, setDate] = useState(new Date());
   const [shakingIds, setShakingIds] = useState<ReadonlySet<string>>(new Set());
@@ -128,20 +130,20 @@ export default function SchedulePage() {
         .filter((job) => job.scheduledStart !== null)
         .map((job) => ({
           id: job.id,
-          title: job.customer?.name ?? 'Unnamed Job',
-          start: new Date(job.scheduledStart!),
+          title: job.customerName ?? 'Unnamed Job',
+          start: utcToZonedDate(job.scheduledStart!, tenantTimezone),
           end: job.scheduledEnd
-            ? new Date(job.scheduledEnd)
-            : addHours(new Date(job.scheduledStart!), 1),
+            ? utcToZonedDate(job.scheduledEnd, tenantTimezone)
+            : addHours(utcToZonedDate(job.scheduledStart!, tenantTimezone), 1),
           status: job.status,
           resource: job,
         })),
-    [data],
+    [data, tenantTimezone],
   );
 
   async function handleEventDrop({ event, start, end }: EventInteractionArgs<CalendarEvent>) {
-    const startISO = (start as Date).toISOString();
-    const endISO   = (end   as Date).toISOString();
+    const startISO = zonedDateToUtcIso(start as Date, tenantTimezone);
+    const endISO = zonedDateToUtcIso(end as Date, tenantTimezone);
     const original = event.resource;
 
     // Optimistic update — apply immediately so the UI feels instant (AC3)

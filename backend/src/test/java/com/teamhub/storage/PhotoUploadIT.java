@@ -1,6 +1,7 @@
 package com.teamhub.storage;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -308,6 +309,52 @@ class PhotoUploadIT {
                 .content(objectMapper.writeValueAsString(req)))
         .andExpect(status().isUnprocessableEntity())
         .andExpect(jsonPath("$.error.code").value("UNSUPPORTED_MIME"));
+  }
+
+  // =========================================================================
+  // TASK-123 — List photos with pre-signed download URLs
+  // =========================================================================
+
+  /**
+   * TASK-123 Step 1: After confirming an upload, GET /photos returns one item with a non-empty
+   * {@code downloadUrl}.
+   */
+  @Test
+  void task123_step1_listPhotos_afterUpload_returnsDownloadUrl() throws Exception {
+    UUID tid = tenant.getId();
+    String objectKey = "%s/jobs/%s/%s.jpg".formatted(tid, jobId, UUID.randomUUID());
+    ConfirmUploadRequest req =
+        new ConfirmUploadRequest(objectKey, "image/jpeg", 1024L, 640, 480, null);
+
+    mockMvc
+        .perform(
+            post(JOBS_URL + "/" + jobId + "/photos")
+                .header("Authorization", "Bearer " + dispatcherToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+        .andExpect(status().isCreated());
+
+    mockMvc
+        .perform(
+            get(JOBS_URL + "/" + jobId + "/photos")
+                .header("Authorization", "Bearer " + dispatcherToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$").isArray())
+        .andExpect(jsonPath("$.length()").value(1))
+        .andExpect(jsonPath("$[0].objectKey").value(objectKey))
+        .andExpect(jsonPath("$[0].downloadUrl").isNotEmpty());
+  }
+
+  /** TASK-123 Step 4: A job with no photos returns an empty JSON array from GET /photos. */
+  @Test
+  void task123_step4_listPhotos_noPhotos_returnsEmptyArray() throws Exception {
+    mockMvc
+        .perform(
+            get(JOBS_URL + "/" + jobId + "/photos")
+                .header("Authorization", "Bearer " + dispatcherToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$").isArray())
+        .andExpect(jsonPath("$.length()").value(0));
   }
 
   // =========================================================================

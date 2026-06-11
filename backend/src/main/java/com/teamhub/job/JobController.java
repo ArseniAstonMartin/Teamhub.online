@@ -1,11 +1,13 @@
 package com.teamhub.job;
 
+import com.teamhub.job.dto.CancelJobRequest;
 import com.teamhub.job.dto.CompleteJobRequest;
 import com.teamhub.job.dto.CreateJobNoteRequest;
 import com.teamhub.job.dto.CreateJobRequest;
 import com.teamhub.job.dto.DonePendingApprovalRequest;
 import com.teamhub.job.dto.JobNoteResponse;
 import com.teamhub.job.dto.JobResponse;
+import com.teamhub.job.dto.JobStatusHistoryResponse;
 import com.teamhub.job.dto.PendingJobRequest;
 import com.teamhub.job.dto.StartJobRequest;
 import com.teamhub.job.dto.UpdateJobRequest;
@@ -75,6 +77,8 @@ public class JobController {
 
   private final JobNoteService jobNoteService;
 
+  private final JobStatusHistoryService jobStatusHistoryService;
+
   private final PhotoUploadService photoUploadService;
 
   private final MultipartUploadService multipartUploadService;
@@ -82,10 +86,12 @@ public class JobController {
   public JobController(
       JobService jobService,
       JobNoteService jobNoteService,
+      JobStatusHistoryService jobStatusHistoryService,
       PhotoUploadService photoUploadService,
       MultipartUploadService multipartUploadService) {
     this.jobService = jobService;
     this.jobNoteService = jobNoteService;
+    this.jobStatusHistoryService = jobStatusHistoryService;
     this.photoUploadService = photoUploadService;
     this.multipartUploadService = multipartUploadService;
   }
@@ -304,6 +310,46 @@ public class JobController {
     return jobService.completeJob(tenantId, id, note, actorUserId, actorRole);
   }
 
+  /**
+   * Cancels a job from any non-terminal status (PRD §9.2, §9.4; TASK-127).
+   *
+   * <p>Requires {@code PERM_job.edit} (Dispatcher / Admin). Body must include a {@link
+   * com.teamhub.job.CancellationReason}.
+   */
+  @PostMapping("/{id}/cancel")
+  @PreAuthorize("hasAuthority('PERM_job.edit')")
+  @Operation(
+      summary = "Cancel a job",
+      description =
+          "Dispatcher or Admin transitions a non-terminal job to CANCELED with a cancellation"
+              + " reason (PRD §9.4).")
+  public JobResponse cancel(
+      @PathVariable UUID id,
+      @Valid @RequestBody CancelJobRequest request,
+      Authentication authentication) {
+    UUID tenantId = TenantContext.get();
+    UUID actorUserId = extractUserId(authentication);
+    String actorRole = extractRole(authentication);
+    return jobService.cancelJob(tenantId, id, request.reason(), actorUserId, actorRole);
+  }
+
+  /**
+   * Reopens a canceled job back to {@code SUBMITTED} (PRD §9.2, §9.4; TASK-127).
+   *
+   * <p>Admin only — enforced via {@code PERM_job.hard_delete}.
+   */
+  @PostMapping("/{id}/reopen")
+  @PreAuthorize("hasAuthority('PERM_job.hard_delete')")
+  @Operation(
+      summary = "Reopen a canceled job",
+      description = "Admin transitions a CANCELED job back to SUBMITTED (PRD §9.4).")
+  public JobResponse reopen(@PathVariable UUID id, Authentication authentication) {
+    UUID tenantId = TenantContext.get();
+    UUID actorUserId = extractUserId(authentication);
+    String actorRole = extractRole(authentication);
+    return jobService.reopenJob(tenantId, id, actorUserId, actorRole);
+  }
+
   // =========================================================================
   // Job notes endpoints (PRD §13.2, §13.4; TASK-048)
   // =========================================================================
@@ -345,6 +391,22 @@ public class JobController {
     return jobNoteService.listNotes(tenantId, id);
   }
 
+  /**
+   * Lists status transition history for a job in oldest-first order (PRD §9; TASK-124).
+   *
+   * <p>Accessible to any caller with {@code PERM_job.read.own} or {@code PERM_job.read.tenant}.
+   * Tenant isolation is enforced in the service layer.
+   */
+  @GetMapping("/{id}/status-history")
+  @PreAuthorize("hasAuthority('PERM_job.read.own') or hasAuthority('PERM_job.read.tenant')")
+  @Operation(
+      summary = "List status history for a job",
+      description = "Returns transition audit rows ordered by created_at ASC (PRD §9).")
+  public List<JobStatusHistoryResponse> listStatusHistory(@PathVariable UUID id) {
+    UUID tenantId = TenantContext.get();
+    return jobStatusHistoryService.listStatusHistory(tenantId, id);
+  }
+
   // =========================================================================
   // Photo upload endpoints (PRD §14.2, §14.3; TASK-049)
   // =========================================================================
@@ -370,6 +432,24 @@ public class JobController {
     UUID actorUserId = extractUserId(authentication);
     return photoUploadService.generateUploadUrl(
         tenantId, id, actorUserId, request.contentType(), request.fileExtension());
+  }
+
+  /**
+   * Lists all photos for a job with short-lived pre-signed download URLs (PRD §14.2; TASK-123).
+   *
+   * <p>Returns an empty array when the job has no photos. Each item includes a {@code downloadUrl}
+   * valid for 5 minutes.
+   */
+  @GetMapping("/{id}/photos")
+  @PreAuthorize("hasAuthority('PERM_photo.upload')")
+  @Operation(
+      summary = "List photos for a job",
+      description =
+          "Returns all photos ordered by created_at DESC with 5-min pre-signed GET URLs"
+              + " (PRD §14.2).")
+  public List<JobPhotoResponse> listPhotos(@PathVariable UUID id) {
+    UUID tenantId = TenantContext.get();
+    return photoUploadService.listPhotos(tenantId, id);
   }
 
   /**

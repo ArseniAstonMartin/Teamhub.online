@@ -9,4 +9,7 @@ public interface JobStatusHistoryRepository extends JpaRepository<JobStatusHisto
 
   /** Returns all history rows for a given job ordered by creation time ascending. */
   List<JobStatusHistory> findByJobIdOrderByCreatedAtAsc(UUID jobId);
+
+  /** Returns tenant-scoped history rows for a job ordered by creation time ascending (TASK-124). */
+  List<JobStatusHistory> findByJobIdAndTenantIdOrderByCreatedAtAsc(UUID jobId, UUID tenantId);
 }

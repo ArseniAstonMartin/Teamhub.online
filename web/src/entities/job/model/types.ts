@@ -15,8 +15,10 @@ export interface JobDto {
   status: JobStatus;
   scheduledStart: string | null;
   scheduledEnd: string | null;
-  customer: { id: string; name: string; address: string } | null;
-  assignedTechnician: { id: string; name: string } | null;
+  customerId: string | null;
+  customerName: string | null;
+  assigneeName?: string | null;
+  assignedTechnicianId: string | null;
   createdAt: string;
 }
 
@@ -29,14 +31,13 @@ export interface JobsPageResponse {
   size: number;
 }
 
-/**
- * Full job detail shape returned by `GET /api/v1/jobs/{id}`.
- * TO-DO: update `customer`/`assignedTechnician` when backend returns nested objects.
- */
+/** Full job detail shape returned by `GET /api/v1/jobs/{id}` (TASK-130). */
 export interface JobResponse {
   id: string;
   tenantId: string;
   customerId: string | null;
+  customerName?: string | null;
+  assigneeName?: string | null;
   assignedTechnicianId: string | null;
   appointmentSchemaId: string | null;
   status: JobStatus;
@@ -54,10 +55,6 @@ export interface JobResponse {
   updatedAt: string;
   archivedAt: string | null;
   customerPhone: string | null;
-  /** Enriched — present only when backend includes it (TO-DO). */
-  customer?: { id: string; name: string; address: string } | null;
-  /** Enriched — present only when backend includes it (TO-DO). */
-  assignedTechnician?: { id: string; name: string } | null;
 }
 
 export interface JobNoteResponse {
@@ -66,6 +63,26 @@ export interface JobNoteResponse {
   authorUserId: string;
   body: string;
   createdAt: string;
+}
+
+/** Shape returned by GET /api/v1/jobs/{id}/status-history (PRD §9; TASK-124). */
+export interface JobStatusHistoryResponse {
+  fromStatus: string | null;
+  toStatus: string;
+  actorRole: string | null;
+  transitionNote: string | null;
+  createdAt: string;
+}
+
+/** Shape returned by GET /api/v1/jobs/{id}/photos (PRD §14.2; TASK-123). */
+export interface JobPhotoResponse {
+  id: string;
+  jobId: string;
+  objectKey: string;
+  contentType: string;
+  sizeBytes: number;
+  createdAt: string;
+  downloadUrl: string | null;
 }
 
 export interface JobsQueryParams {

@@ -15,6 +15,16 @@ vi.mock('sonner', () => ({
   },
 }));
 
+vi.mock('@tanstack/react-query', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@tanstack/react-query')>();
+  return {
+    ...actual,
+    useQueryClient: () => ({
+      invalidateQueries: vi.fn(),
+    }),
+  };
+});
+
 // ── Mock billing API ──────────────────────────────────────────────────────────
 const { mockUseBillingStatus, mockUseCreateCheckout, mockUseCreatePortal } =
   vi.hoisted(() => ({
@@ -24,6 +34,7 @@ const { mockUseBillingStatus, mockUseCreateCheckout, mockUseCreatePortal } =
   }));
 
 vi.mock('@/entities/billing/api/billingApi', () => ({
+  BILLING_STATUS_QUERY_KEY: ['billing', 'status'],
   useBillingStatus: mockUseBillingStatus,
   useCreateCheckout: mockUseCreateCheckout,
   useCreatePortal: mockUseCreatePortal,
@@ -79,8 +90,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   // Default: Admin user
   mockUseAuthStore.mockReturnValue({ role: 'ADMIN', id: 'user-1' });
-  // Default: no billing status (skeleton)
-  mockUseBillingStatus.mockReturnValue(null);
+  // Default: loading billing status (skeleton)
+  mockUseBillingStatus.mockReturnValue({ data: undefined, isLoading: true });
   // Default: idle mutations
   mockUseCreateCheckout.mockReturnValue(makeCheckoutMutation());
   mockUseCreatePortal.mockReturnValue(makePortalMutation());
@@ -92,12 +103,71 @@ beforeEach(() => {
 
 describe('SettingsBillingPage', () => {
   // 1. Skeleton shown when no billing status available
-  it('renders with skeleton plan card when billing status is null', () => {
+  it('renders with skeleton plan card when billing status is loading', () => {
     renderPage();
 
     expect(screen.getByText('Billing')).toBeInTheDocument();
     expect(screen.getByLabelText('Loading plan info')).toBeInTheDocument();
-    expect(screen.getByText('Loading plan info…')).toBeInTheDocument();
+  });
+
+  // 1b. Plan card populated when billing status is available
+  it('renders plan card with usage bars when billing status is loaded', () => {
+    mockUseBillingStatus.mockReturnValue({
+      data: {
+        plan: 'STARTER',
+        jobsThisPeriod: 20,
+        periodEnd: '2026-07-01T00:00:00.000Z',
+        paymentFailed: false,
+        paymentFailedAt: null,
+        seats: 3,
+      },
+      isLoading: false,
+    });
+
+    renderPage();
+
+    expect(screen.getByText('Starter')).toBeInTheDocument();
+    expect(screen.getByText('20 / 200')).toBeInTheDocument();
+    expect(screen.getByText('3 / 5')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Loading plan info')).not.toBeInTheDocument();
+  });
+
+  // 1c. Payment-failed banner when paymentFailed is true
+  it('shows payment-failed banner when paymentFailed is true', () => {
+    mockUseBillingStatus.mockReturnValue({
+      data: {
+        plan: 'TEAM',
+        jobsThisPeriod: 5,
+        periodEnd: '2026-07-01T00:00:00.000Z',
+        paymentFailed: true,
+        paymentFailedAt: '2026-06-01T00:00:00.000Z',
+        seats: 2,
+      },
+      isLoading: false,
+    });
+
+    renderPage();
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/payment failed/i);
+  });
+
+  // 1d. 80% quota warning banner
+  it('shows 80% quota warning banner when usage crosses threshold', () => {
+    mockUseBillingStatus.mockReturnValue({
+      data: {
+        plan: 'FREE',
+        jobsThisPeriod: 21,
+        periodEnd: '2026-07-01T00:00:00.000Z',
+        paymentFailed: false,
+        paymentFailedAt: null,
+        seats: 1,
+      },
+      isLoading: false,
+    });
+
+    renderPage();
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/80% of job quota used/i);
   });
 
   // 2. Upgrade button visible for Admin

@@ -77,6 +77,10 @@ public class TenantSettingsController {
               tenantId, request.closeJobsEnabled(), actorUserId);
     }
 
+    if (request.timezone() != null) {
+      result = tenantSettingsService.setTimezone(tenantId, request.timezone(), actorUserId);
+    }
+
     return result;
   }
 

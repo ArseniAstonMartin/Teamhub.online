@@ -27,11 +27,7 @@ export const ALLOWED_TRANSITIONS = new Set<TransitionKey>([
   // COMPLETED→* is Admin-only re-open — TO-DO: add when backend supports it
 ]);
 
-/**
- * Named backend endpoint for each allowed transition.
- * Entries absent from this map are "allowed but not yet wired" (TO-DO).
- * Cancel / re-open transitions have no dedicated endpoint yet.
- */
+/** Named backend endpoint for each allowed transition. */
 export const TRANSITION_ENDPOINT: Partial<Record<TransitionKey, string>> = {
   'SUBMITTED→ASSIGNED':                'claim',
   'ASSIGNED→IN_PROGRESS':              'start',
@@ -39,7 +35,12 @@ export const TRANSITION_ENDPOINT: Partial<Record<TransitionKey, string>> = {
   'IN_PROGRESS→DONE_PENDING_APPROVAL': 'done-pending-approval',
   'IN_PROGRESS→COMPLETED':             'complete',
   'DONE_PENDING_APPROVAL→COMPLETED':   'complete',
-  // TO-DO: cancel/reopen — no dedicated backend endpoint yet (PRD §9.4)
+  'SUBMITTED→CANCELED':                'cancel',
+  'ASSIGNED→CANCELED':                 'cancel',
+  'IN_PROGRESS→CANCELED':              'cancel',
+  'PENDING→CANCELED':                  'cancel',
+  'DONE_PENDING_APPROVAL→CANCELED':    'cancel',
+  'CANCELED→SUBMITTED':                'reopen',
 };
 
 /** A single rendered action button on the Job Detail page. */
@@ -59,27 +60,34 @@ export interface TransitionAction {
 export const TRANSITIONS_FROM: Partial<Record<JobStatus, TransitionAction[]>> = {
   SUBMITTED: [
     { toStatus: 'ASSIGNED',  label: 'Claim',  endpoint: 'claim', roles: ['TECHNICIAN', 'DISPATCHER', 'ADMIN'] },
-    { toStatus: 'CANCELED',  label: 'Cancel', endpoint: null,    roles: ['DISPATCHER', 'ADMIN'] },
+    { toStatus: 'CANCELED',  label: 'Cancel', endpoint: 'cancel', roles: ['DISPATCHER', 'ADMIN'] },
   ],
   ASSIGNED: [
     { toStatus: 'IN_PROGRESS', label: 'Start',  endpoint: 'start', roles: ['TECHNICIAN'] },
-    { toStatus: 'CANCELED',    label: 'Cancel', endpoint: null,    roles: ['DISPATCHER', 'ADMIN'] },
+    { toStatus: 'CANCELED',    label: 'Cancel', endpoint: 'cancel', roles: ['DISPATCHER', 'ADMIN'] },
   ],
   IN_PROGRESS: [
     { toStatus: 'PENDING',               label: 'Mark Pending',            endpoint: 'pending',               roles: ['TECHNICIAN'] },
     { toStatus: 'DONE_PENDING_APPROVAL', label: 'Done — Awaiting Approval', endpoint: 'done-pending-approval', roles: ['TECHNICIAN'] },
     { toStatus: 'COMPLETED',             label: 'Complete',                endpoint: 'complete',              roles: ['TECHNICIAN'] },
-    { toStatus: 'CANCELED',             label: 'Cancel',                   endpoint: null,                   roles: ['DISPATCHER', 'ADMIN'] },
+    { toStatus: 'CANCELED',             label: 'Cancel',                   endpoint: 'cancel',               roles: ['DISPATCHER', 'ADMIN'] },
   ],
   PENDING: [
-    { toStatus: 'CANCELED', label: 'Cancel', endpoint: null, roles: ['DISPATCHER', 'ADMIN'] },
+    { toStatus: 'CANCELED', label: 'Cancel', endpoint: 'cancel', roles: ['DISPATCHER', 'ADMIN'] },
   ],
   DONE_PENDING_APPROVAL: [
     { toStatus: 'COMPLETED', label: 'Complete', endpoint: 'complete', roles: ['DISPATCHER', 'ADMIN'] },
-    { toStatus: 'CANCELED',  label: 'Cancel',   endpoint: null,      roles: ['DISPATCHER', 'ADMIN'] },
+    { toStatus: 'CANCELED',  label: 'Cancel',   endpoint: 'cancel',  roles: ['DISPATCHER', 'ADMIN'] },
   ],
   CANCELED: [
-    { toStatus: 'SUBMITTED', label: 'Re-open', endpoint: null, roles: ['DISPATCHER', 'ADMIN'] },
+    { toStatus: 'SUBMITTED', label: 'Re-open', endpoint: 'reopen', roles: ['ADMIN'] },
   ],
   // COMPLETED has no outbound transitions client-side yet (admin re-open is TO-DO)
 };
+
+/** Whether the given role may perform a client-allowed transition (Kanban guard). */
+export function isTransitionAllowedForRole(key: TransitionKey, role: UserRole): boolean {
+  const [from, to] = key.split('→') as [JobStatus, JobStatus];
+  const actions = TRANSITIONS_FROM[from] ?? [];
+  return actions.some((a) => a.toStatus === to && a.roles.includes(role));
+}

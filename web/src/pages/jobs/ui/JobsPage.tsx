@@ -426,14 +426,11 @@ export default function JobsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <p className="font-medium text-brand-navy">
-                        {job.customer?.name ?? '—'}
+                        {job.customerName ?? '—'}
                       </p>
-                      {job.customer?.address && (
-                        <p className="text-xs text-brand-muted">{job.customer.address}</p>
-                      )}
                     </td>
                     <td className="px-4 py-3 text-brand-navy">
-                      {job.assignedTechnician?.name ?? '—'}
+                      {job.assigneeName ?? '—'}
                     </td>
                     <td className="px-4 py-3 text-brand-muted tabular-nums">
                       {formatDateTime(job.scheduledStart)}

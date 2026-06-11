@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/shared/api/client';
-import type { JobDto, JobNoteResponse, JobResponse, JobsPageResponse, JobsQueryParams } from '../model/types';
+import type { JobDto, JobNoteResponse, JobPhotoResponse, JobResponse, JobStatusHistoryResponse, JobsPageResponse, JobsQueryParams } from '../model/types';
 
 export interface CreateJobRequest {
   customerId?: string;
@@ -55,6 +55,30 @@ export function useJobNotes(id: string) {
   });
 }
 
+/** GET /api/v1/jobs/{id}/status-history — oldest-first list of status transitions. */
+export function useJobStatusHistory(id: string) {
+  return useQuery({
+    queryKey: ['job-status-history', id],
+    queryFn: async () => {
+      const { data } = await apiClient.get<JobStatusHistoryResponse[]>(`/api/v1/jobs/${id}/status-history`);
+      return data;
+    },
+    enabled: Boolean(id),
+  });
+}
+
+/** GET /api/v1/jobs/{id}/photos — newest-first list with pre-signed download URLs. */
+export function useJobPhotos(id: string) {
+  return useQuery({
+    queryKey: ['job-photos', id],
+    queryFn: async () => {
+      const { data } = await apiClient.get<JobPhotoResponse[]>(`/api/v1/jobs/${id}/photos`);
+      return data;
+    },
+    enabled: Boolean(id),
+  });
+}
+
 /** POST /api/v1/jobs/{id}/notes — create a new job note. */
 export async function createNote(jobId: string, body: string): Promise<JobNoteResponse> {
   const { data } = await apiClient.post<JobNoteResponse>(`/api/v1/jobs/${jobId}/notes`, { body });
@@ -63,10 +87,14 @@ export async function createNote(jobId: string, body: string): Promise<JobNoteRe
 
 /**
  * POST /api/v1/jobs/{id}/{endpoint} — fires a named transition on a job
- * (claim, start, pending, done-pending-approval, complete).
+ * (claim, start, pending, done-pending-approval, complete, cancel, reopen).
  */
-export async function fireTransition(id: string, endpoint: string): Promise<JobDto> {
-  const { data } = await apiClient.post<JobDto>(`/api/v1/jobs/${id}/${endpoint}`, {});
+export async function fireTransition(
+  id: string,
+  endpoint: string,
+  body?: Record<string, unknown>,
+): Promise<JobDto> {
+  const { data } = await apiClient.post<JobDto>(`/api/v1/jobs/${id}/${endpoint}`, body ?? {});
   return data;
 }
 

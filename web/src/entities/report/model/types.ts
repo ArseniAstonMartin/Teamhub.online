@@ -1,4 +1,4 @@
-export type ReportPeriod = 'day' | 'week' | 'month' | 'year';
+export type ReportPeriod = 'day' | 'week' | 'month' | 'year' | 'custom';
 
 export interface DayBucket {
   date: string;       // ISO local date "2026-01-15"

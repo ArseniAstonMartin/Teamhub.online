@@ -139,6 +139,24 @@ public class CustomerService {
     customerRepository.save(customer);
   }
 
+  /**
+   * Restores a soft-archived customer by clearing {@code archived_at} (PRD §11.3, TASK-126).
+   *
+   * @throws CustomerNotFoundException when the customer does not exist within this tenant or is not
+   *     archived
+   */
+  public Customer restore(UUID id) {
+    UUID tenantId = TenantContext.get();
+    Customer customer =
+        customerRepository
+            .findById(id)
+            .filter(c -> c.getTenantId().equals(tenantId))
+            .filter(c -> c.getArchivedAt() != null)
+            .orElseThrow(() -> new CustomerNotFoundException(id));
+    customer.setArchivedAt(null);
+    return customerRepository.save(customer);
+  }
+
   private Customer mergeInto(Customer existing, CreateCustomerRequest req) {
     if (req.name() != null && !req.name().isBlank()) {
       existing.setName(req.name());
