@@ -1,5 +1,16 @@
 export type UserRole = 'ADMIN' | 'DISPATCHER' | 'TECHNICIAN';
 
+/** Authenticated caller profile from GET /api/v1/users/me (TASK-132). */
+export interface CurrentUserResponse {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  tenantId: string;
+  /** null when the user has never logged in */
+  lastLoginAt: string | null;
+}
+
 export interface UserResponse {
   id: string;
   email: string;

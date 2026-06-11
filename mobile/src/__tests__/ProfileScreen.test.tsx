@@ -37,6 +37,32 @@ jest.mock('../stores/authStore', () => {
   return { useAuthStore: useAuthStoreMock };
 });
 
+// ─── Current user API ─────────────────────────────────────────────────────────
+const mockProfile = {
+  id: 'e5f6a7b8-0000-0000-0000-000000000000',
+  email: 'tech@acme.com',
+  name: 'Tech User',
+  role: 'TECHNICIAN' as const,
+  tenantId: 'a1b2c3d4-0000-0000-0000-000000000000',
+  lastLoginAt: '2026-06-10T12:00:00Z',
+};
+
+type CurrentUserQueryResult = {
+  data: typeof mockProfile | undefined;
+  isLoading: boolean;
+  isError: boolean;
+};
+
+const mockUseCurrentUser = jest.fn<CurrentUserQueryResult, []>(() => ({
+  data: mockProfile,
+  isLoading: false,
+  isError: false,
+}));
+
+jest.mock('../api/usersApi', () => ({
+  useCurrentUser: () => mockUseCurrentUser(),
+}));
+
 // ─── API client ───────────────────────────────────────────────────────────────
 const mockPost = jest.fn().mockResolvedValue({});
 jest.mock('../api/client', () => ({
@@ -66,6 +92,11 @@ beforeEach(() => {
   mockLogout.mockResolvedValue(undefined);
   mockPost.mockResolvedValue({});
   mockLoadRefreshToken.mockResolvedValue('test-refresh-token');
+  mockUseCurrentUser.mockReturnValue({
+    data: mockProfile,
+    isLoading: false,
+    isError: false,
+  });
 });
 
 afterEach(() => {
@@ -74,10 +105,17 @@ afterEach(() => {
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 describe('ProfileScreen', () => {
-  it('renders role, truncated tenantId, and truncated userId from auth store', () => {
+  it('renders name and email from /users/me', () => {
     const { getByText } = render(<ProfileScreen />);
 
+    expect(getByText('Tech User')).toBeTruthy();
+    expect(getByText('tech@acme.com')).toBeTruthy();
     expect(getByText('TECHNICIAN')).toBeTruthy();
+  });
+
+  it('renders truncated tenantId and userId from auth store', () => {
+    const { getByText } = render(<ProfileScreen />);
+
     expect(getByText('a1b2c3d4…')).toBeTruthy();
     expect(getByText('e5f6a7b8…')).toBeTruthy();
   });
@@ -87,6 +125,18 @@ describe('ProfileScreen', () => {
 
     expect(getByText('1.0.0')).toBeTruthy();
     expect(getByText('iPhone 15')).toBeTruthy();
+  });
+
+  it('shows loading indicator while profile is loading', () => {
+    mockUseCurrentUser.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+    });
+
+    const { getByTestId } = render(<ProfileScreen />);
+
+    expect(getByTestId('profile-loading')).toBeTruthy();
   });
 
   it('tapping Sign Out shows a confirmation alert', () => {
@@ -111,7 +161,6 @@ describe('ProfileScreen', () => {
 
     fireEvent.press(getByTestId('sign-out-button'));
 
-    // Extract the "Sign Out" confirm button's onPress from the alert call
     const [, , buttons] = alertSpy.mock.calls[0] as [
       string,
       string,
@@ -131,7 +180,6 @@ describe('ProfileScreen', () => {
       expect(mockLogout).toHaveBeenCalled();
     });
 
-    // Ensure logout is called after (or alongside) the server revocation
     const postOrder = mockPost.mock.invocationCallOrder[0];
     const logoutOrder = mockLogout.mock.invocationCallOrder[0];
     expect(logoutOrder).toBeGreaterThanOrEqual(postOrder);
