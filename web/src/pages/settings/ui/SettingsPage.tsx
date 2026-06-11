@@ -1,8 +1,6 @@
+import { Navigate } from 'react-router-dom';
+
+/** Settings index — sub-routes (tenant, users, billing) hold the real UI. */
 export default function SettingsPage() {
-  return (
-    <div>
-      <h1 className="text-2xl font-semibold text-brand-navy">Settings</h1>
-      {/* TO-DO: Implement settings sections (company, users, billing) */}
-    </div>
-  );
+  return <Navigate to="/settings/tenant" replace />;
 }

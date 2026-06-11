@@ -19,6 +19,22 @@ jest.mock('../stores/authStore', () => ({
     selector({ user: { id: '1', tenantId: 't1', role: 'TECHNICIAN' } }),
 }));
 
+// ─── Current user (/users/me) ─────────────────────────────────────────────────
+jest.mock('../api/usersApi', () => ({
+  useCurrentUser: () => ({
+    data: {
+      id: '1',
+      email: 'jane@example.com',
+      name: 'Jane Smith',
+      role: 'TECHNICIAN',
+      tenantId: 't1',
+      lastLoginAt: null,
+    },
+    isLoading: false,
+    isError: false,
+  }),
+}));
+
 // ─── API client ───────────────────────────────────────────────────────────────
 const mockGet = jest.fn();
 jest.mock('../api/client', () => ({
@@ -70,6 +86,11 @@ describe('HomeScreen', () => {
     expect(getByText('Today')).toBeTruthy();
     expect(getByText('This Week')).toBeTruthy();
     expect(getByText('Pending Approval')).toBeTruthy();
+  });
+
+  it('shows greeting with first name from /users/me', () => {
+    const { getByText } = renderWithQuery(<HomeScreen />);
+    expect(getByText('Good morning, Jane')).toBeTruthy();
   });
 
   it('shows loading indicators while fetching (values not yet visible)', () => {

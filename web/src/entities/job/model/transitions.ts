@@ -24,7 +24,7 @@ export const ALLOWED_TRANSITIONS = new Set<TransitionKey>([
   'PENDING→CANCELED',
   'DONE_PENDING_APPROVAL→CANCELED',
   'CANCELED→SUBMITTED',
-  // COMPLETED→* is Admin-only re-open — TO-DO: add when backend supports it
+  // COMPLETED→* admin re-open deferred MVP — PRD §9.4 (no backend endpoint yet)
 ]);
 
 /** Named backend endpoint for each allowed transition. */
@@ -47,7 +47,7 @@ export const TRANSITION_ENDPOINT: Partial<Record<TransitionKey, string>> = {
 export interface TransitionAction {
   toStatus: JobStatus;
   label: string;
-  /** Backend endpoint slug, or null if the endpoint is not yet available. */
+  /** Backend endpoint slug, or null when deferred (e.g. COMPLETED re-open — PRD §9.4). */
   endpoint: string | null;
   /** Roles that may perform this transition. */
   roles: UserRole[];
@@ -82,7 +82,7 @@ export const TRANSITIONS_FROM: Partial<Record<JobStatus, TransitionAction[]>> = 
   CANCELED: [
     { toStatus: 'SUBMITTED', label: 'Re-open', endpoint: 'reopen', roles: ['ADMIN'] },
   ],
-  // COMPLETED has no outbound transitions client-side yet (admin re-open is TO-DO)
+  // COMPLETED has no outbound transitions — admin re-open deferred MVP (PRD §9.4)
 };
 
 /** Whether the given role may perform a client-allowed transition (Kanban guard). */
