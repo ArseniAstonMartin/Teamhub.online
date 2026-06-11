@@ -3029,7 +3029,8 @@
         "Job list/detail use `customerName`/`assigneeName` (TASK-130)",
         "Mobile Profile uses `/users/me` (TASK-132)",
         "No hard-coded `return null` API stubs remain in production UI code paths (test mocks exempt)",
-        "Deferred v1.2 surfaces (Messages, Calls, ETA SMS, Apple login) stay behind existing TO-DO/feature flags — not in scope"
+        "Mobile `defineEta` calls `POST /api/v1/jobs/{id}/eta` — PATCH workaround removed (TASK-135)",
+        "Deferred v1.2 surfaces (Messages, Calls, ETA SMS to customer, Apple login) stay behind existing TO-DO/feature flags — not in scope"
       ],
       "test_steps": [
         "Step 1: `rg 'TO-DO.*endpoint|return null' web/src mobile/src` — only deferred v1.2 items remain",
@@ -3046,7 +3047,40 @@
         "TASK-128",
         "TASK-129",
         "TASK-130",
-        "TASK-132"
+        "TASK-132",
+        "TASK-135"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-135",
+      "category": "functional",
+      "priority": "high",
+      "description": "Implement `POST /api/v1/jobs/{id}/eta` and real Define-ETA logic per PRD §13.2 — replaces the mobile PATCH workaround from TASK-096",
+      "acceptance_criteria": [
+        "`DefineEtaRequest` body `{ etaMinutes: int }` validated `@Min(5)` `@Max(480)` (matches mobile `DefineEtaSheet`)",
+        "`POST /api/v1/jobs/{id}/eta` guarded by `PERM_job.eta.set`; caller must be the assigned technician (`JOB_NOT_ASSIGNED_TO_CALLER` → 403 otherwise)",
+        "When job status is `ASSIGNED_TO_TECHNICIAN`: transitions to `IN_PROGRESS` via `JobStateMachineService`, sets `in_progress_substatus = ON_THE_WAY`, sets `scheduled_end = now() + etaMinutes`",
+        "When job status is already `IN_PROGRESS`: updates `in_progress_substatus = ON_THE_WAY` and `scheduled_end` without an invalid FSM transition",
+        "Returns 200 with updated `JobResponse` including `inProgressSubstatus: ON_THE_WAY` and the new `scheduledEnd`",
+        "Returns 422 for out-of-range `etaMinutes`; 404 for missing/archived job; 409 when FSM rejects the transition (e.g. terminal status)",
+        "TO-DO marker in service: v1.1 SMS notification to customer on ETA set (PRD §13.2) — not implemented in MVP",
+        "Mobile `jobsApi.defineEta()` calls `POST /api/v1/jobs/{id}/eta` with `{ etaMinutes }`; removes PATCH workaround and optimistic substatus override",
+        "`JobEtaIT` integration tests cover happy paths, auth, validation, and tenant isolation; `JobService` unit tests cover service-layer branching"
+      ],
+      "test_steps": [
+        "Step 1: Assigned technician on ASSIGNED job — POST `{ etaMinutes: 45 }` → 200, status IN_PROGRESS, substatus ON_THE_WAY, scheduledEnd ≈ now+45m",
+        "Step 2: Same technician on IN_PROGRESS/WORKING job — POST `{ etaMinutes: 30 }` → 200, substatus ON_THE_WAY, scheduledEnd updated",
+        "Step 3: Another technician on same job — 403 JOB_NOT_ASSIGNED_TO_CALLER",
+        "Step 4: POST `{ etaMinutes: 4 }` — 422 validation error",
+        "Step 5: `./gradlew test --tests '*JobEta*'` — all green; JaCoCo new-code coverage on ETA classes meets project gate",
+        "Step 6: Mobile — tap Define ETA → 45; network hits POST /eta (not PATCH); Job Detail badge shows On the Way from server response",
+        "Step 7: `npm test -- DefineEtaSheet` in mobile — green after API client update"
+      ],
+      "dependencies": [
+        "TASK-044",
+        "TASK-047",
+        "TASK-096"
       ],
       "status": "pending"
     }
