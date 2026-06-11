@@ -20,8 +20,10 @@ export interface JobDto {
   status: JobStatus;
   scheduledStart: string | null;
   scheduledEnd: string | null;
-  customer: { id: string; name: string; address: string } | null;
-  assignedTechnician: { id: string; name: string } | null;
+  customerId: string | null;
+  customerName: string | null;
+  assignedTechnicianId: string | null;
+  assigneeName?: string | null;
   createdAt: string;
 }
 
@@ -54,8 +56,8 @@ export interface JobResponse {
   updatedAt: string;
   archivedAt: string | null;
   customerPhone: string | null;
-  customer?: { id: string; name: string; address: string } | null;
-  assignedTechnician?: { id: string; name: string } | null;
+  customerName?: string | null;
+  assigneeName?: string | null;
 }
 
 export function makeJobDto(id: string, status: JobStatus = 'SUBMITTED'): JobDto {
@@ -64,8 +66,10 @@ export function makeJobDto(id: string, status: JobStatus = 'SUBMITTED'): JobDto 
     status,
     scheduledStart: '2026-06-15T09:00:00Z',
     scheduledEnd: '2026-06-15T11:00:00Z',
-    customer: { id: 'cust-1', name: 'Acme Corp', address: '123 Main St, Austin TX' },
-    assignedTechnician: null,
+    customerId: 'cust-1',
+    customerName: 'Acme Corp',
+    assignedTechnicianId: null,
+    assigneeName: null,
     createdAt: '2026-06-10T08:00:00Z',
   };
 }
@@ -92,8 +96,8 @@ export function makeJobResponse(id: string, status: JobStatus = 'SUBMITTED'): Jo
     updatedAt: '2026-06-10T08:00:00Z',
     archivedAt: null,
     customerPhone: null,
-    customer: { id: 'cust-1', name: 'Acme Corp', address: '123 Main St, Austin TX' },
-    assignedTechnician: null,
+    customerName: 'Acme Corp',
+    assigneeName: null,
   };
 }
 
