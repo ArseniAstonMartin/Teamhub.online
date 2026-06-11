@@ -83,7 +83,7 @@ class AuditEventConsumerIT {
   void setUp() {
     txTemplate = new TransactionTemplate(txManager);
     tenant =
-        tenantService.provision(
+        tenantService.provisionWithAdminUser(
             "AuditEvents Co " + UUID.randomUUID(),
             "audit-events+" + UUID.randomUUID() + "@test.com");
 

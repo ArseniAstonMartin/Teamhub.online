@@ -101,7 +101,7 @@ class PhotoUploadIT {
     tenant =
         tx.execute(
             s ->
-                tenantService.provision(
+                tenantService.provisionWithAdminUser(
                     "Photo Upload Co " + UUID.randomUUID(),
                     "photo+" + UUID.randomUUID() + "@test.com"));
 

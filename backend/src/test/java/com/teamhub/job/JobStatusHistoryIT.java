@@ -87,14 +87,14 @@ class JobStatusHistoryIT {
     tenant =
         tx.execute(
             s ->
-                tenantService.provision(
+                tenantService.provisionWithAdminUser(
                     "History Co " + UUID.randomUUID(),
                     "history-owner+" + UUID.randomUUID() + "@test.com"));
 
     otherTenant =
         tx.execute(
             s ->
-                tenantService.provision(
+                tenantService.provisionWithAdminUser(
                     "Other History Co " + UUID.randomUUID(),
                     "other-history+" + UUID.randomUUID() + "@test.com"));
 

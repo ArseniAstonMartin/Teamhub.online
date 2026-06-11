@@ -284,7 +284,7 @@ class ComplianceIT {
 
   private Tenant provisionTenant(String name) {
     String email = "admin-" + UUID.randomUUID() + "@compliance-it.com";
-    Tenant t = tenantService.provision(name + " " + UUID.randomUUID(), email);
+    Tenant t = tenantService.provisionWithAdminUser(name + " " + UUID.randomUUID(), email);
     provisionedTenantIds.add(t.getId());
     return t;
   }

@@ -93,7 +93,7 @@ class PushFanOutIT {
   void setUp() {
     txTemplate = new TransactionTemplate(txManager);
     tenant =
-        tenantService.provision(
+        tenantService.provisionWithAdminUser(
             "PushFanOut Co " + UUID.randomUUID(),
             "push-fan-out+" + UUID.randomUUID() + "@test.com");
     tenantId = tenant.getId();

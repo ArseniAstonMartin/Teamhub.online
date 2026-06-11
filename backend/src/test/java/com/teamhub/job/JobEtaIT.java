@@ -86,12 +86,15 @@ class JobEtaIT {
   void setUp() {
     tx = new TransactionTemplate(txManager);
     String ownerEmail = "job-eta+" + UUID.randomUUID() + "@test.com";
-    tenant = tx.execute(s -> tenantService.provision("JobEta Co " + UUID.randomUUID(), ownerEmail));
+    tenant =
+        tx.execute(
+            s ->
+                tenantService.provisionWithAdminUser("JobEta Co " + UUID.randomUUID(), ownerEmail));
 
     otherTenant =
         tx.execute(
             s ->
-                tenantService.provision(
+                tenantService.provisionWithAdminUser(
                     "JobEta Other " + UUID.randomUUID(),
                     "other-" + UUID.randomUUID() + "@test.com"));
 

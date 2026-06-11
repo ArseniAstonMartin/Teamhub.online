@@ -112,7 +112,7 @@ class AutomationEngineIT {
   @BeforeEach
   void setUp() {
     String ownerEmail = "engine+" + UUID.randomUUID() + "@test.com";
-    tenant = tenantService.provision("Engine Co " + UUID.randomUUID(), ownerEmail);
+    tenant = tenantService.provisionWithAdminUser("Engine Co " + UUID.randomUUID(), ownerEmail);
     tenant.setPlan(Plan.STARTER);
     tenantRepository.save(tenant);
     UUID adminUserId = userRepository.findByEmail(ownerEmail).orElseThrow().getId();

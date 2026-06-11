@@ -91,7 +91,7 @@ class CustomerEdgeCaseIT {
 
   @BeforeEach
   void setUp() {
-    Tenant tenant = tenantService.provision("Edge Case Co", "admin@edge-case.com");
+    Tenant tenant = tenantService.provisionWithAdminUser("Edge Case Co", "admin@edge-case.com");
     tenantId = tenant.getId();
     dispatcherToken = mintToken(tenantId, UserRole.DISPATCHER.name());
     technicianToken = mintToken(tenantId, UserRole.TECHNICIAN.name());
@@ -147,7 +147,7 @@ class CustomerEdgeCaseIT {
 
   @Test
   void getById_crossTenantCustomer_returns404() throws Exception {
-    Tenant otherTenant = tenantService.provision("Other Co", "admin@other.com");
+    Tenant otherTenant = tenantService.provisionWithAdminUser("Other Co", "admin@other.com");
     Customer customer = buildCustomerEntity(otherTenant.getId(), "+15031110000");
     customerRepository.save(customer);
 
@@ -204,7 +204,7 @@ class CustomerEdgeCaseIT {
 
   @Test
   void update_crossTenantCustomer_returns404() throws Exception {
-    Tenant otherTenant = tenantService.provision("Other Tenant", "admin2@other.com");
+    Tenant otherTenant = tenantService.provisionWithAdminUser("Other Tenant", "admin2@other.com");
     Customer customer = buildCustomerEntity(otherTenant.getId(), "+15033330003");
     customerRepository.save(customer);
 

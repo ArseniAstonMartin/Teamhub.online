@@ -109,7 +109,9 @@ class JobTechnicianTransitionIT {
     String ownerEmail = "tech-transition+" + UUID.randomUUID() + "@test.com";
     tenant =
         tx.execute(
-            s -> tenantService.provision("TechTransition Co " + UUID.randomUUID(), ownerEmail));
+            s ->
+                tenantService.provisionWithAdminUser(
+                    "TechTransition Co " + UUID.randomUUID(), ownerEmail));
 
     UUID tid = tenant.getId();
     assignedTechnicianId = UUID.randomUUID();

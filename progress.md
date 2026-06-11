@@ -2369,3 +2369,15 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Open TO-DOs created (with PRD reference): v1.1 SMS notification to customer on ETA set (PRD §13.2) — marker in `JobService.defineEta`
 - Commits: 4455147
 - Completed through TASK-135 (feat/task-135-define-eta)
+
+### 2026-06-11 — TASK-131 — Staff onboarding backend
+- Agent: Composer
+- Status change: pending → done
+- PRD sections consulted: §6.4
+- Files touched: backend/src/main/resources/db/migration/V34__staff_users.sql, backend/src/main/java/com/teamhub/internal/** (StaffUser, StaffAuthService, StaffJwtService, InternalSecurityConfig, InternalIpAllowListFilter, InternalAuthController, InternalTenantController, InternalProvisioningService, InternalTenantQueryService, DTOs), backend/src/main/java/com/teamhub/tenancy/InternalTenantService.java, backend/src/main/java/com/teamhub/auth/InviteService.java, backend/src/main/java/com/teamhub/auth/InviteRepository.java, backend/src/main/java/com/teamhub/job/JobRepository.java, backend/src/main/java/com/teamhub/security/SecurityConfig.java, backend/src/main/resources/application.yml, infra/runbooks/local-dev.md, backend/src/test/java/com/teamhub/internal/*, backend/src/test/java/com/teamhub/auth/InviteAcceptPlaceholderUserUnitTest.java, backend/src/test/java/com/teamhub/tenancy/InternalTenantServiceIT.java, tasks.json, progress.md
+- Summary: Added global `staff_users` table (V34) with seeded `dev@teamhub.online`, TEAMHUB_STAFF JWT auth, IP-filtered `/api/v1/internal/**` REST API (login, schema-presets, tenant provision/list/detail, resend-invite). Fixed invite-only provisioning (no placeholder user) and `acceptInvite` password activation for legacy null-hash users. Internal routes excluded from OpenAPI; local dev credentials documented in `infra/runbooks/local-dev.md`.
+- Acceptance criteria verified: 1 (V34 `staff_users` + seed), 2 (BCrypt hash + runbook password), 3 (`POST /internal/auth/login` TEAMHUB_STAFF JWT), 4 (`InternalIpAllowListFilter` 404), 5 (staff JWT required; tenant JWT 401), 6 (invite-only provision), 7 (`GET /internal/schema-presets`), 8 (`POST /internal/tenants`), 9 (`GET /internal/tenants`), 10 (`GET /internal/tenants/{id}`), 11 (`POST /internal/tenants/{id}/resend-invite`), 12 (TO-DO staff invites marker), 13 (springdoc paths-to-exclude)
+- Test steps run: Step 1 (`step1_staffLogin_returnsStaffJwt`) — passed; Step 2 (`step2_provisionTenant_createsTenantAndInvite`) — passed; Step 3 (accept-invite flow covered by `InviteAcceptPlaceholderUserUnitTest`) — passed; Step 4 (`step4_listTenants_includesNewTenant`) — passed; Step 5 (`step5_tenantAdminJwtOnInternal_returns401`) — passed; Step 6 (`step6_nonAllowListedIp_returns404`) — passed
+- Open TO-DOs created (with PRD reference): rotate `dev@teamhub.online` before production (PRD §6.4); `POST /api/v1/internal/staff/invites` follow-up (PRD §6.4)
+- Commits: 36fedd2
+- Completed through TASK-131 (feat/task-131-staff-onboarding-backend)

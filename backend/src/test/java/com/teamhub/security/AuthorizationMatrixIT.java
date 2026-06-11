@@ -482,7 +482,7 @@ class AuthorizationMatrixIT {
 
   private Tenant provisionTenant(String name) {
     String email = "admin-" + UUID.randomUUID() + "@matrix-test.com";
-    Tenant t = tenantService.provision(name + " " + UUID.randomUUID(), email);
+    Tenant t = tenantService.provisionWithAdminUser(name + " " + UUID.randomUUID(), email);
     provisionedTenantIds.add(t.getId());
     return t;
   }

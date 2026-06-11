@@ -92,7 +92,9 @@ class JobCancelReopenIT {
     String ownerEmail = "cancel-reopen+" + UUID.randomUUID() + "@test.com";
     tenant =
         tx.execute(
-            s -> tenantService.provision("CancelReopen Co " + UUID.randomUUID(), ownerEmail));
+            s ->
+                tenantService.provisionWithAdminUser(
+                    "CancelReopen Co " + UUID.randomUUID(), ownerEmail));
 
     UUID tid = tenant.getId();
     dispatcherId = UUID.randomUUID();

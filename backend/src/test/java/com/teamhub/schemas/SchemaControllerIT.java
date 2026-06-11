@@ -93,7 +93,8 @@ class SchemaControllerIT {
   @BeforeEach
   void setUp() {
     String ownerEmail = "schema+" + UUID.randomUUID() + "@test.com";
-    tenant = tenantService.provision("Schema Test Co " + UUID.randomUUID(), ownerEmail);
+    tenant =
+        tenantService.provisionWithAdminUser("Schema Test Co " + UUID.randomUUID(), ownerEmail);
     tenant.setPlan(Plan.STARTER);
     tenantRepository.save(tenant);
     // Use the real admin user ID as the JWT subject so AuditLogService FK constraint is satisfied.

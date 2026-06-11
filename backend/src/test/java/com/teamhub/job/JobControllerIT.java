@@ -107,7 +107,7 @@ class JobControllerIT {
     tenant =
         tx.execute(
             s ->
-                tenantService.provision(
+                tenantService.provisionWithAdminUser(
                     "Job Ctrl Co " + UUID.randomUUID(),
                     "jobctrl+" + UUID.randomUUID() + "@test.com"));
 
@@ -241,7 +241,7 @@ class JobControllerIT {
     Tenant otherTenant =
         tx.execute(
             s ->
-                tenantService.provision(
+                tenantService.provisionWithAdminUser(
                     "Other Co " + UUID.randomUUID(), "other+" + UUID.randomUUID() + "@test.com"));
     UUID otherCustomerId =
         tx.execute(

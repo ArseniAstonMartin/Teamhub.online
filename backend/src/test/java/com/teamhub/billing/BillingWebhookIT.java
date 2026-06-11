@@ -83,7 +83,7 @@ class BillingWebhookIT {
 
   @BeforeEach
   void setUp() {
-    tenant = tenantService.provision("Webhook Corp", "webhook-admin@corp.com");
+    tenant = tenantService.provisionWithAdminUser("Webhook Corp", "webhook-admin@corp.com");
     tenant.setStripeCustomerId(FAKE_CUSTOMER_ID);
     tenantRepository.saveAndFlush(tenant);
   }

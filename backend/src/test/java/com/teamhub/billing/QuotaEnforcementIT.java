@@ -89,7 +89,7 @@ class QuotaEnforcementIT {
   @BeforeEach
   void setUp() {
     Mockito.reset(quotaEnforcementService);
-    tenant = tenantService.provision("Quota Corp", "quota-admin@quota.com");
+    tenant = tenantService.provisionWithAdminUser("Quota Corp", "quota-admin@quota.com");
     adminUserId = userRepository.findByEmail("quota-admin@quota.com").orElseThrow().getId();
     Customer customer = buildCustomer(tenant.getId());
     customerRepository.save(customer);

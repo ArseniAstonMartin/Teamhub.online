@@ -83,7 +83,7 @@ class QuotaCheckerIT {
   void setUp() {
     txTemplate = new TransactionTemplate(txManager);
     tenant =
-        tenantService.provision(
+        tenantService.provisionWithAdminUser(
             "Quota Checker Co " + UUID.randomUUID(),
             "quota-checker+" + UUID.randomUUID() + "@test.com");
     tenant.setPlan(Plan.STARTER);

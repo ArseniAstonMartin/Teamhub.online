@@ -76,7 +76,7 @@ class JobNamesIT {
     tenant =
         tx.execute(
             s ->
-                tenantService.provision(
+                tenantService.provisionWithAdminUser(
                     "Job Names Co " + UUID.randomUUID(),
                     "jobnames+" + UUID.randomUUID() + "@test.com"));
 

@@ -115,7 +115,8 @@ class GeocodingIT {
 
   @BeforeEach
   void setUp() {
-    Tenant tenant = tenantService.provision("Geocoding Test Co", "admin@geocode-test.com");
+    Tenant tenant =
+        tenantService.provisionWithAdminUser("Geocoding Test Co", "admin@geocode-test.com");
     tenantId = tenant.getId();
     dispatcherToken = mintToken(tenantId, UserRole.DISPATCHER.name());
   }

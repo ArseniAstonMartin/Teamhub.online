@@ -79,7 +79,7 @@ class JobStateMachineIT {
     tenant =
         tx.execute(
             s ->
-                tenantService.provision(
+                tenantService.provisionWithAdminUser(
                     "StateMachine Co " + UUID.randomUUID(),
                     "state-machine+" + UUID.randomUUID() + "@test.com"));
 

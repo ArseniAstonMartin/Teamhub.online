@@ -112,7 +112,7 @@ class EscalationIT {
   void setUp() {
     txTemplate = new TransactionTemplate(txManager);
     tenant =
-        tenantService.provision(
+        tenantService.provisionWithAdminUser(
             "Escalation Co " + UUID.randomUUID(), "esc+" + UUID.randomUUID() + "@test.com");
     tenantId = tenant.getId();
 

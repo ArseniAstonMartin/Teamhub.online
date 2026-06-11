@@ -66,7 +66,7 @@ class AuthAuditResilienceIT {
     reset(auditLogService);
 
     tenant =
-        tenantService.provision(
+        tenantService.provisionWithAdminUser(
             "Resilience Co " + UUID.randomUUID(), "resilience+" + UUID.randomUUID() + "@test.com");
     user =
         userService.createUser(

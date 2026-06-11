@@ -59,7 +59,8 @@ class CustomerRestoreIT {
 
   @BeforeEach
   void setUp() {
-    Tenant tenant = tenantService.provision("Restore Test HVAC", "admin@restore-test.com");
+    Tenant tenant =
+        tenantService.provisionWithAdminUser("Restore Test HVAC", "admin@restore-test.com");
     tenantId = tenant.getId();
     dispatcherToken = mintToken(tenantId, UserRole.DISPATCHER.name());
   }
@@ -151,7 +152,7 @@ class CustomerRestoreIT {
   void restore_crossTenantCustomer_returns404() throws Exception {
     String id = createCustomer("Jack Cross", "+15033332222");
 
-    Tenant otherTenant = tenantService.provision("Other HVAC", "admin@other.com");
+    Tenant otherTenant = tenantService.provisionWithAdminUser("Other HVAC", "admin@other.com");
     String otherToken = mintToken(otherTenant.getId(), UserRole.DISPATCHER.name());
 
     mockMvc

@@ -64,7 +64,7 @@ class OutboxPublisherIT {
   void setUp() {
     txTemplate = new TransactionTemplate(txManager);
     tenant =
-        tenantService.provision(
+        tenantService.provisionWithAdminUser(
             "OutboxPublisher Co " + UUID.randomUUID(),
             "outbox-publisher+" + UUID.randomUUID() + "@test.com");
   }

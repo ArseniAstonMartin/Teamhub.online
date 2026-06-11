@@ -63,10 +63,10 @@ class EventingTablesIT {
   void setUp() {
     txTemplate = new TransactionTemplate(txManager);
     tenantA =
-        tenantService.provision(
+        tenantService.provisionWithAdminUser(
             "Eventing Co A " + UUID.randomUUID(), "eventing-a+" + UUID.randomUUID() + "@test.com");
     tenantB =
-        tenantService.provision(
+        tenantService.provisionWithAdminUser(
             "Eventing Co B " + UUID.randomUUID(), "eventing-b+" + UUID.randomUUID() + "@test.com");
   }
 

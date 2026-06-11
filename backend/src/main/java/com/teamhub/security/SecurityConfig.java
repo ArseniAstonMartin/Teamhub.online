@@ -142,7 +142,7 @@ public class SecurityConfig {
    */
   @SuppressWarnings("java:S4502")
   @Bean
-  @Order(2)
+  @Order(3)
   public SecurityFilterChain securityFilterChain(
       HttpSecurity http,
       PermissionJwtAuthenticationConverter jwtAuthenticationConverter,
