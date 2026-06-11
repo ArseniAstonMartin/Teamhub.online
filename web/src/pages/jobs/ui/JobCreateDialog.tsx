@@ -19,6 +19,14 @@ import {
   SelectValue,
 } from '@/shared/ui/select';
 import { AddressAutocomplete } from '@/shared/ui/AddressAutocomplete';
+import { useCreateCustomer } from '@/entities/customer/api/customersApi';
+import type { CreateCustomerRequest, CustomerResponse } from '@/entities/customer/model/types';
+import {
+  CustomerPicker,
+  E164_PHONE_REGEX,
+  EMPTY_CUSTOMER_DRAFT,
+  type NewCustomerDraft,
+} from '@/entities/customer/ui/CustomerPicker';
 import { useSchemas } from '@/entities/schema/api/schemasApi';
 import { useCreateJob } from '@/entities/job/api/jobsApi';
 import { useEvaluateAutomations } from '@/entities/automation/api/automationsApi';
@@ -48,6 +56,73 @@ function getStringValue(v: unknown): string {
 
 function omitKey<T extends Record<string, unknown>>(obj: T, key: string): Omit<T, string> {
   return Object.fromEntries(Object.entries(obj).filter(([k]) => k !== key)) as Omit<T, string>;
+}
+
+const CORE_FIELD_KEYS = {
+  scheduledStart: 'scheduledStart',
+  scheduledEnd: 'scheduledEnd',
+} as const;
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function resolveCustomerAddress(
+  draft: NewCustomerDraft,
+  formValues: FormValues,
+): Pick<
+  CreateCustomerRequest,
+  'addressLine' | 'city' | 'state' | 'zip' | 'lat' | 'lon' | 'address'
+> {
+  const jobAddressLine = getStringValue(formValues['address'] ?? formValues['address_line']);
+  const addressLine = draft.addressLine.trim() || jobAddressLine;
+  const city = draft.city.trim() || getStringValue(formValues['city']);
+  const state = draft.state.trim() || getStringValue(formValues['state']);
+  const zip = draft.zip.trim() || getStringValue(formValues['zip']);
+
+  const draftLat = draft.lat;
+  const draftLon = draft.lon;
+  const jobLat = formValues['lat'];
+  const jobLon = formValues['lon'];
+  const lat = draftLat ?? (typeof jobLat === 'number' ? jobLat : undefined);
+  const lon = draftLon ?? (typeof jobLon === 'number' ? jobLon : undefined);
+
+  const resolved: Pick<
+    CreateCustomerRequest,
+    'addressLine' | 'city' | 'state' | 'zip' | 'lat' | 'lon' | 'address'
+  > = {
+    addressLine,
+    city,
+    state,
+    zip,
+  };
+
+  if (typeof lat === 'number' && typeof lon === 'number') {
+    resolved.lat = lat;
+    resolved.lon = lon;
+  } else if (addressLine) {
+    resolved.address = addressLine;
+  }
+
+  return resolved;
+}
+
+function buildCreateCustomerRequest(
+  draft: NewCustomerDraft,
+  formValues: FormValues,
+): CreateCustomerRequest {
+  const address = resolveCustomerAddress(draft, formValues);
+  return {
+    name: draft.name.trim(),
+    phone: draft.phone.trim(),
+    email: draft.email.trim() || undefined,
+    companyName: draft.companyName.trim() || undefined,
+    ...address,
+  };
+}
+
+/** Converts a `datetime-local` value to an ISO-8601 instant for the API. */
+function datetimeLocalToIso(value: string): string {
+  const normalized = value.length === 16 ? `${value}:00` : value;
+  return new Date(normalized).toISOString();
 }
 
 // ── SchemaField renderer ─────────────────────────────────────────────────────
@@ -276,9 +351,12 @@ interface FormProps {
 
 function JobCreateForm({ schemaId, sortedFields, onClose }: FormProps) {
   const createJob = useCreateJob();
+  const createCustomer = useCreateCustomer();
   const evaluateAutomations = useEvaluateAutomations();
 
   const [formValues, setFormValues] = useState<FormValues>({});
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerResponse | null>(null);
+  const [newCustomerDraft, setNewCustomerDraft] = useState<NewCustomerDraft>(EMPTY_CUSTOMER_DRAFT);
   const [manuallySetFields, setManuallySetFields] = useState<string[]>([]);
   const [autoFills, setAutoFills] = useState<AutoFillState>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -350,8 +428,36 @@ function JobCreateForm({ schemaId, sortedFields, onClose }: FormProps) {
 
   // ── Validation ──────────────────────────────────────────────────────────────
 
+  function validateCustomer(newErrors: Record<string, string>) {
+    if (selectedCustomer) return;
+
+    if (!newCustomerDraft.name.trim()) {
+      newErrors.customerName = 'Name is required';
+    }
+    if (!newCustomerDraft.phone.trim()) {
+      newErrors.customerPhone = 'Phone number is required';
+    } else if (!E164_PHONE_REGEX.test(newCustomerDraft.phone.trim())) {
+      newErrors.customerPhone = 'Phone must be E.164 format (e.g. +15033334444)';
+    }
+    if (newCustomerDraft.email.trim() && !EMAIL_REGEX.test(newCustomerDraft.email.trim())) {
+      newErrors.customerEmail = 'Email format is invalid';
+    }
+
+    const resolvedAddress = resolveCustomerAddress(newCustomerDraft, formValues);
+    if (!resolvedAddress.addressLine.trim()) {
+      newErrors.customerAddress = 'Address is required';
+    }
+  }
+
   function validate(): boolean {
     const newErrors: Record<string, string> = {};
+
+    validateCustomer(newErrors);
+
+    const scheduledStart = getStringValue(formValues[CORE_FIELD_KEYS.scheduledStart]);
+    if (!scheduledStart) {
+      newErrors[CORE_FIELD_KEYS.scheduledStart] = 'Scheduled start is required';
+    }
 
     sortedFields.forEach((field) => {
       const val = formValues[field.key];
@@ -391,29 +497,64 @@ function JobCreateForm({ schemaId, sortedFields, onClose }: FormProps) {
 
     setSubmitError(null);
 
-    const reservedKeys = new Set(['lat', 'lon', 'scheduledStart', 'scheduledEnd', 'customerId']);
+    const reservedKeys = new Set([
+      'lat',
+      'lon',
+      'city',
+      'state',
+      'zip',
+      CORE_FIELD_KEYS.scheduledStart,
+      CORE_FIELD_KEYS.scheduledEnd,
+    ]);
     const customFields: Record<string, unknown> = {};
     Object.entries(formValues).forEach(([k, v]) => {
       if (!reservedKeys.has(k)) customFields[k] = v;
     });
 
+    const scheduledStartRaw = getStringValue(formValues[CORE_FIELD_KEYS.scheduledStart]);
+    const scheduledEndRaw = getStringValue(formValues[CORE_FIELD_KEYS.scheduledEnd]);
+
     try {
+      let customerId = selectedCustomer?.id;
+      if (!customerId) {
+        const created = await createCustomer.mutateAsync(
+          buildCreateCustomerRequest(newCustomerDraft, formValues),
+        );
+        customerId = created.id;
+      }
+
       await createJob.mutateAsync({
-        customerId: formValues['customerId'] as string | undefined,
+        customerId,
         appointmentSchemaId: schemaId,
         customFields,
-        scheduledStart: formValues['scheduledStart'] as string | undefined,
-        scheduledEnd: formValues['scheduledEnd'] as string | undefined,
+        scheduledStart: datetimeLocalToIso(scheduledStartRaw),
+        scheduledEnd: scheduledEndRaw ? datetimeLocalToIso(scheduledEndRaw) : undefined,
         lat: formValues['lat'] as number | undefined,
         lon: formValues['lon'] as number | undefined,
       });
       onClose();
-    } catch {
-      setSubmitError('Failed to create job. Please try again.');
+    } catch (err: unknown) {
+      const apiMessage =
+        err &&
+        typeof err === 'object' &&
+        'response' in err &&
+        err.response &&
+        typeof err.response === 'object' &&
+        'data' in err.response &&
+        err.response.data &&
+        typeof err.response.data === 'object' &&
+        'error' in err.response.data &&
+        err.response.data.error &&
+        typeof err.response.data.error === 'object' &&
+        'message' in err.response.data.error &&
+        typeof err.response.data.error.message === 'string'
+          ? err.response.data.error.message
+          : null;
+      setSubmitError(apiMessage ?? 'Failed to create job. Please try again.');
     }
   }
 
-  const isSubmitting = createJob.isPending;
+  const isSubmitting = createJob.isPending || createCustomer.isPending;
 
   return (
     <>
@@ -425,6 +566,78 @@ function JobCreateForm({ schemaId, sortedFields, onClose }: FormProps) {
         noValidate
       >
         <div className="space-y-4 py-2">
+          <CustomerPicker
+            selectedCustomer={selectedCustomer}
+            onSelectCustomer={(customer) => {
+              setSelectedCustomer(customer);
+              setErrors((prev) => {
+                const next = { ...prev };
+                delete next.customerName;
+                delete next.customerPhone;
+                delete next.customerEmail;
+                delete next.customerAddress;
+                return next;
+              });
+            }}
+            onClearSelection={() => {
+              setSelectedCustomer(null);
+            }}
+            draft={newCustomerDraft}
+            onDraftChange={(draft) => {
+              setNewCustomerDraft(draft);
+              setErrors((prev) => {
+                const next = { ...prev };
+                if (draft.name.trim()) delete next.customerName;
+                if (draft.phone.trim() && E164_PHONE_REGEX.test(draft.phone.trim())) {
+                  delete next.customerPhone;
+                }
+                if (!draft.email.trim() || EMAIL_REGEX.test(draft.email.trim())) {
+                  delete next.customerEmail;
+                }
+                if (draft.addressLine.trim()) delete next.customerAddress;
+                return next;
+              });
+            }}
+            errors={{
+              name: errors.customerName,
+              phone: errors.customerPhone,
+              email: errors.customerEmail,
+              address: errors.customerAddress,
+            }}
+          />
+
+          <div className="space-y-1">
+            <Label htmlFor="field-scheduledStart" className="text-sm font-medium text-brand-navy">
+              Scheduled start
+              <span className="text-destructive ml-0.5">*</span>
+            </Label>
+            <Input
+              id="field-scheduledStart"
+              type="datetime-local"
+              value={getStringValue(formValues[CORE_FIELD_KEYS.scheduledStart])}
+              aria-required
+              aria-invalid={Boolean(errors[CORE_FIELD_KEYS.scheduledStart])}
+              onChange={(e) => handleFieldChange(CORE_FIELD_KEYS.scheduledStart, e.target.value)}
+            />
+            {errors[CORE_FIELD_KEYS.scheduledStart] && (
+              <p className="text-xs text-destructive" role="alert">
+                {errors[CORE_FIELD_KEYS.scheduledStart]}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="field-scheduledEnd" className="text-sm font-medium text-brand-navy">
+              Scheduled end
+            </Label>
+            <Input
+              id="field-scheduledEnd"
+              type="datetime-local"
+              value={getStringValue(formValues[CORE_FIELD_KEYS.scheduledEnd])}
+              onChange={(e) => handleFieldChange(CORE_FIELD_KEYS.scheduledEnd, e.target.value)}
+            />
+          </div>
+
           {sortedFields.map((field) => {
             const parentValue = field.depends_on ? formValues[field.depends_on] : undefined;
             return (

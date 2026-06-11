@@ -1,6 +1,8 @@
 package com.teamhub.security;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -101,6 +103,12 @@ class SecurityConfigIT {
   }
 
   // ---- Test Step 3: CORS preflight from non-allow-listed origin is rejected ------------------
+
+  @Test
+  void springBootErrorEndpoint_doesNotRequireAuthentication() throws Exception {
+    // Forwarded error dispatches hit /error; it must stay public or real API errors become 401.
+    mockMvc.perform(get("/error")).andExpect(status().is(not(equalTo(401))));
+  }
 
   @Test
   void corsPreflightFromAllowedOrigin_isAccepted() throws Exception {

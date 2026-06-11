@@ -56,6 +56,9 @@ const TOKEN_NO_TENANT = makeJwtToken({
   exp: Math.floor(Date.now() / 1000) + 3600,
 });
 
+/** Opaque token shape issued by InviteService.generateToken (not a JWT). */
+const OPAQUE_TOKEN = '_rKfKYHSo0kkfARoOncnlZUoiFhk8s1jUDa1WnEtKss';
+
 // ── Render helpers ────────────────────────────────────────────────────────────
 
 function renderWithToken(token?: string) {
@@ -87,9 +90,10 @@ describe('AcceptInvitePage', () => {
     expect(screen.getByText(/contact your administrator/i)).toBeInTheDocument();
   });
 
-  it('shows invalid-link error when token is malformed (not a JWT)', () => {
-    renderWithToken('not-a-valid-jwt');
-    expect(screen.getByText(/invalid invite/i)).toBeInTheDocument();
+  it('renders invite form for opaque backend token', () => {
+    renderWithToken(OPAQUE_TOKEN);
+    expect(screen.getByRole('button', { name: /activate account/i })).toBeInTheDocument();
+    expect(screen.getByText(/set a password to activate your account/i)).toBeInTheDocument();
   });
 
   // ── AC1 / Step 1: Valid token decoded ─────────────────────────────────────

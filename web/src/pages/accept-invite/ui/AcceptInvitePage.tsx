@@ -54,9 +54,15 @@ function redirectToGoogleOAuth(inviteToken: string): void {
   window.location.href = `${import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'}/oauth2/authorization/google`;
 }
 
-function parseInviteToken(token: string): InvitePayload | null {
+/**
+ * Optional display hints from a JWT-shaped token. Production invite links use opaque tokens
+ * from the backend (InviteService.generateToken); validation happens on POST /invites/accept.
+ */
+function decodeJwtInvitePayload(token: string): InvitePayload | null {
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
   try {
-    const [, payloadB64] = token.split('.');
+    const payloadB64 = parts[1];
     if (!payloadB64) return null;
     const json = atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/'));
     return JSON.parse(json) as InvitePayload;
@@ -139,15 +145,13 @@ export default function AcceptInvitePage() {
     }
   }
 
-  if (!token) return <NoTokenState />;
-
-  const payload = parseInviteToken(token);
-  if (!payload) return <NoTokenState />;
+  if (!token.trim()) return <NoTokenState />;
 
   if (inviteExpired) return <ExpiredInviteState />;
 
-  const inviteeEmail = payload.email;
-  const tenantName = payload.tenant_name;
+  const payload = decodeJwtInvitePayload(token);
+  const inviteeEmail = payload?.email;
+  const tenantName = payload?.tenant_name;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-brand-bg font-sans px-4">

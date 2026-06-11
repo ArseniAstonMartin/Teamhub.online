@@ -7,9 +7,11 @@
  *
  * Data is seeded via page.route() mocks (no real backend).
  */
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { setupAuth } from './helpers/auth';
 import {
+  makeCustomer,
+  makeCustomersPage,
   makeJobDto,
   makeJobsPage,
   makeSchema,
@@ -18,6 +20,21 @@ import {
 // ── Shared job fixture ───────────────────────────────────────────────────────
 
 const JOB_ID = 'job-abc123';
+
+const EXISTING_CUSTOMER = makeCustomer();
+
+/** Fills required customer, schedule, and schema fields in the New Job dialog. */
+async function fillNewJobForm(page: Page) {
+  await page.getByLabel(/^name/i).fill('Alice');
+  const suggestion = page.getByRole('option', {
+    name: 'Alice Smith - alice@example.com - Acme Corp - +15035551234',
+  });
+  await expect(suggestion).toBeVisible({ timeout: 5_000 });
+  await suggestion.click();
+
+  await page.getByLabel(/scheduled start/i).fill('2026-06-15T09:00');
+  await page.getByLabel('Service Type').fill('Plumbing repair');
+}
 
 // ── Journey 2A: jobs list page loads ────────────────────────────────────────
 
@@ -65,12 +82,16 @@ test('opens New Job dialog when button is clicked', async ({ page }) => {
   await page.route((url) => url.pathname === '/api/v1/automations/evaluate', (route) =>
     route.fulfill({ json: { suggested_patch: {}, auto_filled_fields: [] } }),
   );
+  await page.route((url) => url.pathname === '/api/v1/customers', (route) =>
+    route.fulfill({ json: makeCustomersPage([]) }),
+  );
 
   await page.goto('/jobs');
   await page.getByTestId('new-job-btn').click();
 
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'New Job', exact: true })).toBeVisible();
+  await expect(page.getByLabel(/^name/i)).toBeVisible();
 });
 
 // ── Journey 2D: create a job and see it in the list ─────────────────────────
@@ -101,6 +122,21 @@ test('creates a new job and it appears in the list', async ({ page }) => {
   await page.route((url) => url.pathname === '/api/v1/automations/evaluate', (route) =>
     route.fulfill({ json: { suggested_patch: {}, auto_filled_fields: [] } }),
   );
+  await page.route((url) => url.pathname === '/api/v1/customers', (route) => {
+    if (route.request().method() !== 'GET') {
+      return route.continue();
+    }
+    const q = new URL(route.request().url()).searchParams.get('q')?.toLowerCase() ?? '';
+    const matches =
+      q.length === 0
+        ? []
+        : [EXISTING_CUSTOMER].filter(
+            (c) =>
+              c.name.toLowerCase().includes(q) ||
+              (c.companyName?.toLowerCase().includes(q) ?? false),
+          );
+    return route.fulfill({ json: makeCustomersPage(matches) });
+  });
 
   await page.goto('/jobs');
 
@@ -108,8 +144,7 @@ test('creates a new job and it appears in the list', async ({ page }) => {
   await page.getByTestId('new-job-btn').click();
   await expect(page.getByRole('dialog')).toBeVisible();
 
-  // Fill required text field ("Service Type")
-  await page.getByLabel('Service Type').fill('Plumbing repair');
+  await fillNewJobForm(page);
 
   // Submit
   await page.getByRole('button', { name: 'Create Job' }).click();

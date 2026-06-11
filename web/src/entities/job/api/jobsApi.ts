@@ -3,10 +3,10 @@ import apiClient from '@/shared/api/client';
 import type { JobDto, JobNoteResponse, JobPhotoResponse, JobResponse, JobStatusHistoryResponse, JobsPageResponse, JobsQueryParams } from '../model/types';
 
 export interface CreateJobRequest {
-  customerId?: string;
+  customerId: string;
   appointmentSchemaId?: string;
   customFields: Record<string, unknown>;
-  scheduledStart?: string;
+  scheduledStart: string;
   scheduledEnd?: string;
   lat?: number;
   lon?: number;

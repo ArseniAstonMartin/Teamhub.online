@@ -215,26 +215,56 @@ public class CustomerService {
     c.setEmail(req.email());
     c.setCompanyName(req.companyName());
     c.setAddressLine(req.addressLine());
-
-    if (req.lat() != null && req.lon() != null) {
-      c.setCity(req.city());
-      c.setState(req.state());
-      c.setZip(req.zip());
-      c.setLocation(buildPoint(req.lon(), req.lat()));
-    } else if (req.address() != null && !req.address().isBlank()) {
-      GeocodeResult geo = geocodingService.geocode(req.address());
-      c.setCity(geo.city() != null ? geo.city() : req.city());
-      c.setState(geo.state() != null ? geo.state() : req.state());
-      c.setZip(geo.zip() != null ? geo.zip() : req.zip());
-      c.setLocation(buildPoint(geo.lon(), geo.lat()));
-    } else {
-      c.setCity(req.city());
-      c.setState(req.state());
-      c.setZip(req.zip());
-      // No lat/lon and no geocodable address — location is left null
-    }
-
+    c.setCity(nonBlankOrDash(req.city()));
+    c.setState(nonBlankOrDash(req.state()));
+    c.setZip(nonBlankOrDash(req.zip()));
+    applyLocation(c, req);
+    requireLocation(c);
     return c;
+  }
+
+  private void applyLocation(Customer customer, CreateCustomerRequest req) {
+    if (req.lat() != null && req.lon() != null) {
+      customer.setLocation(buildPoint(req.lon(), req.lat()));
+      return;
+    }
+    String geocodeInput = geocodeInput(req);
+    if (geocodeInput == null) {
+      return;
+    }
+    GeocodeResult geo = geocodingService.geocode(geocodeInput);
+    if (geo.city() != null && !geo.city().isBlank()) {
+      customer.setCity(geo.city());
+    }
+    if (geo.state() != null && !geo.state().isBlank()) {
+      customer.setState(geo.state());
+    }
+    if (geo.zip() != null && !geo.zip().isBlank()) {
+      customer.setZip(geo.zip());
+    }
+    customer.setLocation(buildPoint(geo.lon(), geo.lat()));
+  }
+
+  private static String geocodeInput(CreateCustomerRequest req) {
+    if (req.address() != null && !req.address().isBlank()) {
+      return req.address();
+    }
+    if (req.addressLine() != null
+        && !req.addressLine().isBlank()
+        && !"—".equals(req.addressLine())) {
+      return req.addressLine();
+    }
+    return null;
+  }
+
+  private static String nonBlankOrDash(String value) {
+    return value == null || value.isBlank() ? "—" : value;
+  }
+
+  private static void requireLocation(Customer customer) {
+    if (customer.getLocation() == null) {
+      throw new CustomerAddressRequiredException();
+    }
   }
 
   private static Point buildPoint(double lon, double lat) {
