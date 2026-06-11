@@ -2355,5 +2355,5 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Acceptance criteria verified: 1 (`CurrentUserResponse` fields + `UserController.getCurrentUser`), 2 (no `@PreAuthorize` — any tenant role), 3 (mobile Profile name/email from `/me`), 4 (web sidebar/header display name from `/me`)
 - Test steps run: Step 1 (`step1_getMe_withValidJwt_returnsEmailAndRole`) — passed; Step 2 (`step2_getMe_withoutJwt_returns401`) — passed; Step 3 (`ProfileScreen renders name and email from /users/me`) — passed; Step 4 (`step4_getMe_deactivatedUser_returns403`) — passed
 - Open TO-DOs created (with PRD reference): none
-- Commits: pending rebase
+- Commits: 88f1abc
 - Completed through TASK-132 (feat/task-132-users-me)
