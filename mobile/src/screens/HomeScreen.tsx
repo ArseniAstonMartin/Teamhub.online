@@ -12,6 +12,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { colors } from '../theme/colors';
 import { useAuthStore } from '../stores/authStore';
 import { useJobCount } from '../api/jobsApi';
+import { useCurrentUser } from '../api/usersApi';
 import KpiCard from '../components/KpiCard';
 
 function todayRange(): { from: string; to: string } {
@@ -45,6 +46,7 @@ export default function HomeScreen() {
   const navigation = useNavigation();
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
+  const { data: profile } = useCurrentUser();
 
   const today = useMemo(() => todayRange(), []);
   const week = useMemo(() => weekRange(), []);
@@ -65,8 +67,8 @@ export default function HomeScreen() {
     navigation.dispatch(CommonActions.navigate({ name: 'Schedule' }));
   }, [navigation]);
 
-  // TO-DO: replace role fallback with user's first name once backend includes it in JWT
-  const greeting = user ? `Good morning, ${user.role}` : 'Good morning, Team';
+  const greetingName = profile?.name?.split(/\s+/)[0] ?? user?.role;
+  const greeting = user ? `Good morning, ${greetingName}` : 'Good morning, Team';
 
   return (
     <ScrollView

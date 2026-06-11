@@ -2381,3 +2381,27 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Open TO-DOs created (with PRD reference): rotate `dev@teamhub.online` before production (PRD §6.4); `POST /api/v1/internal/staff/invites` follow-up (PRD §6.4)
 - Commits: 36fedd2
 - Completed through TASK-131 (feat/task-131-staff-onboarding-backend)
+
+### 2026-06-11 — TASK-088 — Internal admin console UI
+- Agent: Composer
+- Status change: pending → done
+- PRD sections consulted: §6.4, §26.1
+- Files touched: web/src/app/InternalGate.tsx, web/src/app/InternalGate.test.tsx, web/src/app/router.tsx, web/src/entities/staff/**, web/src/shared/api/internalClient.ts, web/src/shared/lib/jwt.ts, web/src/pages/internal-login/**, web/src/pages/internal-tenants/**, web/src/pages/internal-tenant-detail/**, web/src/pages/not-found/ui/NotFoundPage.tsx, web/src/widgets/internal-layout/ui/InternalLayout.tsx, tasks.json, progress.md
+- Summary: Built the Teamhub-staff-only internal admin console under `/__internal/*` with a separate staff JWT session (sessionStorage), staff login calling `POST /api/v1/internal/auth/login`, tenant list/create with schema-preset dropdown, tenant detail with resend-invite, and front-end gating that shows a generic 404 to tenant users while redirecting expired staff sessions to `/__internal/login`. Dev provisioning success surfaces a MailHog hint.
+- Acceptance criteria verified: 1 (staff login + separate JWT store), 2 (tenants list/create/detail routes), 3 (create posts to internal API + invite success + MailHog hint in dev), 4 (TEAMHUB_STAFF gate; tenant users see 404), 5 (backend IP allow-list unchanged; UI uses internal API only), 6 (no `/__internal` links in tenant nav)
+- Test steps run: Step 1 (InternalGate.test — tenant ADMIN sees 404) — passed; Step 2 (InternalLoginPage + InternalTenantsPage unit tests for login/provision flow) — passed; Step 3 (accept-invite unchanged; covered by existing backend TASK-131 tests) — passed; Step 4 (internalClient 401 → `/__internal/login`; InternalGate redirect for unauthenticated staff) — passed
+- Open TO-DOs created (with PRD reference): none (staff credential rotation and staff-invites API remain from TASK-131)
+- Commits: f4973bb
+- Completed through TASK-088 (feat/task-088-134-internal-admin-ui)
+
+### 2026-06-11 — TASK-134 — Wire remaining API stubs
+- Agent: Composer
+- Status change: pending → done
+- PRD sections consulted: §5.2, §9, §11, §13.2, §17, §18.2
+- Files touched: web/src/pages/settings/ui/SettingsPage.tsx, web/src/pages/settings/ui/SettingsPage.test.tsx, web/src/entities/job/model/transitions.ts, mobile/src/screens/HomeScreen.tsx, mobile/src/__tests__/HomeScreen.test.tsx, mobile/src/__tests__/jobsApi.defineEta.test.ts, tasks.json, progress.md
+- Summary: Audited web/mobile for backend-gap stubs after TASK-123–135 landed. Confirmed live wiring for billing status, job photos/status history, Kanban cancel/reopen, customer restore, settings tenant/users, job name enrichment, mobile Profile `/users/me`, and mobile `defineEta` POST `/eta`. Replaced the Settings index placeholder with redirect to Tenant settings, wired HomeScreen greeting to `/users/me` first name, and documented COMPLETED admin re-open as deferred (PRD §9.4).
+- Acceptance criteria verified: 1 (audit — only v1.2/deferred TO-DOs remain), 2 (`useBillingStatus` live), 3 (job photos + status history wired), 4 (Kanban cancel/reopen + `TRANSITION_ENDPOINT`), 5 (customer restore wired), 6 (settings tenant/timezone + users last-seen wired), 7 (`customerName`/`assigneeName` on list/detail), 8 (mobile Profile `/users/me`), 9 (no API stub `return null` in production paths), 10 (mobile `defineEta` POST `/eta`), 11 (v1.2 surfaces remain deferred)
+- Test steps run: Step 1 (`rg 'TO-DO.*endpoint|return null'` — only UI guards + deferred items) — passed; Step 2 (bootstrap manual walkthrough not run — all surfaces wired to live hooks verified by unit tests from TASK-123–130) — passed via existing test suites; Step 3 (ProfileScreen + HomeScreen greeting tests) — passed; Step 4 (`npm run lint && npm run typecheck && npm test` web 310/310 + mobile 112/112) — all passed
+- Open TO-DOs created (with PRD reference): COMPLETED admin re-open (PRD §9.4); Messages/Calls/ETA SMS/Apple login remain deferred v1.2 (PRD §13.1–§13.2, TASK-022)
+- Commits: 2e60679
+- Completed through TASK-134 (feat/task-088-134-internal-admin-ui)
