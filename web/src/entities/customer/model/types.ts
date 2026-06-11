@@ -36,8 +36,10 @@ export interface CreateCustomerRequest {
   city: string;
   state: string;
   zip: string;
-  lat: number;
-  lon: number;
+  lat?: number;
+  lon?: number;
+  /** Free-text address for server-side geocoding when lat/lon are omitted. */
+  address?: string;
 }
 
 export interface UpdateCustomerRequest {

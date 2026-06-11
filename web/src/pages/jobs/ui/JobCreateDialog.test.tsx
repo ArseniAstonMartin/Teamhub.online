@@ -11,11 +11,15 @@ import type { JobResponse } from '@/entities/job/model/types';
 const {
   mockUseSchemas,
   mockUseCreateJob,
+  mockUseCreateCustomer,
   mockUseEvaluateAutomations,
+  mockUseCustomers,
 } = vi.hoisted(() => ({
   mockUseSchemas: vi.fn(),
   mockUseCreateJob: vi.fn(),
+  mockUseCreateCustomer: vi.fn(),
   mockUseEvaluateAutomations: vi.fn(),
+  mockUseCustomers: vi.fn(),
 }));
 
 vi.mock('@/entities/schema/api/schemasApi', () => ({
@@ -24,6 +28,11 @@ vi.mock('@/entities/schema/api/schemasApi', () => ({
 
 vi.mock('@/entities/job/api/jobsApi', () => ({
   useCreateJob: mockUseCreateJob,
+}));
+
+vi.mock('@/entities/customer/api/customersApi', () => ({
+  useCustomers: mockUseCustomers,
+  useCreateCustomer: mockUseCreateCustomer,
 }));
 
 vi.mock('@/entities/automation/api/automationsApi', () => ({
@@ -122,6 +131,41 @@ function makeSchemaWithAddress(): SchemaResponse {
 
 const noopMutateAsync = vi.fn().mockResolvedValue({} as EvaluateAutomationsResponse);
 const noopCreateMutate = vi.fn().mockResolvedValue({} as JobResponse);
+const noopCreateCustomerMutate = vi.fn().mockResolvedValue({
+  id: 'cust-new',
+  tenantId: 'tenant-1',
+  name: 'New Customer',
+  companyName: null,
+  phone: '+15035559999',
+  email: null,
+  addressLine: '—',
+  city: '',
+  state: '',
+  zip: '',
+  lat: null,
+  lon: null,
+  createdAt: '2026-01-01T00:00:00Z',
+  updatedAt: '2026-01-01T00:00:00Z',
+  archivedAt: null,
+});
+
+const MOCK_CUSTOMER = {
+  id: 'cust-1',
+  tenantId: 'tenant-1',
+  name: 'Alice Smith',
+  companyName: 'Acme Co',
+  phone: '+15035551234',
+  email: 'alice@example.com',
+  addressLine: '123 Main St',
+  city: 'Portland',
+  state: 'OR',
+  zip: '97201',
+  lat: 45.5,
+  lon: -122.6,
+  createdAt: '2026-01-01T00:00:00Z',
+  updatedAt: '2026-01-01T00:00:00Z',
+  archivedAt: null,
+};
 
 function setupDefaultMocks() {
   mockUseSchemas.mockReturnValue({ data: [makeSchema()] });
@@ -129,9 +173,40 @@ function setupDefaultMocks() {
     mutateAsync: noopCreateMutate,
     isPending: false,
   });
+  mockUseCreateCustomer.mockReturnValue({
+    mutateAsync: noopCreateCustomerMutate,
+    isPending: false,
+  });
   mockUseEvaluateAutomations.mockReturnValue({
     mutateAsync: noopMutateAsync,
   });
+  mockUseCustomers.mockReturnValue({
+    data: {
+      content: [MOCK_CUSTOMER],
+      totalElements: 1,
+      totalPages: 1,
+      number: 0,
+      size: 8,
+    },
+  });
+}
+
+async function fillCoreJobFields(mode: 'existing' | 'new' = 'existing') {
+  if (mode === 'existing') {
+    await userEvent.type(screen.getByLabelText(/^name/i), 'Alice');
+    const suggestion = await screen.findByRole(
+      'option',
+      { name: 'Alice Smith - alice@example.com - Acme Co - +15035551234' },
+      { timeout: 1000 },
+    );
+    await userEvent.click(suggestion);
+  } else {
+    await userEvent.type(screen.getByLabelText(/^name/i), 'New Customer');
+    await userEvent.type(screen.getByLabelText(/phone number/i), '+15035559999');
+    await userEvent.type(screen.getByLabelText(/^address$/i), '123 Main St, Portland, OR');
+  }
+
+  await userEvent.type(screen.getByLabelText(/scheduled start/i), '2026-06-15T09:00');
 }
 
 // ── Render helper ─────────────────────────────────────────────────────────────
@@ -152,8 +227,27 @@ describe('JobCreateDialog', () => {
 
   it('renders form fields from the mocked active schema sorted by order', () => {
     renderDialog();
+    expect(screen.getByLabelText(/^name/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/phone number/i)).toBeInTheDocument();
+    expect(screen.getByText('Scheduled start')).toBeInTheDocument();
     expect(screen.getByText('Service Type')).toBeInTheDocument();
     expect(screen.getByText('Notes')).toBeInTheDocument();
+  });
+
+  it('shows customer suggestions while typing name', async () => {
+    renderDialog();
+    await userEvent.type(screen.getByLabelText(/^name/i), 'Alice');
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('customer-suggestions')).toBeInTheDocument();
+        expect(
+          screen.getByRole('option', {
+            name: 'Alice Smith - alice@example.com - Acme Co - +15035551234',
+          }),
+        ).toBeInTheDocument();
+      },
+      { timeout: 1000 },
+    );
   });
 
   it('renders a dropdown for dropdown-type fields', () => {
@@ -180,6 +274,10 @@ describe('JobCreateDialog', () => {
     renderDialog();
     await userEvent.click(screen.getByRole('button', { name: /create job/i }));
     await waitFor(() => {
+      expect(screen.getByText(/name is required/i)).toBeInTheDocument();
+      expect(screen.getByText(/phone number is required/i)).toBeInTheDocument();
+      expect(screen.getByText(/address is required/i)).toBeInTheDocument();
+      expect(screen.getByText(/scheduled start is required/i)).toBeInTheDocument();
       expect(screen.getByText(/service type is required/i)).toBeInTheDocument();
     });
   });
@@ -224,15 +322,49 @@ describe('JobCreateDialog', () => {
   it('AddressAutocomplete renders plain input fallback when API key not set', () => {
     mockUseSchemas.mockReturnValue({ data: [makeSchemaWithAddress()] });
     renderDialog();
-    expect(screen.getByTestId('address-autocomplete-fallback')).toBeInTheDocument();
+    expect(screen.getAllByTestId('address-autocomplete-fallback').length).toBeGreaterThanOrEqual(1);
   });
 
   // ── AC4: Valid form submission ─────────────────────────────────────────────
+
+  it('submitting valid form with new customer creates customer then job', async () => {
+    const createCustomer = vi.fn().mockResolvedValue({ id: 'cust-new' });
+    const createJob = vi.fn().mockResolvedValue({ id: 'new-job-1' });
+    mockUseCreateCustomer.mockReturnValue({ mutateAsync: createCustomer, isPending: false });
+    mockUseCreateJob.mockReturnValue({ mutateAsync: createJob, isPending: false });
+    renderDialog();
+
+    await fillCoreJobFields('new');
+
+    const combo = screen.getByRole('combobox', { name: 'Service Type' });
+    await userEvent.click(combo);
+    await userEvent.click(await screen.findByRole('option', { name: 'Plumbing' }));
+    await userEvent.click(screen.getByRole('button', { name: /create job/i }));
+
+    await waitFor(() => {
+      expect(createCustomer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'New Customer',
+          phone: '+15035559999',
+          addressLine: '123 Main St, Portland, OR',
+          address: '123 Main St, Portland, OR',
+        }),
+      );
+      expect(createJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customerId: 'cust-new',
+          customFields: expect.objectContaining({ service_type: 'Plumbing' }),
+        }),
+      );
+    });
+  });
 
   it('submitting valid form calls POST /api/v1/jobs with correct body', async () => {
     const mutate = vi.fn().mockResolvedValue({ id: 'new-job-1' });
     mockUseCreateJob.mockReturnValue({ mutateAsync: mutate, isPending: false });
     renderDialog();
+
+    await fillCoreJobFields();
 
     // Open the Service Type dropdown and pick Plumbing
     const combo = screen.getByRole('combobox', { name: 'Service Type' });
@@ -245,6 +377,8 @@ describe('JobCreateDialog', () => {
     await waitFor(() => {
       expect(mutate).toHaveBeenCalledWith(
         expect.objectContaining({
+          customerId: 'cust-1',
+          scheduledStart: expect.any(String) as string,
           customFields: expect.objectContaining({ service_type: 'Plumbing' }),
           appointmentSchemaId: 'schema-1',
         }),
@@ -259,6 +393,8 @@ describe('JobCreateDialog', () => {
     mockUseCreateJob.mockReturnValue({ mutateAsync: mutate, isPending: false });
     const onClose = vi.fn();
     render(<JobCreateDialog open={true} onClose={onClose} />);
+
+    await fillCoreJobFields();
 
     const combo = screen.getByRole('combobox', { name: 'Service Type' });
     await userEvent.click(combo);

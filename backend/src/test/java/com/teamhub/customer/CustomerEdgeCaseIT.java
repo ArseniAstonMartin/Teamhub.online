@@ -489,7 +489,7 @@ class CustomerEdgeCaseIT {
             "+15038880003",
             null,
             null,
-            "300 No Location Blvd",
+            "—",
             "Portland",
             "OR",
             "97201",
@@ -503,12 +503,8 @@ class CustomerEdgeCaseIT {
                 .header("Authorization", "Bearer " + dispatcherToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
-        .andExpect(status().isCreated())
-        .andExpect(jsonPath("$.city").value("Portland"))
-        .andExpect(jsonPath("$.state").value("OR"))
-        .andExpect(jsonPath("$.zip").value("97201"))
-        .andExpect(jsonPath("$.lat").doesNotExist())
-        .andExpect(jsonPath("$.lon").doesNotExist());
+        .andExpect(status().isUnprocessableEntity())
+        .andExpect(jsonPath("$.error.code").value(CustomerAddressRequiredException.CODE));
   }
 
   // ---------------------------------------------------------------------------
