@@ -2403,5 +2403,5 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Acceptance criteria verified: 1 (audit — only v1.2/deferred TO-DOs remain), 2 (`useBillingStatus` live), 3 (job photos + status history wired), 4 (Kanban cancel/reopen + `TRANSITION_ENDPOINT`), 5 (customer restore wired), 6 (settings tenant/timezone + users last-seen wired), 7 (`customerName`/`assigneeName` on list/detail), 8 (mobile Profile `/users/me`), 9 (no API stub `return null` in production paths), 10 (mobile `defineEta` POST `/eta`), 11 (v1.2 surfaces remain deferred)
 - Test steps run: Step 1 (`rg 'TO-DO.*endpoint|return null'` — only UI guards + deferred items) — passed; Step 2 (bootstrap manual walkthrough not run — all surfaces wired to live hooks verified by unit tests from TASK-123–130) — passed via existing test suites; Step 3 (ProfileScreen + HomeScreen greeting tests) — passed; Step 4 (`npm run lint && npm run typecheck && npm test` web 310/310 + mobile 112/112) — all passed
 - Open TO-DOs created (with PRD reference): COMPLETED admin re-open (PRD §9.4); Messages/Calls/ETA SMS/Apple login remain deferred v1.2 (PRD §13.1–§13.2, TASK-022)
-- Commits: pending
+- Commits: 2e60679
 - Completed through TASK-134 (feat/task-088-134-internal-admin-ui)
