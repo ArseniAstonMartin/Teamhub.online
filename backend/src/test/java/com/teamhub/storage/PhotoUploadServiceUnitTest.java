@@ -112,6 +112,40 @@ class PhotoUploadServiceUnitTest {
   }
 
   @Test
+  void confirmUpload_withoutTakenAt_persistsWithNullTakenAt() {
+    UUID tenantId = UUID.randomUUID();
+    UUID jobId = UUID.randomUUID();
+    UUID userId = UUID.randomUUID();
+    String objectKey = tenantId + "/jobs/" + jobId + "/photo.jpg";
+    ConfirmUploadRequest request =
+        new ConfirmUploadRequest(objectKey, "image/jpeg", 1024, 800, 600, null);
+
+    when(jobPhotoRepository.save(any(JobPhoto.class)))
+        .thenAnswer(
+            inv -> {
+              JobPhoto photo = inv.getArgument(0);
+              assertThat(photo.getTakenAt()).isNull();
+              return JobPhoto.builder()
+                  .id(UUID.randomUUID())
+                  .jobId(photo.getJobId())
+                  .tenantId(photo.getTenantId())
+                  .uploadedBy(photo.getUploadedBy())
+                  .objectKey(photo.getObjectKey())
+                  .contentType(photo.getContentType())
+                  .sizeBytes(photo.getSizeBytes())
+                  .width(photo.getWidth())
+                  .height(photo.getHeight())
+                  .takenAt(photo.getTakenAt())
+                  .build();
+            });
+
+    var response = service().confirmUpload(tenantId, jobId, userId, request);
+
+    assertThat(response.objectKey()).isEqualTo(objectKey);
+    verify(jobPhotoRepository).save(any(JobPhoto.class));
+  }
+
+  @Test
   void confirmUpload_validRequest_persistsAndPublishes() {
     UUID tenantId = UUID.randomUUID();
     UUID jobId = UUID.randomUUID();

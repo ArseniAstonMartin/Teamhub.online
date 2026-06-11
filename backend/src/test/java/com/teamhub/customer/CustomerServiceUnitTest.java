@@ -57,6 +57,35 @@ class CustomerServiceUnitTest {
   }
 
   @Test
+  void restore_missingCustomer_throwsNotFound() {
+    UUID tenantId = UUID.randomUUID();
+    UUID customerId = UUID.randomUUID();
+    TenantContext.set(tenantId);
+
+    when(customerRepository.findById(customerId)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> service().restore(customerId))
+        .isInstanceOf(CustomerNotFoundException.class);
+  }
+
+  @Test
+  void restore_wrongTenant_throwsNotFound() {
+    UUID tenantId = UUID.randomUUID();
+    UUID customerId = UUID.randomUUID();
+    TenantContext.set(tenantId);
+
+    Customer customer = new Customer();
+    customer.setId(customerId);
+    customer.setTenantId(UUID.randomUUID());
+    customer.setArchivedAt(Instant.now());
+
+    when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+
+    assertThatThrownBy(() -> service().restore(customerId))
+        .isInstanceOf(CustomerNotFoundException.class);
+  }
+
+  @Test
   void restore_activeCustomer_throwsNotFound() {
     UUID tenantId = UUID.randomUUID();
     UUID customerId = UUID.randomUUID();
