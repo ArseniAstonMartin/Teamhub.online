@@ -5,6 +5,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.teamhub.job.dto.CancelJobRequest;
+import com.teamhub.job.dto.DefineEtaRequest;
 import com.teamhub.job.dto.JobResponse;
 import com.teamhub.job.dto.JobStatusHistoryResponse;
 import com.teamhub.shared.TenantContext;
@@ -50,6 +51,22 @@ class JobControllerUnitTest {
   @AfterEach
   void tearDown() {
     TenantContext.clear();
+  }
+
+  @Test
+  void defineEta_delegatesToJobService() {
+    UUID tenantId = UUID.randomUUID();
+    UUID jobId = UUID.randomUUID();
+    UUID actorId = UUID.randomUUID();
+    TenantContext.set(tenantId);
+    JobResponse expected = sampleJobResponse(jobId, tenantId);
+    when(jobService.defineEta(tenantId, jobId, 45, actorId, "TECHNICIAN")).thenReturn(expected);
+
+    JobResponse response =
+        controller().defineEta(jobId, new DefineEtaRequest(45), jwtAuth(actorId, "TECHNICIAN"));
+
+    assertThat(response).isEqualTo(expected);
+    verify(jobService).defineEta(tenantId, jobId, 45, actorId, "TECHNICIAN");
   }
 
   @Test

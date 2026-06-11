@@ -1,8 +1,10 @@
 package com.teamhub.job;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -194,6 +196,93 @@ class JobServiceUnitTest {
     assertThat(result.getContent()).hasSize(1);
     assertThat(result.getContent().get(0).customerName()).isEqualTo("Acme Plumbing");
     assertThat(result.getContent().get(0).assigneeName()).isEqualTo("Tech One");
+  }
+
+  @Test
+  void defineEta_onAssignedJob_transitionsToInProgressOnTheWay() {
+    UUID tenantId = UUID.randomUUID();
+    UUID jobId = UUID.randomUUID();
+    UUID actorId = UUID.randomUUID();
+    Job job = activeJob(tenantId, jobId);
+    job.setAssignedTechnicianId(actorId);
+    job.setStatus(JobStatus.ASSIGNED_TO_TECHNICIAN);
+
+    when(jobRepository.findByIdAndTenantIdAndArchivedAtIsNull(jobId, tenantId))
+        .thenReturn(Optional.of(job));
+
+    JobResponse response = service().defineEta(tenantId, jobId, 45, actorId, "TECHNICIAN");
+
+    assertThat(response.inProgressSubstatus()).isEqualTo(InProgressSubstatus.ON_THE_WAY);
+    assertThat(response.scheduledEnd()).isNotNull();
+    assertThat(job.getInProgressSubstatus()).isEqualTo(InProgressSubstatus.ON_THE_WAY);
+    verify(jobStateMachineService)
+        .transition(jobId, JobStatus.IN_PROGRESS, actorId, "TECHNICIAN", null);
+    verify(jobRepository, never()).save(job);
+  }
+
+  @Test
+  void defineEta_whenJobNotFound_throwsJobNotFoundException() {
+    UUID tenantId = UUID.randomUUID();
+    UUID jobId = UUID.randomUUID();
+    UUID actorId = UUID.randomUUID();
+
+    when(jobRepository.findByIdAndTenantIdAndArchivedAtIsNull(jobId, tenantId))
+        .thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> service().defineEta(tenantId, jobId, 45, actorId, "TECHNICIAN"))
+        .isInstanceOf(JobNotFoundException.class);
+  }
+
+  @Test
+  void defineEta_whenNotAssigned_throwsJobNotAssignedToCallerException() {
+    UUID tenantId = UUID.randomUUID();
+    UUID jobId = UUID.randomUUID();
+    UUID actorId = UUID.randomUUID();
+    Job job = activeJob(tenantId, jobId);
+    job.setAssignedTechnicianId(UUID.randomUUID());
+
+    when(jobRepository.findByIdAndTenantIdAndArchivedAtIsNull(jobId, tenantId))
+        .thenReturn(Optional.of(job));
+
+    assertThatThrownBy(() -> service().defineEta(tenantId, jobId, 45, actorId, "TECHNICIAN"))
+        .isInstanceOf(JobNotAssignedToCallerException.class);
+  }
+
+  @Test
+  void defineEta_whenCompleted_throwsIllegalStateTransitionException() {
+    UUID tenantId = UUID.randomUUID();
+    UUID jobId = UUID.randomUUID();
+    UUID actorId = UUID.randomUUID();
+    Job job = activeJob(tenantId, jobId);
+    job.setAssignedTechnicianId(actorId);
+    job.setStatus(JobStatus.COMPLETED);
+
+    when(jobRepository.findByIdAndTenantIdAndArchivedAtIsNull(jobId, tenantId))
+        .thenReturn(Optional.of(job));
+
+    assertThatThrownBy(() -> service().defineEta(tenantId, jobId, 45, actorId, "TECHNICIAN"))
+        .isInstanceOf(IllegalStateTransitionException.class);
+  }
+
+  @Test
+  void defineEta_onInProgressJob_updatesFieldsWithoutTransition() {
+    UUID tenantId = UUID.randomUUID();
+    UUID jobId = UUID.randomUUID();
+    UUID actorId = UUID.randomUUID();
+    Job job = activeJob(tenantId, jobId);
+    job.setAssignedTechnicianId(actorId);
+    job.setStatus(JobStatus.IN_PROGRESS);
+    job.setInProgressSubstatus(InProgressSubstatus.WORKING);
+
+    when(jobRepository.findByIdAndTenantIdAndArchivedAtIsNull(jobId, tenantId))
+        .thenReturn(Optional.of(job));
+
+    JobResponse response = service().defineEta(tenantId, jobId, 30, actorId, "TECHNICIAN");
+
+    assertThat(response.inProgressSubstatus()).isEqualTo(InProgressSubstatus.ON_THE_WAY);
+    assertThat(response.scheduledEnd()).isNotNull();
+    verify(jobRepository).save(job);
+    verify(jobStateMachineService, never()).transition(any(), any(), any(), any(), any());
   }
 
   @Test
