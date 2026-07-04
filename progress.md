@@ -2416,3 +2416,14 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Test steps run: Step 1 — pending human read-through by Lead Developer/teammate; Step 2 — passed (all provisioning placeholders are marked `TO-DO(PRD §26.2)`); Step 3 — passed (no real Hetzner/Coolify credentials committed)
 - Open TO-DOs created (with PRD reference): provision real Coolify webhook URL and provider credentials/secrets (PRD §26.2); choose final backup target/provider account and wire credentials (PRD §26.2)
 - Commits: pending
+
+### 2026-07-04 — TASK-133 — Local dev bootstrap + preview runbook
+- Agent: Codex 5.3
+- Status change: pending → done
+- PRD sections consulted: §4.2, §6.4, §9.1, §9.2, §10.1
+- Files touched: infra/scripts/bootstrap-dev-tenant.sh, infra/runbooks/local-dev.md, README.md, tasks.json, progress.md
+- Summary: Added a one-command bootstrap script (`infra/scripts/bootstrap-dev-tenant.sh`) that logs in with TEAMHUB_STAFF, provisions a tenant via `POST /api/v1/internal/tenants` with plumber preset, polls MailHog for the owner invite URL, and either prints the invite URL (`BOOTSTRAP_MODE=invite`) or auto-accepts invite + prints tenant Admin credentials (`BOOTSTRAP_MODE=password`, default). Expanded `infra/runbooks/local-dev.md` to document complete local startup (docker, backend bootRun, web dev server, mobile Expo), staff login/internal console URL, bootstrap usage, and the required smoke path (staff provision -> admin login -> customer -> job -> Kanban/shared-pool -> mobile technician login). Added a root `README.md` "Local preview" section linking the runbook.
+- Acceptance criteria verified: 1 (runbook includes full stack startup commands), 2 (documents `dev@teamhub.online` and internal console URL `http://localhost:5173/__internal/login`), 3 (new bootstrap script provisions sample tenant with defaults: name, plumber preset, admin email/password), 4 (script supports both outputs: invite URL in invite mode, admin credentials in password mode), 5 (root README links to runbook under Local preview), 6 (runbook contains explicit smoke path sequence)
+- Test steps run: Step 1 (syntax + config validation only) — passed via `bash -n infra/scripts/bootstrap-dev-tenant.sh` and `python3 -m json.tool tasks.json`; Step 2/3/4 require running local services and manual UI/device walkthrough — pending human execution from runbook
+- Open TO-DOs created (with PRD reference): none
+- Commits: pending

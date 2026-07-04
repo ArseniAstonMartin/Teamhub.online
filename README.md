@@ -22,3 +22,9 @@ Agent tooling, task tracking, and design assets stay on disk only: `AGENTS.md`, 
 
 - Product requirements: `prd/PRD.md`
 - Monorepo layout reference: PRD §21.7
+
+## Local preview
+
+For a one-command tenant bootstrap and full local smoke flow across internal console, web, and mobile, follow:
+
+- `infra/runbooks/local-dev.md`
