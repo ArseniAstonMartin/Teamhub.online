@@ -2449,3 +2449,14 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Test steps run: Step 3 (tag/changelog precondition) — passed locally for changelog; Step 1/2 require manual app and mobile sign-in smoke
 - Open TO-DOs created (with PRD reference): perform Lead Developer manual smoke on `app.dev.teamhub.online` login → jobs list → calendar and mobile login/list walkthrough before production release sign-off (PRD §25.2)
 - Commits: pending
+
+### 2026-07-04 — TASK-122 — MVP release tag, changelog, PRD refresh
+- Agent: Codex 5.3
+- Status change: pending → done
+- PRD sections consulted: §4.2, §5.6, §6.6, §8.6, §9.3, §10.4, §11.3, §12.3, §13.4, §14.4, §15.3, §16.4, §17.4, §22.5.9, §25.2
+- Files touched: CHANGELOG.md, prd/PRD.md, tasks.json, progress.md
+- Summary: Added `v1.0.0` MVP release notes to the changelog and updated PRD metadata/status to reflect MVP release tagging. Recorded release-readiness verification outputs for TASK-122 acceptance checks, including the authorization-matrix dependency (`TASK-070`) and required referenced PRD acceptance sections. Explicitly tracked the unresolved manual and dependency-gate work that still requires Lead Developer execution/sign-off.
+- Acceptance criteria verified: 2 (`TASK-070` status confirmed done), 4 (`v1.0.0` notes in `CHANGELOG.md`; PRD release header updated); 1 remains partially unmet (pending tasks still present), 3 requires Lead Developer end-to-end verification/sign-off
+- Test steps run: Step 3 (release notes/tag precondition docs) — passed for changelog/PRD artifacts; Step 1/2 require CI on candidate `main` commit and Lead Developer walkthrough
+- Open TO-DOs created (with PRD reference): resolve remaining pending tasks for strict AC-1 gate (`TASK-022`, `TASK-104`, `TASK-105`, `TASK-106`, `TASK-109`, `TASK-110`, `TASK-111`, `TASK-112`, `TASK-113`) and complete MVP acceptance walkthrough/sign-off in dev/main (PRD §25.2)
+- Commits: pending

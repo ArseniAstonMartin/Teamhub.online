@@ -2,6 +2,18 @@
 
 All notable changes to Teamhub are documented in this file.
 
+## [v1.0.0] - 2026-07-04
+
+MVP release milestone aligned with PRD §4.2.
+
+### Added
+- Tenant-facing MVP capabilities across schema customization, automations, shared-pool claim and escalation flow, Stripe billing integration, audit logging, push notifications, MinIO-backed photo upload path, and internal admin onboarding console.
+- Consolidated operational runbooks for deployment, local bootstrap, and security hardening required for release readiness.
+
+### Verification Notes
+- CI and human walkthrough requirements still require Lead Developer execution/sign-off on the target release commit per PRD §25.2.
+- `tasks.json` prerequisite check for TASK-122 identifies remaining non-deferred pending items (`TASK-022`, `TASK-104`, `TASK-105`, `TASK-106`, `TASK-109`, `TASK-110`, `TASK-111`, `TASK-112`, `TASK-113`) that must be resolved for strict AC-1 compliance.
+
 ## [v0.1.0] - 2026-07-04
 
 Phase 0 internal foundation milestone aligned with PRD §4.1.
