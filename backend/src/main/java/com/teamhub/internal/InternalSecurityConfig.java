@@ -6,12 +6,15 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
 
 /**
  * Security filter chain for {@code /api/v1/internal/**} (PRD §6.4, TASK-131).
@@ -21,6 +24,27 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  */
 @Configuration
 public class InternalSecurityConfig {
+
+  private static final String CONTENT_SECURITY_POLICY =
+      "default-src 'self'; "
+          + "script-src 'self' 'unsafe-inline'; "
+          + "style-src 'self' 'unsafe-inline'; "
+          + "img-src 'self' data:; "
+          + "font-src 'self' data:; "
+          + "connect-src 'self'; "
+          + "object-src 'none'; "
+          + "base-uri 'self'; "
+          + "form-action 'self'; "
+          + "frame-ancestors 'none'";
+
+  private static void applySecurityHeaders(HeadersConfigurer<HttpSecurity> headers) {
+    headers
+        .contentSecurityPolicy(csp -> csp.policyDirectives(CONTENT_SECURITY_POLICY))
+        .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31536000))
+        .contentTypeOptions(Customizer.withDefaults())
+        .referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.NO_REFERRER_WHEN_DOWNGRADE))
+        .frameOptions(frame -> frame.deny());
+  }
 
   @SuppressWarnings("java:S4502")
   @Bean
@@ -41,6 +65,7 @@ public class InternalSecurityConfig {
                 request.getRequestURI().startsWith("/api/v1/internal/")
                     && !request.getRequestURI().startsWith("/api/v1/internal/sentry/"))
         .csrf(AbstractHttpConfigurer::disable)
+        .headers(InternalSecurityConfig::applySecurityHeaders)
         .httpBasic(AbstractHttpConfigurer::disable)
         .formLogin(AbstractHttpConfigurer::disable)
         .sessionManagement(

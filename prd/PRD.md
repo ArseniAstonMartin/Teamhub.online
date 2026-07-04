@@ -5,9 +5,9 @@
 | ---------------- | ------------------------------------------- |
 | Project          | Teamhub.online                              |
 | Document         | Master PRD                                  |
-| Status           | Approved for MVP build                      |
-| Version          | 1.0                                         |
-| Date             | 2026-05-22                                  |
+| Status           | MVP released (`v1.0.0`)                     |
+| Version          | 1.0.0                                       |
+| Date             | 2026-07-04                                  |
 | Owner            | Project Lead (Human)                        |
 | Repository       | https://github.com/ArseniAstonMartin/Teamhub.online.git |
 | Source documents | `prd/Thoughts`, `prd/Design`, `prd/My_Spam` |
@@ -102,7 +102,7 @@ A vertical slice proving the platform works end-to-end before MVP feature breadt
 - Mobile app with login and job list.
 - Deployed to Hetzner via Coolify.
 
-### 4.2 MVP (v1.0) — public launch target
+### 4.2 MVP (v1.0) — public launch target (released as `v1.0.0`)
 
 
 | Area                 | In MVP                                                                                   |

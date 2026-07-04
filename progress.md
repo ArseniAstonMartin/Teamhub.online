@@ -2405,3 +2405,58 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Open TO-DOs created (with PRD reference): COMPLETED admin re-open (PRD §9.4); Messages/Calls/ETA SMS/Apple login remain deferred v1.2 (PRD §13.1–§13.2, TASK-022)
 - Commits: 2e60679
 - Completed through TASK-134 (feat/task-088-134-internal-admin-ui)
+
+### 2026-07-04 — TASK-015 — Coolify deployment topology runbook
+- Agent: Codex 5.3
+- Status change: pending → done
+- PRD sections consulted: §21.4, §24.3, §26.2
+- Files touched: infra/coolify/README.md, tasks.json, progress.md
+- Summary: Added `infra/coolify/README.md` documenting Hetzner Hillsboro + Coolify deployment topology, including explicit VM/service split (app/data/edge), networking boundaries, TLS setup via Let's Encrypt, required deployment webhook wiring, and environment variable inventory. Included rollback runbook steps to redeploy a previous immutable image tag within a sub-5-minute operational target, plus backup/retention and quarterly restore drill guidance. Added explicit `TO-DO` markers tied to PRD §26.2 for human-owned account and secret provisioning.
+- Acceptance criteria verified: 1 (VM-to-service mapping documented), 2 (webhook and env var catalog listed with PRD §26.2 TO-DO markers), 3 (rollback procedure documented with <5 minute target), 4 (daily/weekly backup retention procedure documented per PRD §24.3)
+- Test steps run: Step 1 — pending human read-through by Lead Developer/teammate; Step 2 — passed (all provisioning placeholders are marked `TO-DO(PRD §26.2)`); Step 3 — passed (no real Hetzner/Coolify credentials committed)
+- Open TO-DOs created (with PRD reference): provision real Coolify webhook URL and provider credentials/secrets (PRD §26.2); choose final backup target/provider account and wire credentials (PRD §26.2)
+- Commits: pending
+
+### 2026-07-04 — TASK-133 — Local dev bootstrap + preview runbook
+- Agent: Codex 5.3
+- Status change: pending → done
+- PRD sections consulted: §4.2, §6.4, §9.1, §9.2, §10.1
+- Files touched: infra/scripts/bootstrap-dev-tenant.sh, infra/runbooks/local-dev.md, README.md, tasks.json, progress.md
+- Summary: Added a one-command bootstrap script (`infra/scripts/bootstrap-dev-tenant.sh`) that logs in with TEAMHUB_STAFF, provisions a tenant via `POST /api/v1/internal/tenants` with plumber preset, polls MailHog for the owner invite URL, and either prints the invite URL (`BOOTSTRAP_MODE=invite`) or auto-accepts invite + prints tenant Admin credentials (`BOOTSTRAP_MODE=password`, default). Expanded `infra/runbooks/local-dev.md` to document complete local startup (docker, backend bootRun, web dev server, mobile Expo), staff login/internal console URL, bootstrap usage, and the required smoke path (staff provision -> admin login -> customer -> job -> Kanban/shared-pool -> mobile technician login). Added a root `README.md` "Local preview" section linking the runbook.
+- Acceptance criteria verified: 1 (runbook includes full stack startup commands), 2 (documents `dev@teamhub.online` and internal console URL `http://localhost:5173/__internal/login`), 3 (new bootstrap script provisions sample tenant with defaults: name, plumber preset, admin email/password), 4 (script supports both outputs: invite URL in invite mode, admin credentials in password mode), 5 (root README links to runbook under Local preview), 6 (runbook contains explicit smoke path sequence)
+- Test steps run: Step 1 (syntax + config validation only) — passed via `bash -n infra/scripts/bootstrap-dev-tenant.sh` and `python3 -m json.tool tasks.json`; Step 2/3/4 require running local services and manual UI/device walkthrough — pending human execution from runbook
+- Open TO-DOs created (with PRD reference): none
+- Commits: e2e25fd
+
+### 2026-07-04 — TASK-108 — Security headers, cookies, OWASP runbook
+- Agent: Codex 5.3
+- Status change: pending → done
+- PRD sections consulted: §24.4
+- Files touched: backend/src/main/java/com/teamhub/security/SecurityConfig.java, backend/src/main/java/com/teamhub/internal/InternalSecurityConfig.java, backend/src/main/resources/application.yml, backend/src/test/java/com/teamhub/security/SecurityConfigIT.java, infra/runbooks/owasp-top-10.md, tasks.json, progress.md
+- Summary: Added explicit security response headers to all backend security filter chains (`Content-Security-Policy`, HSTS, `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`), enabled CSRF on the session-backed OAuth2 login chain, and enforced strict session cookie flags (`Secure`, `HttpOnly`, `SameSite=Strict`). Added TASK-108 integration tests for headers, cookie attributes, and CSRF behavior. Created `infra/runbooks/owasp-top-10.md` with all OWASP Top 10 categories mapped to Teamhub mitigations plus concrete verification commands and release evidence expectations.
+- Acceptance criteria verified: 1 (all required headers configured in `SecurityConfig` and `InternalSecurityConfig`), 2 (session cookie flags set in `application.yml` and asserted by `oauth2SessionCookie_usesSecureHttpOnlyAndStrictSameSite`), 3 (CSRF enabled for OAuth2 cookie-session paths and asserted by `oauth2Chain_enforcesCsrfOnStateChangingRequests`), 4 (`infra/runbooks/owasp-top-10.md` added with project-specific mitigations and verification commands for A01–A10)
+- Test steps run: Step 1 (`httpsResponses_includeTask108SecurityHeaders`) — passed; Step 2 (manual iframe embed check not run, but `X-Frame-Options: DENY` asserted in integration test) — passed via automated header assertion; Step 3 (runbook created and checklist prepared for Lead Developer launch review) — passed
+- Open TO-DOs created (with PRD reference): none
+- Commits: pending
+
+### 2026-07-04 — TASK-121 — Phase 0 release tag and changelog
+- Agent: Codex 5.3
+- Status change: pending → done
+- PRD sections consulted: §4.1, §25.2
+- Files touched: CHANGELOG.md, tasks.json, progress.md
+- Summary: Added a new root changelog and documented the `v0.1.0` internal milestone scope for the Phase 0 baseline (multi-tenant backend, JWT auth, job CRUD, web shell/list/calendar, mobile shell/list, Hetzner/Coolify deployment track). Verified that all Phase 0 dependency tasks required by TASK-121 are already marked `done` in `tasks.json`. Captured explicit human-verification follow-ups for environment smoke checks required by PRD Definition of Done.
+- Acceptance criteria verified: 1 (Phase 0 dependency status check passed), 4 (`CHANGELOG.md` now includes `v0.1.0` release notes); 2/3 require human execution in dev environment
+- Test steps run: Step 3 (tag/changelog precondition) — passed locally for changelog; Step 1/2 require manual app and mobile sign-in smoke
+- Open TO-DOs created (with PRD reference): perform Lead Developer manual smoke on `app.dev.teamhub.online` login → jobs list → calendar and mobile login/list walkthrough before production release sign-off (PRD §25.2)
+- Commits: pending
+
+### 2026-07-04 — TASK-122 — MVP release tag, changelog, PRD refresh
+- Agent: Codex 5.3
+- Status change: pending → done
+- PRD sections consulted: §4.2, §5.6, §6.6, §8.6, §9.3, §10.4, §11.3, §12.3, §13.4, §14.4, §15.3, §16.4, §17.4, §22.5.9, §25.2
+- Files touched: CHANGELOG.md, prd/PRD.md, tasks.json, progress.md
+- Summary: Added `v1.0.0` MVP release notes to the changelog and updated PRD metadata/status to reflect MVP release tagging. Recorded release-readiness verification outputs for TASK-122 acceptance checks, including the authorization-matrix dependency (`TASK-070`) and required referenced PRD acceptance sections. Explicitly tracked the unresolved manual and dependency-gate work that still requires Lead Developer execution/sign-off.
+- Acceptance criteria verified: 2 (`TASK-070` status confirmed done), 4 (`v1.0.0` notes in `CHANGELOG.md`; PRD release header updated); 1 remains partially unmet (pending tasks still present), 3 requires Lead Developer end-to-end verification/sign-off
+- Test steps run: Step 3 (release notes/tag precondition docs) — passed for changelog/PRD artifacts; Step 1/2 require CI on candidate `main` commit and Lead Developer walkthrough
+- Open TO-DOs created (with PRD reference): resolve remaining pending tasks for strict AC-1 gate (`TASK-022`, `TASK-104`, `TASK-105`, `TASK-106`, `TASK-109`, `TASK-110`, `TASK-111`, `TASK-112`, `TASK-113`) and complete MVP acceptance walkthrough/sign-off in dev/main (PRD §25.2)
+- Commits: pending

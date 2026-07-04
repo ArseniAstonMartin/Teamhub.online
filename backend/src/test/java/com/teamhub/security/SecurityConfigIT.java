@@ -18,8 +18,10 @@ import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.web.server.Cookie;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -53,6 +55,8 @@ class SecurityConfigIT {
   @Autowired private JwtEncoder jwtEncoder;
 
   @Autowired private RSAKey signingKey;
+
+  @Autowired private ServerProperties serverProperties;
 
   // ---- Test Step 1: anonymous access returns 401 with the error envelope (PRD §23.4) ----------
 
@@ -180,6 +184,34 @@ class SecurityConfigIT {
               assert status != 401 && status != 403
                   : "Expected auth endpoint to be open, got " + status;
             });
+  }
+
+  @Test
+  void httpsResponses_includeTask108SecurityHeaders() throws Exception {
+    mockMvc
+        .perform(get("/actuator/health").secure(true))
+        .andExpect(status().isOk())
+        .andExpect(header().exists("Content-Security-Policy"))
+        .andExpect(header().string("Strict-Transport-Security", containsString("max-age=31536000")))
+        .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+        .andExpect(header().string("Referrer-Policy", "no-referrer-when-downgrade"))
+        .andExpect(header().string("X-Frame-Options", "DENY"));
+  }
+
+  @Test
+  void oauth2SessionCookie_usesSecureHttpOnlyAndStrictSameSite() throws Exception {
+    Cookie cookieSettings = serverProperties.getServlet().getSession().getCookie();
+    assert Boolean.TRUE.equals(cookieSettings.getSecure())
+        : "Expected session cookie secure=true for auth session paths";
+    assert Boolean.TRUE.equals(cookieSettings.getHttpOnly())
+        : "Expected session cookie HttpOnly=true";
+    assert cookieSettings.getSameSite() == Cookie.SameSite.STRICT
+        : "Expected session cookie SameSite=STRICT";
+  }
+
+  @Test
+  void oauth2Chain_enforcesCsrfOnStateChangingRequests() throws Exception {
+    mockMvc.perform(post("/oauth2/authorization/google")).andExpect(status().isForbidden());
   }
 
   @Test

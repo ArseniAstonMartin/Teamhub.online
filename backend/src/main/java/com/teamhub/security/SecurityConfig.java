@@ -16,6 +16,7 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
@@ -24,6 +25,7 @@ import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
 import org.springframework.web.cors.CorsConfigurationSource;
 
 /**
@@ -52,6 +54,28 @@ import org.springframework.web.cors.CorsConfigurationSource;
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
+  private static final String CONTENT_SECURITY_POLICY =
+      "default-src 'self'; "
+          + "script-src 'self' 'unsafe-inline'; "
+          + "style-src 'self' 'unsafe-inline'; "
+          + "img-src 'self' data:; "
+          + "font-src 'self' data:; "
+          + "connect-src 'self'; "
+          + "object-src 'none'; "
+          + "base-uri 'self'; "
+          + "form-action 'self'; "
+          + "frame-ancestors 'none'";
+
+  private Customizer<HeadersConfigurer<HttpSecurity>> securityHeadersCustomizer() {
+    return headers ->
+        headers
+            .contentSecurityPolicy(csp -> csp.policyDirectives(CONTENT_SECURITY_POLICY))
+            .httpStrictTransportSecurity(
+                hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31536000))
+            .contentTypeOptions(Customizer.withDefaults())
+            .referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.NO_REFERRER_WHEN_DOWNGRADE))
+            .frameOptions(frame -> frame.deny());
+  }
 
   /**
    * OAuth2 login filter chain — handles {@code /oauth2/**} and {@code /login/oauth2/**}.
@@ -59,8 +83,8 @@ public class SecurityConfig {
    * <p>A short-lived server-side session is required to validate the {@code state} anti-forgery
    * parameter that Spring Security generates when redirecting to Google. This chain is isolated
    * ({@code @Order(0)}, dedicated {@code securityMatcher}) so the rest of the application remains
-   * fully stateless. CSRF is disabled because the OAuth2 {@code state} parameter already fulfils
-   * that role.
+   * fully stateless. CSRF remains enabled for this session-backed auth flow, while OAuth2 {@code
+   * state} is still validated by Spring Security as an extra anti-forgery layer.
    *
    * <p>On success the {@link GoogleOAuth2SuccessHandler} resolves the Teamhub identity and issues
    * JWTs; on failure the {@link GoogleOAuth2FailureHandler} redirects to the SPA error page.
@@ -75,7 +99,8 @@ public class SecurityConfig {
       throws Exception {
 
     http.securityMatcher("/oauth2/**", "/login/oauth2/**")
-        .csrf(AbstractHttpConfigurer::disable)
+        .csrf(Customizer.withDefaults())
+        .headers(securityHeadersCustomizer())
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
         .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
@@ -119,6 +144,7 @@ public class SecurityConfig {
 
     http.securityMatcher("/actuator/**")
         .csrf(AbstractHttpConfigurer::disable)
+        .headers(securityHeadersCustomizer())
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authenticationProvider(actuatorAuthProvider)
@@ -155,6 +181,7 @@ public class SecurityConfig {
     http.csrf(AbstractHttpConfigurer::disable)
         .httpBasic(AbstractHttpConfigurer::disable)
         .formLogin(AbstractHttpConfigurer::disable)
+        .headers(securityHeadersCustomizer())
         .cors(cors -> cors.configurationSource(corsConfigurationSource))
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
