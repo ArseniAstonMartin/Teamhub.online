@@ -73,8 +73,7 @@ public class SecurityConfig {
             .httpStrictTransportSecurity(
                 hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31536000))
             .contentTypeOptions(Customizer.withDefaults())
-            .referrerPolicy(
-                referrer -> referrer.policy(ReferrerPolicy.NO_REFERRER_WHEN_DOWNGRADE))
+            .referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.NO_REFERRER_WHEN_DOWNGRADE))
             .frameOptions(frame -> frame.deny());
   }
 
