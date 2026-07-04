@@ -2426,4 +2426,4 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Acceptance criteria verified: 1 (runbook includes full stack startup commands), 2 (documents `dev@teamhub.online` and internal console URL `http://localhost:5173/__internal/login`), 3 (new bootstrap script provisions sample tenant with defaults: name, plumber preset, admin email/password), 4 (script supports both outputs: invite URL in invite mode, admin credentials in password mode), 5 (root README links to runbook under Local preview), 6 (runbook contains explicit smoke path sequence)
 - Test steps run: Step 1 (syntax + config validation only) — passed via `bash -n infra/scripts/bootstrap-dev-tenant.sh` and `python3 -m json.tool tasks.json`; Step 2/3/4 require running local services and manual UI/device walkthrough — pending human execution from runbook
 - Open TO-DOs created (with PRD reference): none
-- Commits: pending
+- Commits: e2e25fd
