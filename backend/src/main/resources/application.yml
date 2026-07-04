@@ -73,6 +73,14 @@ sentry:
   release: teamhub-backend@${APP_VERSION:0.0.1}+${GIT_SHA:local}
   send-default-pii: false
 
+server:
+  servlet:
+    session:
+      cookie:
+        secure: ${SESSION_COOKIE_SECURE:true}
+        http-only: true
+        same-site: strict
+
 springdoc:
   api-docs:
     path: /api/v1/openapi.json
