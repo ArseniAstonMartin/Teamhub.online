@@ -2438,3 +2438,14 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Test steps run: Step 1 (`httpsResponses_includeTask108SecurityHeaders`) — passed; Step 2 (manual iframe embed check not run, but `X-Frame-Options: DENY` asserted in integration test) — passed via automated header assertion; Step 3 (runbook created and checklist prepared for Lead Developer launch review) — passed
 - Open TO-DOs created (with PRD reference): none
 - Commits: pending
+
+### 2026-07-04 — TASK-121 — Phase 0 release tag and changelog
+- Agent: Codex 5.3
+- Status change: pending → done
+- PRD sections consulted: §4.1, §25.2
+- Files touched: CHANGELOG.md, tasks.json, progress.md
+- Summary: Added a new root changelog and documented the `v0.1.0` internal milestone scope for the Phase 0 baseline (multi-tenant backend, JWT auth, job CRUD, web shell/list/calendar, mobile shell/list, Hetzner/Coolify deployment track). Verified that all Phase 0 dependency tasks required by TASK-121 are already marked `done` in `tasks.json`. Captured explicit human-verification follow-ups for environment smoke checks required by PRD Definition of Done.
+- Acceptance criteria verified: 1 (Phase 0 dependency status check passed), 4 (`CHANGELOG.md` now includes `v0.1.0` release notes); 2/3 require human execution in dev environment
+- Test steps run: Step 3 (tag/changelog precondition) — passed locally for changelog; Step 1/2 require manual app and mobile sign-in smoke
+- Open TO-DOs created (with PRD reference): perform Lead Developer manual smoke on `app.dev.teamhub.online` login → jobs list → calendar and mobile login/list walkthrough before production release sign-off (PRD §25.2)
+- Commits: pending
