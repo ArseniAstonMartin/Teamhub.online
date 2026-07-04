@@ -40,7 +40,7 @@ public class InternalSecurityConfig {
     headers
         .contentSecurityPolicy(csp -> csp.policyDirectives(CONTENT_SECURITY_POLICY))
         .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31536000))
-        .contentTypeOptions(contentTypeOptions -> {})
+        .contentTypeOptions(contentTypeOptions -> { })
         .referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.NO_REFERRER_WHEN_DOWNGRADE))
         .frameOptions(frame -> frame.deny());
   }
