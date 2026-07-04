@@ -2405,3 +2405,14 @@ This file is the running log of work completed against `tasks.json`. Each agent 
 - Open TO-DOs created (with PRD reference): COMPLETED admin re-open (PRD §9.4); Messages/Calls/ETA SMS/Apple login remain deferred v1.2 (PRD §13.1–§13.2, TASK-022)
 - Commits: 2e60679
 - Completed through TASK-134 (feat/task-088-134-internal-admin-ui)
+
+### 2026-07-04 — TASK-015 — Coolify deployment topology runbook
+- Agent: Codex 5.3
+- Status change: pending → done
+- PRD sections consulted: §21.4, §24.3, §26.2
+- Files touched: infra/coolify/README.md, tasks.json, progress.md
+- Summary: Added `infra/coolify/README.md` documenting Hetzner Hillsboro + Coolify deployment topology, including explicit VM/service split (app/data/edge), networking boundaries, TLS setup via Let's Encrypt, required deployment webhook wiring, and environment variable inventory. Included rollback runbook steps to redeploy a previous immutable image tag within a sub-5-minute operational target, plus backup/retention and quarterly restore drill guidance. Added explicit `TO-DO` markers tied to PRD §26.2 for human-owned account and secret provisioning.
+- Acceptance criteria verified: 1 (VM-to-service mapping documented), 2 (webhook and env var catalog listed with PRD §26.2 TO-DO markers), 3 (rollback procedure documented with <5 minute target), 4 (daily/weekly backup retention procedure documented per PRD §24.3)
+- Test steps run: Step 1 — pending human read-through by Lead Developer/teammate; Step 2 — passed (all provisioning placeholders are marked `TO-DO(PRD §26.2)`); Step 3 — passed (no real Hetzner/Coolify credentials committed)
+- Open TO-DOs created (with PRD reference): provision real Coolify webhook URL and provider credentials/secrets (PRD §26.2); choose final backup target/provider account and wire credentials (PRD §26.2)
+- Commits: pending
