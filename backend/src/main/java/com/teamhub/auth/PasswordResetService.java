@@ -54,6 +54,8 @@ public class PasswordResetService {
 
   private final String frontendUrl;
 
+  private final String mailFrom;
+
   /** Per-email rate-limit state: maps email → [attemptCount, windowStartEpochSecond]. */
   private final ConcurrentHashMap<String, long[]> rateLimitMap = new ConcurrentHashMap<>();
 
@@ -66,7 +68,8 @@ public class PasswordResetService {
       PasswordEncoder passwordEncoder,
       JavaMailSender mailSender,
       AsyncAuditService asyncAuditService,
-      @Value("${teamhub.frontend-url:http://localhost:5173}") String frontendUrl) {
+      @Value("${teamhub.frontend-url:http://localhost:5173}") String frontendUrl,
+      @Value("${teamhub.mail.from}") String mailFrom) {
     this.userRepository = userRepository;
     this.tokenRepository = tokenRepository;
     this.refreshTokenRepository = refreshTokenRepository;
@@ -74,6 +77,7 @@ public class PasswordResetService {
     this.mailSender = mailSender;
     this.asyncAuditService = asyncAuditService;
     this.frontendUrl = frontendUrl;
+    this.mailFrom = mailFrom;
   }
 
   /**
@@ -188,6 +192,7 @@ public class PasswordResetService {
     String resetLink = frontendUrl + "/reset-password?token=" + rawToken;
 
     SimpleMailMessage message = new SimpleMailMessage();
+    message.setFrom(mailFrom);
     message.setTo(to);
     message.setSubject("Reset your Teamhub password");
     // TO-DO: use a proper email template

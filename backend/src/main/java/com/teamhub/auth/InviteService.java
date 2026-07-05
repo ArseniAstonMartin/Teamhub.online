@@ -58,6 +58,8 @@ public class InviteService {
 
   private final String frontendUrl;
 
+  private final String mailFrom;
+
   private final QuotaEnforcementService quotaEnforcementService;
 
   private final SecureRandom secureRandom = new SecureRandom();
@@ -71,6 +73,7 @@ public class InviteService {
       OutboxPublisher outboxPublisher,
       JavaMailSender mailSender,
       @Value("${teamhub.frontend-url:http://localhost:5173}") String frontendUrl,
+      @Value("${teamhub.mail.from}") String mailFrom,
       QuotaEnforcementService quotaEnforcementService) {
     this.inviteRepository = inviteRepository;
     this.userRepository = userRepository;
@@ -80,6 +83,7 @@ public class InviteService {
     this.outboxPublisher = outboxPublisher;
     this.mailSender = mailSender;
     this.frontendUrl = frontendUrl;
+    this.mailFrom = mailFrom;
     this.quotaEnforcementService = quotaEnforcementService;
   }
 
@@ -259,6 +263,7 @@ public class InviteService {
     String inviteLink = frontendUrl + "/accept-invite?token=" + rawToken;
 
     SimpleMailMessage message = new SimpleMailMessage();
+    message.setFrom(mailFrom);
     message.setTo(to);
     message.setSubject("You've been invited to Teamhub");
     // TO-DO: use a proper email template (PRD §6.5)

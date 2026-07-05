@@ -111,6 +111,9 @@ teamhub:
     refresh-token-ttl: P30D
   # Base URL of the SPA — used to construct the password-reset link sent by email (PRD §6.3).
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  mail:
+    # Verified sender on the Postmark domain (override via MAIL_FROM in production).
+    from: ${MAIL_FROM:dev@teamhub.online}
   oauth2:
     success-redirect-url: ${FRONTEND_URL:http://localhost:5173}/auth/callback
     failure-redirect-url: ${FRONTEND_URL:http://localhost:5173}/auth/error

@@ -79,6 +79,7 @@ class InviteAcceptPlaceholderUserUnitTest {
             outboxPublisher,
             mailSender,
             "http://localhost:5173",
+            "dev@teamhub.online",
             quotaEnforcementService);
 
     TokenResponse response = service.acceptInvite(rawToken, "password123");
@@ -115,6 +116,7 @@ class InviteAcceptPlaceholderUserUnitTest {
             outboxPublisher,
             mailSender,
             "http://localhost:5173",
+            "dev@teamhub.online",
             quotaEnforcementService);
 
     service.acceptInvite(rawToken, "password123");
