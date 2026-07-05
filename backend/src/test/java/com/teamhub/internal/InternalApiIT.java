@@ -2,7 +2,9 @@ package com.teamhub.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -71,6 +73,19 @@ class InternalApiIT {
     JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
     String token = body.get("accessToken").asText();
     assertThat(token).isNotBlank();
+  }
+
+  /** CORS preflight for staff login uses the same allow-list as the tenant API. */
+  @Test
+  void corsPreflightOnStaffLogin_fromAllowedOrigin_isAccepted() throws Exception {
+    mockMvc
+        .perform(
+            options("/api/v1/internal/auth/login")
+                .header(HttpHeaders.ORIGIN, "http://localhost:5173")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Content-Type"))
+        .andExpect(status().isOk())
+        .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"));
   }
 
   /** Step 2: provision tenant with plumber preset creates tenant + pending invite. */

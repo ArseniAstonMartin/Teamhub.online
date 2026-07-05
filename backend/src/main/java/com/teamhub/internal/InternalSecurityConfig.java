@@ -15,12 +15,14 @@ import org.springframework.security.oauth2.server.resource.web.authentication.Be
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 /**
  * Security filter chain for {@code /api/v1/internal/**} (PRD §6.4, TASK-131).
  *
  * <p>Evaluated before the tenant JWT chain. IP-filtered; login is permit-all; all other routes
- * require a {@code TEAMHUB_STAFF} bearer token.
+ * require a {@code TEAMHUB_STAFF} bearer token. CORS uses the same allow-list as the tenant API
+ * ({@code CORS_ALLOWED_ORIGIN} via {@link com.teamhub.security.CorsConfig}).
  */
 @Configuration
 public class InternalSecurityConfig {
@@ -54,7 +56,8 @@ public class InternalSecurityConfig {
       InternalProperties internalProperties,
       StaffJwtAuthenticationConverter staffJwtAuthenticationConverter,
       RestAuthenticationEntryPoint authenticationEntryPoint,
-      RestAccessDeniedHandler accessDeniedHandler)
+      RestAccessDeniedHandler accessDeniedHandler,
+      CorsConfigurationSource corsConfigurationSource)
       throws Exception {
 
     InternalIpAllowListFilter ipFilter = new InternalIpAllowListFilter(internalProperties);
@@ -65,6 +68,7 @@ public class InternalSecurityConfig {
                 request.getRequestURI().startsWith("/api/v1/internal/")
                     && !request.getRequestURI().startsWith("/api/v1/internal/sentry/"))
         .csrf(AbstractHttpConfigurer::disable)
+        .cors(cors -> cors.configurationSource(corsConfigurationSource))
         .headers(InternalSecurityConfig::applySecurityHeaders)
         .httpBasic(AbstractHttpConfigurer::disable)
         .formLogin(AbstractHttpConfigurer::disable)

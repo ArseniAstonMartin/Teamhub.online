@@ -54,6 +54,37 @@ class InternalIpAllowListFilterTest {
   }
 
   @Test
+  void xForwardedFor_allowListedIp_passesThrough() throws Exception {
+    org.mockito.Mockito.when(request.getHeader("X-Forwarded-For")).thenReturn("127.0.0.1");
+
+    filter.doFilter(request, response, chain);
+
+    verify(chain).doFilter(request, response);
+    verifyNoInteractions(response);
+  }
+
+  @Test
+  void xForwardedFor_nonAllowListedIp_returns404() throws Exception {
+    org.mockito.Mockito.when(request.getHeader("X-Forwarded-For")).thenReturn("203.0.113.50");
+
+    filter.doFilter(request, response, chain);
+
+    verify(response).sendError(HttpServletResponse.SC_NOT_FOUND);
+    verifyNoInteractions(chain);
+  }
+
+  @Test
+  void xForwardedFor_usesFirstHopWhenMultiple() throws Exception {
+    org.mockito.Mockito.when(request.getHeader("X-Forwarded-For"))
+        .thenReturn("203.0.113.50, 127.0.0.1");
+
+    filter.doFilter(request, response, chain);
+
+    verify(response).sendError(HttpServletResponse.SC_NOT_FOUND);
+    verifyNoInteractions(chain);
+  }
+
+  @Test
   void ipv6Loopback_isAllowListed() throws Exception {
     org.mockito.Mockito.when(request.getRemoteAddr()).thenReturn("::1");
 
