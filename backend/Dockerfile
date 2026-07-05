@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # Multi-stage build for Coolify/production (Java 21, no Nixpacks).
 # Build context: backend/ (set Coolify root directory to backend, build pack Dockerfile).
 
@@ -10,12 +11,14 @@ COPY gradlew settings.gradle.kts build.gradle.kts gradle.lockfile ./
 COPY gradle ./gradle
 RUN chmod +x gradlew
 
-# Resolve dependencies before copying sources.
-RUN ./gradlew dependencies --no-daemon -q
+# Warm Gradle wrapper/dependency cache (persisted by BuildKit cache mount).
+RUN --mount=type=cache,id=teamhub-gradle,target=/root/.gradle \
+    ./gradlew --no-daemon --version
 
 COPY src ./src
 
-RUN ./gradlew bootJar -x test --no-daemon -q
+RUN --mount=type=cache,id=teamhub-gradle,target=/root/.gradle \
+    ./gradlew --no-daemon bootJar -x test -q
 
 FROM eclipse-temurin:21-jre-jammy AS runtime
 
