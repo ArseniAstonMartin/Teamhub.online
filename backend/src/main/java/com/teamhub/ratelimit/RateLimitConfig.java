@@ -8,7 +8,6 @@ import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -37,22 +36,8 @@ public class RateLimitConfig {
    */
   @Bean
   public StatefulRedisConnection<String, byte[]> rateLimitRedisConnection(
-      RedisConnectionFactory redisConnectionFactory,
-      @Value("${REDIS_URL:}") String redisUrl,
-      @Value("${spring.data.redis.url:}") String springRedisUrl) {
-    System.out.println("REDIS_URL env: " + redisUrl);
-    System.out.println("spring.data.redis.url: " + springRedisUrl);
-
+      RedisConnectionFactory redisConnectionFactory) {
     LettuceConnectionFactory factory = (LettuceConnectionFactory) redisConnectionFactory;
-    System.out.println(
-        "RateLimit Redis target: "
-            + factory.getHostName()
-            + ":"
-            + factory.getPort()
-            + " (database "
-            + factory.getDatabase()
-            + ")");
-
     RedisClient client = (RedisClient) factory.getRequiredNativeClient();
     return client.connect(RedisCodec.of(StringCodec.UTF8, ByteArrayCodec.INSTANCE));
   }
