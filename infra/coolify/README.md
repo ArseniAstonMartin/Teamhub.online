@@ -11,6 +11,7 @@ This runbook defines the production deployment baseline for Teamhub on a single 
 - Observability stack: Prometheus + Grafana + Loki + promtail.
 - Prometheus scrape target: `http://teamhub-backend:8080/actuator/prometheus`.
 - Log persistence: backend logs are written to a named Docker volume so logs survive container restart/redeploy.
+- Crash/deploy log persistence: observability container stdout/stderr is mirrored into a shared volume so logs remain available even if Coolify deletes failed containers.
 
 ## 2) Deployment topology (single Droplet)
 
@@ -58,6 +59,16 @@ Required:
 - `GRAFANA_ADMIN_USER`
 - `GRAFANA_ADMIN_PASSWORD`
 
+Persistent crash logs volume (created by compose):
+
+- Volume name: `observability_crash_logs`
+- Mounted path in each observability container: `/var/log/teamhub/observability`
+- Log files:
+  - `prometheus.log`
+  - `loki.log`
+  - `promtail.log`
+  - `grafana.log`
+
 ## 5) Grafana IP restriction (access layer requirement)
 
 Grafana is restricted at the Coolify/Traefik ingress layer using an IP allow-list middleware in the compose labels.
@@ -97,6 +108,11 @@ Persistent logs:
 
 - Restart backend container and confirm `/var/log/teamhub/backend/application.log` still exists.
 - Redeploy backend and confirm log file remains in `teamhub_backend_logs` volume.
+- If observability deployment fails, open the `observability_crash_logs` volume and inspect:
+  - `/var/log/teamhub/observability/prometheus.log`
+  - `/var/log/teamhub/observability/loki.log`
+  - `/var/log/teamhub/observability/promtail.log`
+  - `/var/log/teamhub/observability/grafana.log`
 
 Dashboards:
 

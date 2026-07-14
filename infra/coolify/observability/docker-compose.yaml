@@ -8,6 +8,7 @@ services:
       - /bin/sh
       - -ec
       - |
+        mkdir -p /var/log/teamhub/observability
         cat > /etc/prometheus/prometheus.yaml <<EOF
         global:
           scrape_interval: 15s
@@ -24,41 +25,63 @@ services:
               username: ${PROMETHEUS_ACTUATOR_USERNAME}
               password: ${PROMETHEUS_ACTUATOR_PASSWORD}
         EOF
-        exec /bin/prometheus \
+        /bin/prometheus \
           --config.file=/etc/prometheus/prometheus.yaml \
           --storage.tsdb.path=/prometheus \
-          --storage.tsdb.retention.time=15d
+          --storage.tsdb.retention.time=15d \
+          2>&1 | tee -a /var/log/teamhub/observability/prometheus.log
     environment:
       PROMETHEUS_ACTUATOR_USERNAME: ${PROMETHEUS_ACTUATOR_USERNAME}
       PROMETHEUS_ACTUATOR_PASSWORD: ${PROMETHEUS_ACTUATOR_PASSWORD}
     volumes:
       - prometheus_data:/prometheus
+      - observability_crash_logs:/var/log/teamhub/observability
     networks:
       - default
 
   loki:
     image: grafana/loki:3.1.1
     restart: unless-stopped
-    command: -config.file=/etc/loki/config.yaml
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        mkdir -p /var/log/teamhub/observability
+        loki -config.file=/etc/loki/config.yaml \
+          2>&1 | tee -a /var/log/teamhub/observability/loki.log
     volumes:
       - loki_data:/loki
       - ./loki/loki-config.yaml:/etc/loki/config.yaml:ro
+      - observability_crash_logs:/var/log/teamhub/observability
     networks:
       - default
 
   promtail:
     image: grafana/promtail:3.1.1
     restart: unless-stopped
-    command: -config.file=/etc/promtail/config.yaml
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        mkdir -p /var/log/teamhub/observability
+        promtail -config.file=/etc/promtail/config.yaml \
+          2>&1 | tee -a /var/log/teamhub/observability/promtail.log
     volumes:
       - ./promtail/promtail-config.yaml:/etc/promtail/config.yaml:ro
       - teamhub_backend_logs:/var/log/teamhub/backend:ro
+      - observability_crash_logs:/var/log/teamhub/observability
     networks:
       - default
 
   grafana:
     image: grafana/grafana:11.2.0
     restart: unless-stopped
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        mkdir -p /var/log/teamhub/observability
+        /run.sh 2>&1 | tee -a /var/log/teamhub/observability/grafana.log
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
@@ -69,6 +92,7 @@ services:
       - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
       - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - observability_crash_logs:/var/log/teamhub/observability
     depends_on:
       - prometheus
       - loki
@@ -87,5 +111,6 @@ volumes:
   prometheus_data:
   loki_data:
   grafana_data:
+  observability_crash_logs:
   teamhub_backend_logs:
     external: true
