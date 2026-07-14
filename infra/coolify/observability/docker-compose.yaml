@@ -1,0 +1,91 @@
+version: "3.9"
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        cat > /etc/prometheus/prometheus.yaml <<EOF
+        global:
+          scrape_interval: 15s
+          evaluation_interval: 15s
+
+        scrape_configs:
+          - job_name: "teamhub-backend"
+            metrics_path: /actuator/prometheus
+            scheme: http
+            static_configs:
+              - targets:
+                  - teamhub-backend:8080
+            basic_auth:
+              username: ${PROMETHEUS_ACTUATOR_USERNAME}
+              password: ${PROMETHEUS_ACTUATOR_PASSWORD}
+        EOF
+        exec /bin/prometheus \
+          --config.file=/etc/prometheus/prometheus.yaml \
+          --storage.tsdb.path=/prometheus \
+          --storage.tsdb.retention.time=15d
+    environment:
+      PROMETHEUS_ACTUATOR_USERNAME: ${PROMETHEUS_ACTUATOR_USERNAME}
+      PROMETHEUS_ACTUATOR_PASSWORD: ${PROMETHEUS_ACTUATOR_PASSWORD}
+    volumes:
+      - prometheus_data:/prometheus
+    networks:
+      - default
+
+  loki:
+    image: grafana/loki:3.1.1
+    restart: unless-stopped
+    command: -config.file=/etc/loki/config.yaml
+    volumes:
+      - loki_data:/loki
+      - ./loki/loki-config.yaml:/etc/loki/config.yaml:ro
+    networks:
+      - default
+
+  promtail:
+    image: grafana/promtail:3.1.1
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/config.yaml
+    volumes:
+      - ./promtail/promtail-config.yaml:/etc/promtail/config.yaml:ro
+      - teamhub_backend_logs:/var/log/teamhub/backend:ro
+    networks:
+      - default
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_SERVER_ROOT_URL: https://${GRAFANA_DOMAIN}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+      - loki
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.teamhub-grafana.rule=Host(`${GRAFANA_DOMAIN}`)
+      - traefik.http.routers.teamhub-grafana.entrypoints=websecure
+      - traefik.http.routers.teamhub-grafana.tls=true
+      - traefik.http.routers.teamhub-grafana.middlewares=teamhub-grafana-ipallowlist@docker
+      - traefik.http.middlewares.teamhub-grafana-ipallowlist.ipallowlist.sourcerange=${GRAFANA_ALLOWED_IPS}
+      - coolify.managed=true
+    networks:
+      - default
+
+volumes:
+  prometheus_data:
+  loki_data:
+  grafana_data:
+  teamhub_backend_logs:
+    external: true
