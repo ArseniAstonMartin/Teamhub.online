@@ -4,6 +4,7 @@ services:
   prometheus:
     image: prom/prometheus:v2.55.1
     restart: unless-stopped
+    entrypoint: ["/bin/sh", "-ec"]
     command:
       - /bin/sh
       - -ec
@@ -42,6 +43,7 @@ services:
   loki:
     image: grafana/loki:3.1.1
     restart: unless-stopped
+    entrypoint: ["/bin/sh", "-ec"]
     command:
       - /bin/sh
       - -ec
@@ -59,6 +61,7 @@ services:
   promtail:
     image: grafana/promtail:3.1.1
     restart: unless-stopped
+    entrypoint: ["/bin/sh", "-ec"]
     command:
       - /bin/sh
       - -ec
@@ -76,6 +79,7 @@ services:
   grafana:
     image: grafana/grafana:11.2.0
     restart: unless-stopped
+    entrypoint: ["/bin/sh", "-ec"]
     command:
       - /bin/sh
       - -ec
