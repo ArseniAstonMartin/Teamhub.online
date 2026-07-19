@@ -18,8 +18,8 @@ declare namespace JSX {
   interface IntrinsicElements {
     'gmpx-api-loader': React.DetailedHTMLProps<
       React.HTMLAttributes<HTMLElement> & {
-        key?: string;
         'solution-channel'?: string;
+        ref?: React.Ref<HTMLElement>;
       },
       HTMLElement
     >;
