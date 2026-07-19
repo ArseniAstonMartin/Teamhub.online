@@ -99,10 +99,12 @@ services:
     labels:
       - traefik.enable=true
       - traefik.http.routers.teamhub-grafana.rule=Host(`${GRAFANA_DOMAIN}`)
-      - traefik.http.routers.teamhub-grafana.entrypoints=websecure
+      - traefik.http.routers.teamhub-grafana.entrypoints=https
       - traefik.http.routers.teamhub-grafana.tls=true
+      - traefik.http.routers.teamhub-grafana.tls.certresolver=letsencrypt
       - traefik.http.routers.teamhub-grafana.middlewares=teamhub-grafana-ipallowlist@docker
       - traefik.http.middlewares.teamhub-grafana-ipallowlist.ipallowlist.sourcerange=${GRAFANA_ALLOWED_IPS}
+      - traefik.http.services.teamhub-grafana.loadbalancer.server.port=3000
       - coolify.managed=true
     networks:
       - default
