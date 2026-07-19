@@ -6,8 +6,6 @@ services:
     restart: unless-stopped
     entrypoint: ["/bin/sh", "-ec"]
     command:
-      - /bin/sh
-      - -ec
       - |
         mkdir -p /var/log/teamhub/observability
         cat > /etc/prometheus/prometheus.yaml <<EOF
@@ -45,8 +43,6 @@ services:
     restart: unless-stopped
     entrypoint: ["/bin/sh", "-ec"]
     command:
-      - /bin/sh
-      - -ec
       - |
         mkdir -p /var/log/teamhub/observability
         loki -config.file=/etc/loki/config.yaml \
@@ -63,8 +59,6 @@ services:
     restart: unless-stopped
     entrypoint: ["/bin/sh", "-ec"]
     command:
-      - /bin/sh
-      - -ec
       - |
         mkdir -p /var/log/teamhub/observability
         promtail -config.file=/etc/promtail/config.yaml \
@@ -81,8 +75,6 @@ services:
     restart: unless-stopped
     entrypoint: ["/bin/sh", "-ec"]
     command:
-      - /bin/sh
-      - -ec
       - |
         mkdir -p /var/log/teamhub/observability
         /run.sh 2>&1 | tee -a /var/log/teamhub/observability/grafana.log
