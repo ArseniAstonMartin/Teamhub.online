@@ -69,6 +69,11 @@ declare global {
   }
 }
 
+const MAPS_LOAD_TIMEOUT_MS = 5_000;
+
+const inputClassName =
+  'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50';
+
 // ── Google Maps loader (singleton) ───────────────────────────────────────────
 
 let mapsLoaderPromise: Promise<void> | null = null;
@@ -82,14 +87,28 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
   }
 
   mapsLoaderPromise = new Promise<void>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      mapsLoaderPromise = null;
+      reject(new Error('Timed out loading Google Maps JavaScript API'));
+    }, MAPS_LOAD_TIMEOUT_MS);
+
+    const finish = (fn: () => void) => {
+      window.clearTimeout(timeoutId);
+      fn();
+    };
+
     const existing = document.querySelector<HTMLScriptElement>(
       'script[data-teamhub-google-maps="true"]',
     );
     if (existing) {
-      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('load', () => finish(() => resolve()), { once: true });
       existing.addEventListener(
         'error',
-        () => reject(new Error('Failed to load Google Maps JavaScript API')),
+        () =>
+          finish(() => {
+            mapsLoaderPromise = null;
+            reject(new Error('Failed to load Google Maps JavaScript API'));
+          }),
         { once: true },
       );
       return;
@@ -100,12 +119,13 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
     script.async = true;
     script.src =
       `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}` +
-      '&v=weekly&libraries=places&loading=async';
-    script.onload = () => resolve();
-    script.onerror = () => {
-      mapsLoaderPromise = null;
-      reject(new Error('Failed to load Google Maps JavaScript API'));
-    };
+      '&v=weekly&libraries=places';
+    script.onload = () => finish(() => resolve());
+    script.onerror = () =>
+      finish(() => {
+        mapsLoaderPromise = null;
+        reject(new Error('Failed to load Google Maps JavaScript API'));
+      });
     document.head.appendChild(script);
   });
 
@@ -172,14 +192,15 @@ export function AddressAutocomplete({
   const containerRef = useRef<HTMLDivElement>(null);
   const onChangeRef = useRef(onChange);
   const [geocodeError, setGeocodeError] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  // Text input is shown until Places mounts successfully (ad blockers / CSP must not blank the form).
+  const [placesReady, setPlacesReady] = useState(false);
 
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
 
   useEffect(() => {
-    if (!hasApiKey || !apiKey || !containerRef.current) return;
+    if (!hasApiKey || !apiKey) return;
 
     let cancelled = false;
     let autocompleteEl: PlaceAutocompleteElementLike | null = null;
@@ -198,8 +219,6 @@ export function AddressAutocomplete({
 
         let next = parsePlace(place);
 
-        // Prefer Places details; only call backend geocode when components are incomplete
-        // and we have a non-blank address (blank address is what previously caused HTTP 400).
         if (!isCompleteAddress(next) && next.address.trim()) {
           try {
             const { data } = await apiClient.post<GeocodeResponse>('/api/v1/geocode', {
@@ -229,8 +248,16 @@ export function AddressAutocomplete({
     void (async () => {
       try {
         await loadGoogleMaps(apiKey);
-        if (cancelled || !containerRef.current || !window.google?.maps?.importLibrary) {
-          return;
+        if (cancelled) return;
+
+        if (!window.google?.maps?.importLibrary) {
+          throw new Error('Google Maps importLibrary unavailable');
+        }
+
+        // Wait one frame so the always-mounted container ref is attached.
+        await new Promise<void>((r) => requestAnimationFrame(() => r()));
+        if (cancelled || !containerRef.current) {
+          throw new Error('Address autocomplete container unavailable');
         }
 
         const { PlaceAutocompleteElement } =
@@ -249,10 +276,12 @@ export function AddressAutocomplete({
 
         containerRef.current.replaceChildren(autocompleteEl);
         autocompleteEl.addEventListener('gmp-select', handleSelect);
-        setLoadError(null);
+        if (!cancelled) {
+          setPlacesReady(true);
+        }
       } catch {
         if (!cancelled) {
-          setLoadError('Address lookup unavailable');
+          setPlacesReady(false);
         }
       }
     })();
@@ -262,10 +291,10 @@ export function AddressAutocomplete({
       autocompleteEl?.removeEventListener('gmp-select', handleSelect);
       autocompleteEl?.remove();
       autocompleteEl = null;
+      setPlacesReady(false);
     };
   }, [hasApiKey, apiKey, placeholder, disabled, ariaLabel, id]);
 
-  // Keep widget disabled state in sync after mount
   useEffect(() => {
     const el = containerRef.current?.firstElementChild as HTMLElement | null;
     if (!el) return;
@@ -274,16 +303,37 @@ export function AddressAutocomplete({
     } else {
       el.removeAttribute('disabled');
     }
-  }, [disabled]);
+  }, [disabled, placesReady]);
 
-  // ── Fallback: plain text input ──────────────────────────────────────────────
-  if (!hasApiKey || loadError) {
-    return (
-      <div className="w-full">
+  const geocodeTypedAddress = async (address: string) => {
+    const trimmed = address.trim();
+    if (!trimmed || !hasApiKey) return;
+    setGeocodeError(null);
+    try {
+      const { data } = await apiClient.post<GeocodeResponse>('/api/v1/geocode', {
+        address: trimmed,
+      });
+      onChangeRef.current({
+        address: trimmed,
+        city: data.city || '',
+        state: data.state || '',
+        zip: data.zip || '',
+        lat: data.lat,
+        lon: data.lon,
+      });
+    } catch {
+      // Keep typed address; customer/job create may still geocode server-side.
+    }
+  };
+
+  return (
+    <div className="w-full">
+      {/* Plain input always available until Places is ready (and permanently if Maps is blocked). */}
+      {!placesReady && (
         <input
           id={id}
           type="text"
-          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+          className={inputClassName}
           placeholder={placeholder}
           value={value ?? ''}
           disabled={disabled}
@@ -299,34 +349,32 @@ export function AddressAutocomplete({
               lon: null,
             })
           }
+          onBlur={(e) => void geocodeTypedAddress(e.target.value)}
         />
-        {loadError && (
-          <output className="mt-1 block text-xs text-muted-foreground">
-            {loadError}
-          </output>
-        )}
-      </div>
-    );
-  }
+      )}
 
-  // ── Place Autocomplete (New) widget ─────────────────────────────────────────
-  return (
-    <div className="w-full">
+      {/* Mount target always in the DOM so Places can initialize even while fallback is shown. */}
       <div
         ref={containerRef}
-        className="w-full [&_gmp-place-autocomplete]:block [&_gmp-place-autocomplete]:w-full"
+        className={
+          placesReady
+            ? 'w-full [&_gmp-place-autocomplete]:block [&_gmp-place-autocomplete]:w-full'
+            : 'hidden'
+        }
+        aria-hidden={!placesReady}
       />
-      {/* Preserve current free-text value for forms that bind `value` */}
-      {value ? (
+
+      {placesReady && value ? (
         <p className="mt-1 truncate text-xs text-muted-foreground" title={value}>
           {value}
         </p>
       ) : null}
-      {geocodeError && (
+
+      {geocodeError ? (
         <p className="mt-1 text-xs text-destructive" role="alert">
           {geocodeError}
         </p>
-      )}
+      ) : null}
     </div>
   );
 }
