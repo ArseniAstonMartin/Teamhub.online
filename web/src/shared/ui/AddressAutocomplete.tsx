@@ -268,8 +268,21 @@ export function AddressAutocomplete({
           includedRegionCodes: ['us'],
         });
         autocompleteEl.placeholder = placeholder;
-        autocompleteEl.style.display = 'block';
+        // Force light scheme so the widget matches other form inputs (avoids black/dark host chrome).
+        autocompleteEl.style.setProperty('color-scheme', 'light');
+        autocompleteEl.style.setProperty('background-color', 'transparent');
+        autocompleteEl.style.setProperty('color', 'hsl(var(--foreground))');
+        autocompleteEl.style.setProperty('border', '1px solid hsl(var(--input))');
+        autocompleteEl.style.setProperty(
+          'border-radius',
+          'calc(var(--radius) - 2px)',
+        );
+        autocompleteEl.style.setProperty('font-family', 'inherit');
+        autocompleteEl.style.setProperty('font-size', '0.875rem');
         autocompleteEl.style.width = '100%';
+        autocompleteEl.style.height = '2.25rem';
+        autocompleteEl.style.display = 'block';
+        autocompleteEl.style.boxSizing = 'border-box';
         if (id) autocompleteEl.id = id;
         if (ariaLabel) autocompleteEl.setAttribute('aria-label', ariaLabel);
         if (disabled) autocompleteEl.setAttribute('disabled', '');

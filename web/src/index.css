@@ -53,6 +53,39 @@
   body {
     @apply bg-background text-foreground font-sans;
   }
+
+  /*
+   * PlaceAutocompleteElement supports a limited set of CSS properties on the host
+   * (background-color, border, border-radius, color, color-scheme, font*).
+   * Match shadcn Input: h-9, rounded-md, border-input, transparent bg, text-sm, ring focus.
+   */
+  gmp-place-autocomplete {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    height: 2.25rem;
+    color-scheme: light;
+    background-color: transparent;
+    color: hsl(var(--foreground));
+    border: 1px solid hsl(var(--input));
+    border-radius: calc(var(--radius) - 2px);
+    font-family: inherit;
+    font-size: 0.875rem;
+    font-weight: 400;
+    line-height: 1.25rem;
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  }
+
+  gmp-place-autocomplete:focus-within {
+    outline: none;
+    border-color: hsl(var(--ring));
+    box-shadow: 0 0 0 1px hsl(var(--ring));
+  }
+
+  gmp-place-autocomplete[disabled] {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
 }
 
 @layer utilities {
