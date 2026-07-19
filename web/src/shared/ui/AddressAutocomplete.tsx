@@ -20,13 +20,30 @@ interface GeocodeResponse {
   lon: number;
 }
 
-interface GmpxPlaceChangeEvent extends Event {
-  target: HTMLElement & {
-    value: {
-      formattedAddress?: string;
-      location?: { lat: () => number; lng: () => number };
-    } | null;
-  };
+interface PlaceAddressComponent {
+  longText?: string;
+  shortText?: string;
+  types?: string[];
+}
+
+interface PlaceLike {
+  formattedAddress?: string | null;
+  location?: { lat: () => number; lng: () => number } | null;
+  addressComponents?: PlaceAddressComponent[];
+  fetchFields: (options: { fields: string[] }) => Promise<unknown>;
+}
+
+interface PlacePredictionLike {
+  toPlace: () => PlaceLike;
+}
+
+interface PlaceSelectEvent extends Event {
+  placePrediction?: PlacePredictionLike;
+}
+
+interface PlaceAutocompleteElementLike extends HTMLElement {
+  placeholder?: string;
+  includedRegionCodes?: string[];
 }
 
 interface Props {
@@ -38,24 +55,105 @@ interface Props {
   id?: string;
 }
 
-// Track whether the ECL script has been injected (module-level singleton)
-let eclScriptLoaded = false;
-
-function injectEclScript() {
-  if (eclScriptLoaded) return;
-  const existing = document.querySelector(
-    'script[src*="extended-component-library"]',
-  );
-  if (existing) {
-    eclScriptLoaded = true;
-    return;
+declare global {
+  interface Window {
+    google?: {
+      maps?: {
+        importLibrary: (name: string) => Promise<{
+          PlaceAutocompleteElement: new (options?: {
+            includedRegionCodes?: string[];
+          }) => PlaceAutocompleteElementLike;
+        }>;
+      };
+    };
   }
-  const script = document.createElement('script');
-  script.type = 'module';
-  script.src =
-    'https://ajax.googleapis.com/ajax/libs/@googlemaps/extended-component-library/0.6.11/index.min.js';
-  document.head.appendChild(script);
-  eclScriptLoaded = true;
+}
+
+// ── Google Maps loader (singleton) ───────────────────────────────────────────
+
+let mapsLoaderPromise: Promise<void> | null = null;
+
+function loadGoogleMaps(apiKey: string): Promise<void> {
+  if (window.google?.maps?.importLibrary) {
+    return Promise.resolve();
+  }
+  if (mapsLoaderPromise) {
+    return mapsLoaderPromise;
+  }
+
+  mapsLoaderPromise = new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(
+      'script[data-teamhub-google-maps="true"]',
+    );
+    if (existing) {
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener(
+        'error',
+        () => reject(new Error('Failed to load Google Maps JavaScript API')),
+        { once: true },
+      );
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.dataset.teamhubGoogleMaps = 'true';
+    script.async = true;
+    script.src =
+      `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}` +
+      '&v=weekly&libraries=places&loading=async';
+    script.onload = () => resolve();
+    script.onerror = () => {
+      mapsLoaderPromise = null;
+      reject(new Error('Failed to load Google Maps JavaScript API'));
+    };
+    document.head.appendChild(script);
+  });
+
+  return mapsLoaderPromise;
+}
+
+function componentText(
+  components: PlaceAddressComponent[] | undefined,
+  type: string,
+  short = false,
+): string {
+  const match = components?.find((c) => c.types?.includes(type));
+  if (!match) return '';
+  return (short ? match.shortText : match.longText) ?? '';
+}
+
+function parsePlace(place: PlaceLike): AddressValue {
+  const components = place.addressComponents;
+  const city =
+    componentText(components, 'locality') ||
+    componentText(components, 'postal_town') ||
+    componentText(components, 'sublocality') ||
+    componentText(components, 'sublocality_level_1') ||
+    componentText(components, 'administrative_area_level_3');
+  const state = componentText(components, 'administrative_area_level_1', true);
+  const zip = componentText(components, 'postal_code');
+  const lat = place.location ? place.location.lat() : null;
+  const lon = place.location ? place.location.lng() : null;
+
+  return {
+    address: place.formattedAddress ?? '',
+    city,
+    state,
+    zip,
+    lat,
+    lon,
+  };
+}
+
+function isCompleteAddress(value: AddressValue): boolean {
+  return Boolean(
+    value.address &&
+      value.city &&
+      value.state &&
+      value.zip &&
+      value.lat != null &&
+      value.lon != null,
+  );
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -67,116 +165,163 @@ export function AddressAutocomplete({
   onChange,
   'aria-label': ariaLabel,
   id,
-}: Props) {
+}: Readonly<Props>) {
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   const hasApiKey = Boolean(apiKey && apiKey !== 'REPLACE_ME');
 
-  const pickerRef = useRef<HTMLElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const onChangeRef = useRef(onChange);
   const [geocodeError, setGeocodeError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  // React reserves `key` and will not forward it as a DOM attribute. ECL requires
-  // the Google Maps API key on <gmpx-api-loader key="...">, so set it via ref.
-  const setApiLoaderRef = (el: HTMLElement | null) => {
-    if (el && apiKey) {
-      el.setAttribute('key', apiKey);
-    }
-  };
-
-  // Inject ECL script once when the API key is available
   useEffect(() => {
-    if (!hasApiKey) return;
-    injectEclScript();
-  }, [hasApiKey]);
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
-  // Attach the gmpx-placechange event listener via ref
   useEffect(() => {
-    if (!hasApiKey) return;
-    const el = pickerRef.current;
-    if (!el) return;
+    if (!hasApiKey || !apiKey || !containerRef.current) return;
 
-    const handlePlaceChange = async (evt: Event) => {
-      const e = evt as GmpxPlaceChangeEvent;
-      const place = e.target?.value;
-      if (!place) return;
+    let cancelled = false;
+    let autocompleteEl: PlaceAutocompleteElementLike | null = null;
 
-      const formattedAddress = place.formattedAddress ?? '';
+    const handleSelect = async (evt: Event) => {
+      const placePrediction = (evt as PlaceSelectEvent).placePrediction;
+      if (!placePrediction) return;
+
       setGeocodeError(null);
 
       try {
-        const { data } = await apiClient.post<GeocodeResponse>('/api/v1/geocode', {
-          address: formattedAddress,
+        const place = placePrediction.toPlace();
+        await place.fetchFields({
+          fields: ['formattedAddress', 'location', 'addressComponents'],
         });
-        onChange({
-          address: formattedAddress,
-          city: data.city,
-          state: data.state,
-          zip: data.zip,
-          lat: data.lat,
-          lon: data.lon,
-        });
+
+        let next = parsePlace(place);
+
+        // Prefer Places details; only call backend geocode when components are incomplete
+        // and we have a non-blank address (blank address is what previously caused HTTP 400).
+        if (!isCompleteAddress(next) && next.address.trim()) {
+          try {
+            const { data } = await apiClient.post<GeocodeResponse>('/api/v1/geocode', {
+              address: next.address,
+            });
+            next = {
+              address: next.address,
+              city: next.city || data.city || '',
+              state: next.state || data.state || '',
+              zip: next.zip || data.zip || '',
+              lat: next.lat ?? data.lat,
+              lon: next.lon ?? data.lon,
+            };
+          } catch {
+            setGeocodeError('Address not found');
+          }
+        } else if (!next.address.trim()) {
+          setGeocodeError('Address not found');
+        }
+
+        onChangeRef.current(next);
       } catch {
         setGeocodeError('Address not found');
-        onChange({
-          address: formattedAddress,
-          city: '',
-          state: '',
-          zip: '',
-          lat: null,
-          lon: null,
-        });
       }
     };
 
-    el.addEventListener('gmpx-placechange', handlePlaceChange as EventListener);
+    void (async () => {
+      try {
+        await loadGoogleMaps(apiKey);
+        if (cancelled || !containerRef.current || !window.google?.maps?.importLibrary) {
+          return;
+        }
+
+        const { PlaceAutocompleteElement } =
+          await window.google.maps.importLibrary('places');
+        if (cancelled || !containerRef.current) return;
+
+        autocompleteEl = new PlaceAutocompleteElement({
+          includedRegionCodes: ['us'],
+        });
+        autocompleteEl.placeholder = placeholder;
+        autocompleteEl.style.display = 'block';
+        autocompleteEl.style.width = '100%';
+        if (id) autocompleteEl.id = id;
+        if (ariaLabel) autocompleteEl.setAttribute('aria-label', ariaLabel);
+        if (disabled) autocompleteEl.setAttribute('disabled', '');
+
+        containerRef.current.replaceChildren(autocompleteEl);
+        autocompleteEl.addEventListener('gmp-select', handleSelect);
+        setLoadError(null);
+      } catch {
+        if (!cancelled) {
+          setLoadError('Address lookup unavailable');
+        }
+      }
+    })();
+
     return () => {
-      el.removeEventListener('gmpx-placechange', handlePlaceChange as EventListener);
+      cancelled = true;
+      autocompleteEl?.removeEventListener('gmp-select', handleSelect);
+      autocompleteEl?.remove();
+      autocompleteEl = null;
     };
-  }, [hasApiKey, onChange]);
+  }, [hasApiKey, apiKey, placeholder, disabled, ariaLabel, id]);
+
+  // Keep widget disabled state in sync after mount
+  useEffect(() => {
+    const el = containerRef.current?.firstElementChild as HTMLElement | null;
+    if (!el) return;
+    if (disabled) {
+      el.setAttribute('disabled', '');
+    } else {
+      el.removeAttribute('disabled');
+    }
+  }, [disabled]);
 
   // ── Fallback: plain text input ──────────────────────────────────────────────
-  if (!hasApiKey) {
+  if (!hasApiKey || loadError) {
     return (
-      <input
-        id={id}
-        type="text"
-        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-        placeholder={placeholder}
-        value={value ?? ''}
-        disabled={disabled}
-        aria-label={ariaLabel}
-        data-testid="address-autocomplete-fallback"
-        onChange={(e) =>
-          onChange({
-            address: e.target.value,
-            city: '',
-            state: '',
-            zip: '',
-            lat: null,
-            lon: null,
-          })
-        }
-      />
+      <div className="w-full">
+        <input
+          id={id}
+          type="text"
+          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+          placeholder={placeholder}
+          value={value ?? ''}
+          disabled={disabled}
+          aria-label={ariaLabel}
+          data-testid="address-autocomplete-fallback"
+          onChange={(e) =>
+            onChange({
+              address: e.target.value,
+              city: '',
+              state: '',
+              zip: '',
+              lat: null,
+              lon: null,
+            })
+          }
+        />
+        {loadError && (
+          <output className="mt-1 block text-xs text-muted-foreground">
+            {loadError}
+          </output>
+        )}
+      </div>
     );
   }
 
-  // ── Google Maps ECL picker ──────────────────────────────────────────────────
+  // ── Place Autocomplete (New) widget ─────────────────────────────────────────
   return (
     <div className="w-full">
-      <gmpx-api-loader
-        ref={setApiLoaderRef}
-        solution-channel="GMP_GE_mapsandplacesautocomplete_v2"
+      <div
+        ref={containerRef}
+        className="w-full [&_gmp-place-autocomplete]:block [&_gmp-place-autocomplete]:w-full"
       />
-      <gmpx-place-picker
-        ref={pickerRef}
-        placeholder={placeholder}
-        style={{
-          width: '100%',
-          fontFamily: 'inherit',
-          fontSize: '14px',
-        }}
-        aria-label={ariaLabel}
-        id={id}
-      />
+      {/* Preserve current free-text value for forms that bind `value` */}
+      {value ? (
+        <p className="mt-1 truncate text-xs text-muted-foreground" title={value}>
+          {value}
+        </p>
+      ) : null}
       {geocodeError && (
         <p className="mt-1 text-xs text-destructive" role="alert">
           {geocodeError}
