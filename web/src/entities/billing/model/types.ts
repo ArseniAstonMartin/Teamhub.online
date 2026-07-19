@@ -20,7 +20,7 @@ export interface PlanLimits {
 }
 
 export const PLAN_LIMITS: Record<PlanKey, PlanLimits> = {
-  FREE:       { jobsPerMonth: 25,   seats: 1,  schemaEditor: false, advancedReports: false },
+  FREE:       { jobsPerMonth: 25,   seats: 2,  schemaEditor: false, advancedReports: false },
   STARTER:    { jobsPerMonth: 200,  seats: 5,  schemaEditor: true,  advancedReports: false },
   TEAM:       { jobsPerMonth: 1000, seats: 20, schemaEditor: true,  advancedReports: true  },
   ENTERPRISE: { jobsPerMonth: null, seats: null, schemaEditor: true, advancedReports: true },
