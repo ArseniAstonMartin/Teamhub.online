@@ -74,6 +74,14 @@ export function AddressAutocomplete({
   const pickerRef = useRef<HTMLElement>(null);
   const [geocodeError, setGeocodeError] = useState<string | null>(null);
 
+  // React reserves `key` and will not forward it as a DOM attribute. ECL requires
+  // the Google Maps API key on <gmpx-api-loader key="...">, so set it via ref.
+  const setApiLoaderRef = (el: HTMLElement | null) => {
+    if (el && apiKey) {
+      el.setAttribute('key', apiKey);
+    }
+  };
+
   // Inject ECL script once when the API key is available
   useEffect(() => {
     if (!hasApiKey) return;
@@ -155,7 +163,7 @@ export function AddressAutocomplete({
   return (
     <div className="w-full">
       <gmpx-api-loader
-        key={apiKey}
+        ref={setApiLoaderRef}
         solution-channel="GMP_GE_mapsandplacesautocomplete_v2"
       />
       <gmpx-place-picker
