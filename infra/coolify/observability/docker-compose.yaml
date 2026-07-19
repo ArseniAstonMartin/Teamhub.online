@@ -3,6 +3,7 @@ version: "3.9"
 services:
   prometheus:
     image: prom/prometheus:v2.55.1
+    user: "0:0"
     restart: unless-stopped
     entrypoint: ["/bin/sh", "-ec"]
     command:
@@ -40,6 +41,7 @@ services:
 
   loki:
     image: grafana/loki:3.1.1
+    user: "0:0"
     restart: unless-stopped
     entrypoint: ["/bin/sh", "-ec"]
     command:
@@ -56,6 +58,7 @@ services:
 
   promtail:
     image: grafana/promtail:3.1.1
+    user: "0:0"
     restart: unless-stopped
     entrypoint: ["/bin/sh", "-ec"]
     command:
@@ -72,6 +75,7 @@ services:
 
   grafana:
     image: grafana/grafana:11.2.0
+    user: "0:0"
     restart: unless-stopped
     entrypoint: ["/bin/sh", "-ec"]
     command:
