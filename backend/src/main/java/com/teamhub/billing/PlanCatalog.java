@@ -17,7 +17,7 @@ public final class PlanCatalog {
 
   private static final Map<Plan, PlanLimits> LIMITS =
       Map.of(
-          Plan.FREE, new PlanLimits(25, 1, false, false),
+          Plan.FREE, new PlanLimits(25, 2, false, false),
           Plan.STARTER, new PlanLimits(200, 5, true, false),
           Plan.TEAM, new PlanLimits(1000, 20, true, true),
           Plan.ENTERPRISE, new PlanLimits(Integer.MAX_VALUE, Integer.MAX_VALUE, true, true));
