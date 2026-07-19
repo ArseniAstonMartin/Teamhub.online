@@ -83,9 +83,11 @@ services:
         mkdir -p /var/log/teamhub/observability
         /run.sh 2>&1 | tee -a /var/log/teamhub/observability/grafana.log
     environment:
+      SERVICE_URL_GRAFANA_3000:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
-      GF_SERVER_ROOT_URL: https://${GRAFANA_DOMAIN}
+      GF_SERVER_ROOT_URL: ${SERVICE_URL_GRAFANA}
+      GF_SERVER_DOMAIN: ${SERVICE_FQDN_GRAFANA}
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - grafana_data:/var/lib/grafana
@@ -96,16 +98,6 @@ services:
     depends_on:
       - prometheus
       - loki
-    labels:
-      - traefik.enable=true
-      - "traefik.http.routers.teamhub-grafana.rule=Host(`${GRAFANA_DOMAIN:?GRAFANA_DOMAIN is required}`)"
-      - traefik.http.routers.teamhub-grafana.entrypoints=https
-      - traefik.http.routers.teamhub-grafana.tls=true
-      - traefik.http.routers.teamhub-grafana.tls.certresolver=letsencrypt
-      - traefik.http.routers.teamhub-grafana.middlewares=teamhub-grafana-ipallowlist@docker
-      - "traefik.http.middlewares.teamhub-grafana-ipallowlist.ipallowlist.sourcerange=${GRAFANA_ALLOWED_IPS:?GRAFANA_ALLOWED_IPS is required}"
-      - traefik.http.services.teamhub-grafana.loadbalancer.server.port=3000
-      - coolify.managed=true
     networks:
       - default
 

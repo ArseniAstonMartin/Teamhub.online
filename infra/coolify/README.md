@@ -54,8 +54,6 @@ Required:
 
 - `PROMETHEUS_ACTUATOR_USERNAME` (must equal backend `ACTUATOR_USERNAME`)
 - `PROMETHEUS_ACTUATOR_PASSWORD` (must equal backend `ACTUATOR_PASSWORD`)
-- `GRAFANA_DOMAIN` (for example `grafana.teamhub.online`)
-- `TO-DO(PRD §26.2): GRAFANA_ALLOWED_IPS` (comma-separated CIDRs, example `203.0.113.10/32,198.51.100.7/32`)
 - `GRAFANA_ADMIN_USER`
 - `GRAFANA_ADMIN_PASSWORD`
 
@@ -69,19 +67,17 @@ Persistent crash logs volume (created by compose):
   - `promtail.log`
   - `grafana.log`
 
-## 5) Grafana IP restriction (access layer requirement)
+## 5) Grafana IP restriction (temporarily disabled)
 
-Grafana is restricted at the Coolify/Traefik ingress layer using an IP allow-list middleware in the compose labels.
+`TO-DO(PRD §26.2):` restore the Grafana IP allow-list after operators approve the final office/VPN/public egress CIDRs. Coolify does not interpolate resource environment variables inside custom Docker labels, so the approved CIDRs must be configured directly in Coolify's Traefik middleware configuration or committed as static label values.
 
 Operational guidance:
 
-1. Set `GRAFANA_ALLOWED_IPS` in Coolify with explicit CIDRs.
-2. Redeploy the observability stack.
+1. Configure the approved CIDRs in a Coolify-managed Traefik middleware.
+2. Attach the middleware to the generated Grafana router.
 3. Verify:
    - Allowed IP can open `https://grafana.teamhub.online/login`.
    - Non-allowed IP receives `403 Forbidden`.
-
-`TO-DO(PRD §26.2):` final allowed office/VPN/public egress IP list must be approved by operators before production cutover.
 
 ## 6) Rollout steps (minimal)
 
