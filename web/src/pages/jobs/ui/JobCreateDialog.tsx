@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -702,6 +703,9 @@ export function JobCreateDialog({ open, onClose }: Props) {
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New Job</DialogTitle>
+          <DialogDescription>
+            Select an existing customer or enter details to create a job.
+          </DialogDescription>
         </DialogHeader>
 
         {!activeSchema && (
