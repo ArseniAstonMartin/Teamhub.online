@@ -69,6 +69,7 @@ services:
     volumes:
       - ./promtail/promtail-config.yaml:/etc/promtail/config.yaml:ro
       - teamhub_backend_logs:/var/log/teamhub/backend:ro
+      - promtail_positions:/var/lib/promtail
       - observability_crash_logs:/var/log/teamhub/observability
     networks:
       - default
@@ -108,3 +109,4 @@ volumes:
   observability_crash_logs:
   teamhub_backend_logs:
     external: true
+  promtail_positions:

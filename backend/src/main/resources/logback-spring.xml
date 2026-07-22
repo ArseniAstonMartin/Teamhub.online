@@ -29,8 +29,35 @@
         </providers>
       </encoder>
     </appender>
+
+    <!--
+      Persist production logs to file for promtail/Loki collection.
+      LOGGING_FILE_NAME can override the default path in deployment environment.
+    -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+      <file>${LOGGING_FILE_NAME:-/var/log/teamhub/backend/application.log}</file>
+      <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+        <fileNamePattern>${LOGGING_FILE_NAME:-/var/log/teamhub/backend/application}.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+        <maxFileSize>50MB</maxFileSize>
+        <maxHistory>14</maxHistory>
+        <totalSizeCap>2GB</totalSizeCap>
+      </rollingPolicy>
+      <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+        <providers>
+          <timestamp/>
+          <logLevel/>
+          <loggerName/>
+          <threadName/>
+          <provider class="com.teamhub.logging.PiiRedactingMessageProvider"/>
+          <mdc/>
+          <arguments/>
+          <stackTrace/>
+        </providers>
+      </encoder>
+    </appender>
     <root level="INFO">
       <appender-ref ref="STDOUT"/>
+      <appender-ref ref="FILE"/>
     </root>
   </springProfile>
 
