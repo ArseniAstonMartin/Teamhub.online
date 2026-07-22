@@ -67,6 +67,12 @@ Persistent crash logs volume (created by compose):
   - `promtail.log`
   - `grafana.log`
 
+Persistent promtail state volume (created by compose):
+
+- Volume name: `promtail_positions`
+- Mounted path in promtail: `/var/lib/promtail`
+- File: `/var/lib/promtail/positions.yaml` (prevents duplicate ingestion after promtail restart)
+
 ## 5) Grafana IP restriction (temporarily disabled)
 
 `TO-DO(PRD §26.2):` restore the Grafana IP allow-list after operators approve the final office/VPN/public egress CIDRs. Coolify does not interpolate resource environment variables inside custom Docker labels, so the approved CIDRs must be configured directly in Coolify's Traefik middleware configuration or committed as static label values.
@@ -104,6 +110,7 @@ Persistent logs:
 
 - Restart backend container and confirm `/var/log/teamhub/backend/application.log` still exists.
 - Redeploy backend and confirm log file remains in `teamhub_backend_logs` volume.
+- Restart promtail and confirm `/var/lib/promtail/positions.yaml` persists in `promtail_positions` volume.
 - If observability deployment fails, open the `observability_crash_logs` volume and inspect:
   - `/var/log/teamhub/observability/prometheus.log`
   - `/var/log/teamhub/observability/loki.log`

@@ -71,6 +71,7 @@ Open `http://localhost:8080/swagger-ui.html` in your browser.
 | `DB_USER` | PostgreSQL username | `postgres` |
 | `DB_PASSWORD` | PostgreSQL password | `postgres` |
 | `REDIS_URL` | Redis connection URL | `redis://localhost:6379` |
+| `LOGGING_FILE_NAME` | Production log file path for Loki/promtail | _(unset; set in Coolify)_ |
 | `JWT_PRIVATE_KEY_PATH` | RS256 private key PEM path | _(ephemeral)_ |
 | `JWT_PUBLIC_KEY_PATH` | RS256 public key PEM path | _(ephemeral)_ |
 | `GOOGLE_OAUTH_CLIENT_ID` | Google OAuth 2.0 client ID | — |
