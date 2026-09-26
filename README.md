@@ -1,30 +1,18 @@
-# Teamhub.online Monorepo
+# Teamhub.online
 
-This repository hosts the Teamhub.online product monorepo described in `prd/PRD.md`.
-The PRD is the source of truth for product, architecture, and delivery decisions.
+Greenfield **MVP-R** rewrite: Next.js + Prisma + Supabase (see `prd/PRD.md` §0).
 
-Note: `prd/` is a local-only working directory and is not intended to be committed.
+## Repo layout
 
-## Repository structure
+| Path | Purpose |
+|------|---------|
+| `prd/PRD.md` | Product requirements (§0 MVP-R is authoritative) |
+| `tasks.json` | Backlog for agents and humans |
+| `progress.md` | Short completion log |
 
-- `backend/` — Spring Boot backend services, data access, security, and migrations.
-- `web/` — React SPA for Admin and Dispatcher workflows.
-- `mobile/` — Expo React Native application for mobile field workflows.
-- `infra/` — local infrastructure, container orchestration, and deployment-related assets.
-- `.github/workflows/` — CI automation for backend, web, and mobile pipelines.
-- `prd/` — local PRD and source notes (not committed; see `.gitignore`).
+Application code will live at the repo root once TASK-001 (Next.js scaffold) is done.
 
-## Local-only paths (not committed)
+## Workflow
 
-Agent tooling, task tracking, and design assets stay on disk only: `AGENTS.md`, `tasks.json`, `progress.md`, `.cursor/`, `prd/`, `resources/`.
-
-## Source of truth
-
-- Product requirements: `prd/PRD.md`
-- Monorepo layout reference: PRD §21.7
-
-## Local preview
-
-For a one-command tenant bootstrap and full local smoke flow across internal console, web, and mobile, follow:
-
-- `infra/runbooks/local-dev.md`
+- Commits to `main`; no PR/CI gate for MVP-R.
+- Pick the next `pending` task in `tasks.json`.

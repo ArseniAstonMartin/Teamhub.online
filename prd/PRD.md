@@ -5,15 +5,102 @@
 | ---------------- | ------------------------------------------- |
 | Project          | Teamhub.online                              |
 | Document         | Master PRD                                  |
-| Status           | MVP released (`v1.0.0`)                     |
-| Version          | 1.0.0                                       |
-| Date             | 2026-07-04                                  |
+| Status           | **MVP-R** — greenfield rewrite in progress  |
+| Version          | 2.0.0-mvp-r                                 |
+| Date             | 2026-09-26                                  |
 | Owner            | Project Lead (Human)                        |
 | Repository       | https://github.com/ArseniAstonMartin/Teamhub.online.git |
 | Source documents | `prd/Thoughts`, `prd/Design`, `prd/My_Spam` |
 
 
 This PRD supersedes the loose notes in `Thoughts`, `Design`, and `My_Spam`. Where this PRD differs from those documents, this PRD wins. Anything still requiring a human decision is marked with a `TO-DO` block so the IDE flags it before commit.
+
+**§0 MVP-R (2026-09-26) overrides any conflicting requirement below** (legacy Spring/mobile/enterprise scope). Treat §1–§27 as historical context unless §0 explicitly reaffirms a item.
+
+---
+
+## 0. MVP-R — Architecture reset (authoritative)
+
+### 0.1 Delivery and repository
+
+- **Greenfield:** no production data, users, files, or schema-preset migration from the abandoned Java/React Native stack.
+- **Legacy removal:** delete `backend/`, `web/`, `mobile/`, `infra/`, and related CI after the Next.js scaffold lands on `main`.
+- **Workflow:** commit directly to `main`. No pull-request gate, no CI/CD pipelines, no automated tests, no linter enforcement in tasks for MVP-R.
+- **Target:** first end-to-end demo in **3–4 weeks**. Manual verification checklist only (no `test_steps` in `tasks.json`).
+
+### 0.2 Target stack
+
+| Layer | Choice |
+| ----- | ------ |
+| App | Next.js (App Router, Server Actions, RSC), TypeScript |
+| DB | PostgreSQL on Supabase + Prisma |
+| Auth | Supabase Auth — **email/password + invite only** (no Google/Apple OAuth, no public self-signup) |
+| Files | Vercel Blob (job photos from PWA) |
+| Hosting | Vercel (GitHub integration) |
+| Errors | Minimal Sentry |
+| Client | One Next.js app: **desktop web** (office) + **mobile-adaptive installable PWA** (field); same light visual style as the existing product (bright, professional; Tailwind + shadcn/ui). No native iOS/Android stores |
+
+### 0.3 Tenancy and security
+
+- **Tenant isolation:** application-only — every Prisma query in Server Actions includes `where: { tenantId }`. No reliance on PostgreSQL RLS for MVP-R (Prisma uses service role).
+- **User identity:** `User.id` **equals** `auth.users.id` (UUID PK). No separate `auth_user_id`. Profile row created when user is invited/created via Supabase Auth Admin API.
+- **Provisioning:** manual via Supabase Dashboard / SQL / seed scripts. **No** internal staff console in the app.
+
+### 0.4 Roles (two fixed roles, no permission matrix)
+
+| Role | UI label (suggested) | Capabilities |
+| ---- | -------------------- | ------------ |
+| `ADMIN` | Team admin | Billing, tenant settings, team invites, all jobs and customers |
+| `WORKER` | Team member | Same job/customer surfaces as admin for field operations; **no** billing or global tenant settings |
+
+- **No** Dispatcher vs Technician split. Small teams often use one person for phone + field; any worker may create or update jobs (e.g. after a phone call).
+- **No** row-level restriction “technician sees only assigned jobs” — all members of the tenant see **all** jobs in V1.
+- Authorization: hardcoded role checks in Server Actions (e.g. billing routes admin-only).
+
+### 0.5 Data model — jobs and “custom” data
+
+- Single unified **`Job`** (or `WorkOrder`) entity with shared columns; optional lightweight **`custom_fields` JSONB** (unvalidated) for per-tenant tweaks applied manually at onboarding — **no** schema editor, versioning, or dynamic field engine.
+- **Addresses:** Google Places Autocomplete on the job form; persist `address` (string), `lat`, `lng`. **No** PostGIS or spatial queries in V1.
+- **Vehicle make/model/year (locksmith-style pilots):** static bundled JSON (`lib/constants/vehicles.json`); cascading selects in the client; persist `vehicleMake`, `vehicleModel`, `vehicleYear` as plain columns on `Job`.
+- **Pricing / line items:** no quoting engine in V1 — amounts entered **manually** on the job (physical price list workflow).
+
+### 0.6 Job statuses and transitions
+
+**Statuses (enum):**
+
+`Submitted` (shared pool) · `Assigned` · `In Progress` · `Pending` (+ optional reason) · `Done pending approval` · `Completed` · `Canceled`
+
+- **No state machine:** any authenticated tenant member may set **any** status to **any** other status via a simple update.
+- **No** optimistic locking / `version` column requirement for MVP-R.
+- **History:** append-only `JobStatusHistory` (`jobId`, `fromStatus`, `toStatus`, `changedById`) on each status change.
+
+### 0.7 MVP-R feature scope
+
+| In V1 | Out of V1 |
+| ----- | --------- |
+| Jobs CRUD, shared pool + claim | Custom appointment schema editor |
+| Customers list/detail | Automation rules |
+| Job notes | Seat / job rate limits |
+| Job photos (Vercel Blob) | Reports (day/week/month) |
+| Calendar (web) | Native apps, push, Apple Sign-in |
+| Kanban (web) | Audit log, Grafana/Prometheus/Loki, SonarQube |
+| Email invites | Twilio, Stripe Connect / on-site pay |
+| Stripe billing (see §0.8) | Internal staff console |
+| In-app 5-minute pool escalation (Realtime or polling) | Google OAuth |
+| Google Places on address fields | PostGIS |
+| Responsive web + PWA (shared UI) | Offline mode |
+| Manual tenant onboarding | CI/test gates in `tasks.json` |
+
+### 0.8 Stripe (V1)
+
+- Stripe Billing integrated (checkout/portal + webhooks as needed).
+- **Two plans only:** free tier and paid tier — **no** complex per-seat, per-job, or team quota enforcement in V1.
+
+### 0.9 Escalation (no push)
+
+- If a job remains in `Submitted` (pool) for **5 minutes**, surface an **in-app** alert to team admins (Supabase Realtime and/or polling). No mobile push.
+
+---
 
 ### Terminology convention — "Tenant" vs "Team"
 
