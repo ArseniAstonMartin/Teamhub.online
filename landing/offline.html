@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en" data-loader-always>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Teamhub — offline</title>
+  <meta name="robots" content="noindex" />
+  <style>
+    html, body { margin: 0; height: 100%; background: #fff; }
+    [role=status] { z-index: 1 !important; }
+    p { position: fixed; left: 0; right: 0; bottom: 12vh; margin: 0; text-align: center; z-index: 2147483647;
+        font: 500 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: #5b6578; }
+  </style>
+  <script src="/assets/js/loader.js"></script>
+</head>
+<body>
+  <p>No connection. Reconnect and the page will reload.</p>
+  <script>
+    window.addEventListener("online", () => location.reload());
+  </script>
+</body>
+</html>

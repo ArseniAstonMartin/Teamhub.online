@@ -9,7 +9,9 @@ const MIN_SHOWN  = 700;   // мс: показанный лоадер не миг
 const MAX_SHOWN  = 20000; // мс: страховка, если load так и не пришёл
 
 const root = document.documentElement;
-if (document.readyState === 'complete') return;
+// offline.html: лоадер показывается сразу, на белом фоне, и не скрывается
+const ALWAYS = root.hasAttribute('data-loader-always');
+if (document.readyState === 'complete' && !ALWAYS) return;
 
 /* ───────────────────────── Настройки ───────────────────────── */
 const CFG = {
@@ -276,7 +278,7 @@ function render(time) {
 
   // фон
   const bg = ctx.createRadialGradient(CW*0.5, CH*0.42, 0, CW*0.5, CH*0.42, Math.hypot(CW, CH) * 0.6);
-  bg.addColorStop(0, '#fbfcfe'); bg.addColorStop(1, '#e8ecf3');
+  bg.addColorStop(0, ALWAYS ? '#fff' : '#fbfcfe'); bg.addColorStop(1, ALWAYS ? '#fff' : '#e8ecf3');
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, CW, CH);
 
@@ -342,7 +344,7 @@ function show() {
   overlay = document.createElement('div');
   overlay.setAttribute('role', 'status');
   overlay.setAttribute('aria-label', 'Loading');
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:#eef1f6;opacity:0;transition:opacity .25s ease';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:'+(ALWAYS ? '#fff' : '#eef1f6')+';opacity:0;transition:opacity .25s ease';
   canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block';
   overlay.appendChild(canvas);
   host.appendChild(overlay);
@@ -378,8 +380,8 @@ function onLoad() {
 const showTimer = setTimeout(function wait() {
   if (done) return;
   if (document.body) show(); else setTimeout(wait, 30);
-}, SHOW_AFTER);
-const maxTimer = setTimeout(hide, MAX_SHOWN);
-window.addEventListener('load', onLoad);
-window.addEventListener('pageshow', e => { if (e.persisted) hide(); });
+}, ALWAYS ? 0 : SHOW_AFTER);
+const maxTimer = ALWAYS ? 0 : setTimeout(hide, MAX_SHOWN);
+if (!ALWAYS) window.addEventListener('load', onLoad);
+window.addEventListener('pageshow', e => { if (e.persisted && !ALWAYS) hide(); });
 })();

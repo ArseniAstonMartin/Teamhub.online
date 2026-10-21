@@ -100,3 +100,9 @@
   slider.addEventListener("input", sync);
   sync();
 })();
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
