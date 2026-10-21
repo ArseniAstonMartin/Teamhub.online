@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Product — Teamhub</title>
+  <meta name="description" content="Teamhub product overview: custom job fields, shared pool claim flow, office web and technician mobile, photos, customers, and calendar." />
+  <link rel="stylesheet" href="../assets/css/site.css" />
+  <script src="../assets/js/loader.js"></script>
+  <link rel="icon" href="../assets/img/logo-mark.png" type="image/png" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap nav">
+      <a class="brand" href="../">
+        <img src="../assets/img/logo-mark.png" alt="" width="36" height="36" />
+        <span>Teamhub</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="./" aria-current="page">Product</a></li>
+        <li><a href="../pricing/">Pricing</a></li>
+        <li><a href="../why-choose-us/">Why choose us</a></li>
+        <li><a href="../industries/">Industries</a></li>
+      </ul>
+      <div class="nav-actions">
+        <!-- TO-DO: Replace Book a demo mailto with Calendly/booking URL when available -->
+        <a class="btn btn-secondary" href="mailto:dev@teamhub.online?subject=Book%20a%20demo">Book a demo</a>
+        <a class="btn btn-primary" href="mailto:dev@teamhub.online?subject=Contact%20sales">Contact sales</a>
+      </div>
+      <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-controls="nav-drawer" aria-label="Open menu">
+        <span></span>
+      </button>
+    </div>
+    <div class="wrap nav-drawer" id="nav-drawer" data-nav-drawer>
+      <ul>
+        <li><a href="./">Product</a></li>
+        <li><a href="../pricing/">Pricing</a></li>
+        <li><a href="../why-choose-us/">Why choose us</a></li>
+        <li><a href="../industries/">Industries</a></li>
+      </ul>
+      <div class="btn-row">
+        <a class="btn btn-secondary" href="mailto:dev@teamhub.online?subject=Book%20a%20demo">Book a demo</a>
+        <a class="btn btn-primary" href="mailto:dev@teamhub.online?subject=Contact%20sales">Contact sales</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="page-hero">
+      <div class="wrap reveal">
+        <p class="eyebrow">Product</p>
+        <h1>One system for the desk and the truck</h1>
+        <p>This page is the short tour. Deeper docs and tutorials will land here later — for now, here’s what you get today.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="ui-mock reveal">
+          <div class="mock-panel" aria-hidden="true">
+            <div class="mock-bar">
+              <span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span>
+              <span class="muted" style="margin-left:0.5rem;font-size:0.78rem;font-weight:650">Calendar + board</span>
+            </div>
+            <div class="mock-body">
+              <div class="mock-cal">
+                <div class="mock-slot filled"></div>
+                <div class="mock-slot filled"></div>
+                <div class="mock-slot"></div>
+                <div class="mock-slot filled"></div>
+                <div class="mock-slot"></div>
+                <div class="mock-slot"></div>
+                <div class="mock-slot filled"></div>
+                <div class="mock-slot"></div>
+              </div>
+              <div class="mock-row">
+                <span class="mock-pill pill-pool">Unclaimed</span>
+                <strong>Drain clear — 19 Elm</strong>
+                <span class="muted">14:00</span>
+              </div>
+              <div class="mock-row">
+                <span class="mock-pill pill-progress">In progress</span>
+                <strong>GFCI trip — Suite 4</strong>
+                <span class="muted">13:20</span>
+              </div>
+            </div>
+          </div>
+          <div class="phone-frame reveal reveal-delay-1" aria-hidden="true">
+            <div class="phone-notch"></div>
+            <div class="job-card">
+              <span class="mock-pill pill-progress">In progress</span>
+              <h4 style="margin-top:0.55rem">Job card</h4>
+              <p>Notes, photos, and status updates from the phone — same record the office sees.</p>
+              <div class="job-actions">
+                <span>Photos</span>
+                <span class="claim">Mark done</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section surface">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <h2>What’s included</h2>
+          <p>The pieces you’ll use every day.</p>
+        </div>
+        <div class="feature-list">
+          <article class="feature reveal">
+            <h3>Web for the office</h3>
+            <p>Admins and dispatchers schedule, edit schemas, manage customers, and watch the board.</p>
+          </article>
+          <article class="feature reveal reveal-delay-1">
+            <h3>Mobile for technicians</h3>
+            <p>Claim from the pool, run the job, attach photos and notes without calling the office for every update.</p>
+          </article>
+          <article class="feature reveal reveal-delay-2">
+            <h3>Custom job fields</h3>
+            <p>Shape the appointment form to your trade — including dependent dropdowns when one field depends on another.</p>
+          </article>
+          <article class="feature reveal">
+            <h3>Dispatch → claim → complete</h3>
+            <p>A clear status path so everyone knows who owns the job and what’s left.</p>
+          </article>
+          <article class="feature reveal reveal-delay-1">
+            <h3>Customers, calendar, photos</h3>
+            <p>Customer records, a calendar view, and photo uploads on the job — the basics that keep the day honest.</p>
+          </article>
+          <article class="feature reveal reveal-delay-2">
+            <h3>Assisted onboarding</h3>
+            <p>We help you get set up. Docs stay clear and short so you’re not hunting through a wiki to find “how do I claim a job.”</p>
+          </article>
+        </div>
+
+        <p class="note reveal">
+          <strong style="color:var(--navy)">Not in this release (yet):</strong> on-site payments, automated SMS, live technician GPS tracking. Those are on the roadmap — we won’t pretend they’re shipping today.
+        </p>
+      </div>
+    </section>
+
+    <section class="cta-band">
+      <div class="wrap">
+        <div class="cta-panel reveal">
+          <div>
+            <h2>Want a walkthrough?</h2>
+            <p>We’ll show the board, the pool, and a mobile job card with your trade’s fields in mind.</p>
+          </div>
+          <div class="btn-row">
+            <a class="btn btn-primary" href="mailto:dev@teamhub.online?subject=Contact%20sales">Contact sales</a>
+            <a class="btn btn-secondary" href="mailto:dev@teamhub.online?subject=Book%20a%20demo">Book a demo</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-grid">
+      <div class="footer-brand">
+        <a class="brand" href="../">
+          <img src="../assets/img/logo-mark.png" alt="" width="36" height="36" />
+          <span>Teamhub</span>
+        </a>
+        <p>Field service management for small US shops that need jobs to stick.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <ul>
+          <li><a href="./">Overview</a></li>
+          <li><a href="../pricing/">Pricing</a></li>
+          <li><a href="../why-choose-us/">Why choose us</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Industries</h4>
+        <ul>
+          <li><a href="../industries/">All industries</a></li>
+          <li><a href="../industries/plumbing/">Plumbing</a></li>
+          <li><a href="../industries/hvac/">HVAC</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Talk to us</h4>
+        <ul>
+          <li><a href="mailto:dev@teamhub.online?subject=Contact%20sales">Contact sales</a></li>
+          <li><a href="mailto:dev@teamhub.online?subject=Book%20a%20demo">Book a demo</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="wrap footer-bottom">
+      <span>&copy; 2026 Teamhub</span>
+      <span>teamhub.online</span>
+    </div>
+  </footer>
+
+  <script src="../assets/js/site.js"></script>
+</body>
+</html>

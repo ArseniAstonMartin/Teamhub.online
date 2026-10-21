@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pricing — Teamhub</title>
+  <meta name="description" content="Honest Teamhub pricing. Slide by jobs per month to see which plan fits: Free, Starter, Team, or Enterprise." />
+  <link rel="stylesheet" href="../assets/css/site.css" />
+  <script src="../assets/js/loader.js"></script>
+  <link rel="icon" href="../assets/img/logo-mark.png" type="image/png" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap nav">
+      <a class="brand" href="../">
+        <img src="../assets/img/logo-mark.png" alt="" width="36" height="36" />
+        <span>Teamhub</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="../product/">Product</a></li>
+        <li><a href="./" aria-current="page">Pricing</a></li>
+        <li><a href="../why-choose-us/">Why choose us</a></li>
+        <li><a href="../industries/">Industries</a></li>
+      </ul>
+      <div class="nav-actions">
+        <!-- TO-DO: Replace Book a demo mailto with Calendly/booking URL when available -->
+        <a class="btn btn-secondary" href="mailto:dev@teamhub.online?subject=Book%20a%20demo">Book a demo</a>
+        <a class="btn btn-primary" href="mailto:dev@teamhub.online?subject=Contact%20sales">Contact sales</a>
+      </div>
+      <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-controls="nav-drawer" aria-label="Open menu">
+        <span></span>
+      </button>
+    </div>
+    <div class="wrap nav-drawer" id="nav-drawer" data-nav-drawer>
+      <ul>
+        <li><a href="../product/">Product</a></li>
+        <li><a href="./">Pricing</a></li>
+        <li><a href="../why-choose-us/">Why choose us</a></li>
+        <li><a href="../industries/">Industries</a></li>
+      </ul>
+      <div class="btn-row">
+        <a class="btn btn-secondary" href="mailto:dev@teamhub.online?subject=Book%20a%20demo">Book a demo</a>
+        <a class="btn btn-primary" href="mailto:dev@teamhub.online?subject=Contact%20sales">Contact sales</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="page-hero">
+      <div class="wrap reveal">
+        <p class="eyebrow">Pricing</p>
+        <h1>Pick a plan by how busy you actually are</h1>
+        <p>Slide to your monthly job volume. We’ll highlight the plan that fits. Quotas are public — no “call us for everything” games on the basic numbers.</p>
+      </div>
+    </section>
+
+    <section class="section-tight">
+      <div class="wrap">
+        <div class="recommender reveal">
+          <div class="recommender-label">
+            <strong>How many jobs do you plan to process per month?</strong>
+            <span class="jobs-readout" data-jobs-readout>250 jobs / month</span>
+          </div>
+          <div class="slider-wrap">
+            <label class="sr-only" for="jobs-slider">Jobs per month</label>
+            <input
+              id="jobs-slider"
+              type="range"
+              min="10"
+              max="2000"
+              step="10"
+              value="250"
+              data-jobs-slider
+            />
+            <div class="scale-marks">
+              <span>10</span>
+              <span>25 Free</span>
+              <span>250 Starter</span>
+              <span>1,500 Team</span>
+              <span>2,000+</span>
+            </div>
+          </div>
+          <div class="recommend-result">
+            <div>
+              <p>Suggested plan</p>
+              <p class="plan-name" data-recommended-plan>Starter</p>
+              <p data-recommended-blurb>Fits most small crews that are past the “just us two” stage.</p>
+            </div>
+            <div class="btn-row">
+              <a class="btn btn-primary" href="mailto:dev@teamhub.online?subject=Contact%20sales">Contact sales</a>
+              <a class="btn btn-secondary" href="mailto:dev@teamhub.online?subject=Book%20a%20demo">Book a demo</a>
+            </div>
+          </div>
+        </div>
+
+        <figure class="figure reveal" style="margin-bottom:2rem">
+          <img src="../assets/img/pricing-scale.jpg" alt="Illustration of a job-volume scale pointing to plan options" width="1200" height="675" />
+        </figure>
+
+        <div class="plans">
+          <article class="plan" data-plan="free">
+            <div class="plan-top">
+              <h3>Free</h3>
+              <span class="plan-badge">Fits you</span>
+            </div>
+            <p class="price">$0 <span>/ mo</span></p>
+            <ul>
+              <li>2 seats</li>
+              <li>25 jobs / month</li>
+              <li>Schema presets only</li>
+            </ul>
+            <a class="btn btn-secondary" href="mailto:dev@teamhub.online?subject=Contact%20sales%20-%20Free%20plan">Contact sales</a>
+          </article>
+
+          <article class="plan is-recommended" data-plan="starter">
+            <div class="plan-top">
+              <h3>Starter</h3>
+              <span class="plan-badge">Fits you</span>
+            </div>
+            <p class="price">$49 <span>/ mo</span></p>
+            <ul>
+              <li>5 seats</li>
+              <li>250 jobs / month</li>
+              <li>Custom job fields</li>
+            </ul>
+            <a class="btn btn-primary" href="mailto:dev@teamhub.online?subject=Contact%20sales%20-%20Starter%20plan">Contact sales</a>
+          </article>
+
+          <article class="plan" data-plan="team">
+            <div class="plan-top">
+              <h3>Team</h3>
+              <span class="plan-badge">Fits you</span>
+            </div>
+            <p class="price">$169 <span>/ mo</span></p>
+            <ul>
+              <li>20 seats</li>
+              <li>1,500 jobs / month</li>
+              <li>Custom fields + advanced analytics</li>
+            </ul>
+            <a class="btn btn-secondary" href="mailto:dev@teamhub.online?subject=Contact%20sales%20-%20Team%20plan">Contact sales</a>
+          </article>
+
+          <article class="plan" data-plan="enterprise">
+            <div class="plan-top">
+              <h3>Enterprise</h3>
+              <span class="plan-badge">Fits you</span>
+            </div>
+            <p class="price">$349 <span>/ mo</span></p>
+            <ul>
+              <li>Unlimited seats</li>
+              <li>Unlimited jobs</li>
+              <li>Everything in Team, plus room to grow</li>
+            </ul>
+            <a class="btn btn-secondary" href="mailto:dev@teamhub.online?subject=Contact%20sales%20-%20Enterprise%20plan">Contact sales</a>
+          </article>
+        </div>
+
+        <div class="reveal" style="overflow-x:auto">
+          <table class="compare">
+            <thead>
+              <tr>
+                <th>Quota</th>
+                <th>Free</th>
+                <th>Starter</th>
+                <th>Team</th>
+                <th>Enterprise</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Price / month</td>
+                <td>$0</td>
+                <td>$49</td>
+                <td>$169</td>
+                <td>$349</td>
+              </tr>
+              <tr>
+                <td>Seats</td>
+                <td>2</td>
+                <td>5</td>
+                <td>20</td>
+                <td>Unlimited</td>
+              </tr>
+              <tr>
+                <td>Jobs / month</td>
+                <td>25</td>
+                <td>250</td>
+                <td>1,500</td>
+                <td>Unlimited</td>
+              </tr>
+              <tr>
+                <td>Custom schema</td>
+                <td>Presets only</td>
+                <td>Yes</td>
+                <td>Yes</td>
+                <td>Yes</td>
+              </tr>
+              <tr>
+                <td>Advanced analytics</td>
+                <td>—</td>
+                <td>—</td>
+                <td>Yes</td>
+                <td>Yes</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="note reveal">
+          Setup is assisted — we don’t offer self-serve registration yet. Contact sales or book a demo and we’ll provision your team.
+        </p>
+      </div>
+    </section>
+
+    <section class="cta-band">
+      <div class="wrap">
+        <div class="cta-panel reveal">
+          <div>
+            <h2>Not sure which plan?</h2>
+            <p>Tell us your seat count and busy season. We’ll recommend something sane.</p>
+          </div>
+          <div class="btn-row">
+            <a class="btn btn-primary" href="mailto:dev@teamhub.online?subject=Contact%20sales">Contact sales</a>
+            <a class="btn btn-secondary" href="mailto:dev@teamhub.online?subject=Book%20a%20demo">Book a demo</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-grid">
+      <div class="footer-brand">
+        <a class="brand" href="../">
+          <img src="../assets/img/logo-mark.png" alt="" width="36" height="36" />
+          <span>Teamhub</span>
+        </a>
+        <p>Field service management for small US shops that need jobs to stick.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <ul>
+          <li><a href="../product/">Overview</a></li>
+          <li><a href="./">Pricing</a></li>
+          <li><a href="../why-choose-us/">Why choose us</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Industries</h4>
+        <ul>
+          <li><a href="../industries/">All industries</a></li>
+          <li><a href="../industries/plumbing/">Plumbing</a></li>
+          <li><a href="../industries/hvac/">HVAC</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Talk to us</h4>
+        <ul>
+          <li><a href="mailto:dev@teamhub.online?subject=Contact%20sales">Contact sales</a></li>
+          <li><a href="mailto:dev@teamhub.online?subject=Book%20a%20demo">Book a demo</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="wrap footer-bottom">
+      <span>&copy; 2026 Teamhub</span>
+      <span>teamhub.online</span>
+    </div>
+  </footer>
+
+  <script src="../assets/js/site.js"></script>
+</body>
+</html>
