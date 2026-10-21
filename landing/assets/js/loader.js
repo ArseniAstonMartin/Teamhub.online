@@ -11,7 +11,16 @@ const MAX_SHOWN  = 20000; // мс: страховка, если load так и �
 const root = document.documentElement;
 // offline.html: лоадер показывается сразу, на белом фоне, и не скрывается
 const ALWAYS = root.hasAttribute('data-loader-always');
-if (document.readyState === 'complete' && !ALWAYS) return;
+const NAV_KEY = 'th-loader-nav';
+const NAV_TTL = 15000;   // мс: флаг перехода живёт недолго, чтобы не поймать старый
+// переход по внутренней ссылке: старая страница уже показала лоадер, новая подхватывает его с той же фазы
+let navStart = 0;
+try {
+  const v = +sessionStorage.getItem(NAV_KEY);
+  sessionStorage.removeItem(NAV_KEY);
+  if (v && Date.now() - v >= 0 && Date.now() - v < NAV_TTL) navStart = v;
+} catch (e) {}
+const FRESH = document.readyState !== 'complete';   // у уже загруженной страницы лоадер включается только по клику
 
 /* ───────────────────────── Настройки ───────────────────────── */
 const CFG = {
@@ -338,22 +347,22 @@ function tick(now) {
   raf = requestAnimationFrame(tick);
 }
 
-function show() {
+function show(instant, phaseStart) {
   if (done || overlay) return;
-  const host = document.body || root;
+  const host = root;
   overlay = document.createElement('div');
   overlay.setAttribute('role', 'status');
   overlay.setAttribute('aria-label', 'Loading');
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:'+(ALWAYS ? '#fff' : '#eef1f6')+';opacity:0;transition:opacity .25s ease';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:'+(ALWAYS ? '#fff' : '#eef1f6')+';opacity:'+(instant ? 1 : 0)+';transition:opacity .25s ease';
   canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block';
   overlay.appendChild(canvas);
   host.appendChild(overlay);
   resize();
   window.addEventListener('resize', resize);
   shownAt = performance.now();
-  t0 = shownAt;
+  t0 = shownAt - (phaseStart ? Date.now() - phaseStart : 0);
   if (reduced) render(0); else raf = requestAnimationFrame(tick);
-  requestAnimationFrame(() => { overlay.style.opacity = '1'; });
+  if (!instant) requestAnimationFrame(() => { overlay.style.opacity = '1'; });
 }
 
 function hide() {
@@ -362,6 +371,7 @@ function hide() {
   clearTimeout(showTimer); clearTimeout(maxTimer);
   if (!overlay) return;
   const o = overlay;
+  overlay = null;
   o.style.opacity = '0';
   setTimeout(() => {
     cancelAnimationFrame(raf);
@@ -372,16 +382,34 @@ function hide() {
 
 function onLoad() {
   if (!overlay) { hide(); return; }
+  if (overlay.dataset.nav) { hide(); return; }
   const left = MIN_SHOWN - (performance.now() - shownAt);
   if (left > 0) setTimeout(hide, left); else hide();
 }
 
-// body может ещё не существовать — ждём его, но отсчёт «медленной загрузки» идёт с момента старта скрипта
-const showTimer = setTimeout(function wait() {
-  if (done) return;
-  if (document.body) show(); else setTimeout(wait, 30);
-}, ALWAYS ? 0 : SHOW_AFTER);
-const maxTimer = ALWAYS ? 0 : setTimeout(hide, MAX_SHOWN);
-if (!ALWAYS) window.addEventListener('load', onLoad);
+let showTimer = 0, maxTimer = 0;
+function arm() {
+  clearTimeout(showTimer); clearTimeout(maxTimer);
+  if (navStart) { show(true, navStart); navStart = 0; }
+  else showTimer = setTimeout(function wait() {
+    if (done) return;
+    if (document.body) show(); else setTimeout(wait, 30);
+  }, ALWAYS ? 0 : SHOW_AFTER);
+  maxTimer = ALWAYS ? 0 : setTimeout(hide, MAX_SHOWN);
+}
+if (FRESH || ALWAYS) { arm(); if (!ALWAYS) window.addEventListener('load', onLoad); }
 window.addEventListener('pageshow', e => { if (e.persisted && !ALWAYS) hide(); });
+
+// клик по внутренней ссылке: сразу закрываем старую страницу лоадером, не дожидаясь сети
+window.TeamhubLoader = {
+  start() {
+    if (ALWAYS || overlay) return;
+    done = false;
+    show(false);
+    try { sessionStorage.setItem(NAV_KEY, String(Date.now())); } catch (e) {}
+    if (overlay) overlay.dataset.nav = '1';
+    clearTimeout(maxTimer);
+    maxTimer = setTimeout(hide, MAX_SHOWN);   // переход не состоялся — не зависаем
+  }
+};
 })();

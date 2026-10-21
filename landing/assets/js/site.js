@@ -106,3 +106,13 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js").catch(() => {});
   });
 }
+
+// Клик по внутренней ссылке: сразу показываем анимацию загрузки, не ждём ответа сети.
+document.addEventListener("click", (e) => {
+  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  const a = e.target.closest && e.target.closest("a[href]");
+  if (!a || (a.target && a.target !== "_self") || a.hasAttribute("download")) return;
+  const url = new URL(a.href, location.href);
+  if (url.origin !== location.origin || (url.pathname === location.pathname && url.search === location.search)) return;
+  if (window.TeamhubLoader) window.TeamhubLoader.start();
+});
